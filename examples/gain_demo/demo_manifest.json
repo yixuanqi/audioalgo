@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "generator": "scripts/create_demo_project.py",
+  "sample_rate_hz": 48000,
+  "channels": 2,
+  "frames": 96000,
+  "encoding": "PCM16",
+  "tone_frequencies_hz": [
+    440.0,
+    660.0
+  ],
+  "amplitude": 0.18,
+  "source_sha256": "156b5229f494b119bc604d0736ae89149e5665bb96cd00da015efd2df1df4c3e"
+}
