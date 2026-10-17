@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "acceptance_source": "doc/testing_editor_node_interaction.md",
+  "acceptance_document_sha256": "3d23207f8afca099873a6a9815aedc6eaee24512a119079d0172a60ee4fd5fe3",
+  "test_name_pattern": "{requirement_id}.{subcase_id}",
+  "desktop_evidence_required_fields": [
+    "operation",
+    "os",
+    "display_scale_percent",
+    "physical_client_size",
+    "logical_client_size",
+    "executable_path",
+    "executable_sha256",
+    "source_tree_hash",
+    "timestamp_utc",
+    "screenshot_path",
+    "screenshot_sha256"
+  ],
+  "requirements": [
+    {"id": "NED-01", "subcases": ["a", "b", "c"], "desktop_subcases": ["a", "b", "c"], "evidence_tags": {"b": ["project_id", "input_sha256"]}},
+    {"id": "NED-02", "subcases": ["a", "b", "c", "d"], "desktop_subcases": ["a", "b", "c", "d"]},
+    {"id": "NED-03", "subcases": ["a", "b", "c", "d", "e"], "desktop_subcases": ["a", "b", "c", "d", "e"], "evidence_tags": {"e": ["project_id"]}},
+    {"id": "NED-04", "subcases": ["a", "b", "c"], "desktop_subcases": ["c"], "evidence_tags": {"c": ["project_id", "run_id"]}},
+    {"id": "NED-05", "subcases": ["a", "b", "c", "d", "e"], "desktop_subcases": ["a", "b", "c", "d"], "evidence_tags": {"a": ["project_id"], "b": ["project_id"], "c": ["project_id"], "d": ["project_id"]}},
+    {"id": "NED-06", "subcases": ["a", "b", "c", "d", "e"], "desktop_subcases": ["a", "b", "c", "d", "e"], "evidence_tags": {"d": ["project_id", "revision", "run_id"]}},
+    {"id": "NED-07", "subcases": ["a", "b", "c", "d", "e", "f"], "desktop_subcases": ["a", "b", "c", "d", "e", "f"], "evidence_tags": {"a": ["project_id"], "d": ["project_id"], "e": ["project_id"], "f": ["project_id"]}},
+    {"id": "NED-08", "subcases": ["a", "b", "c", "d", "e"], "desktop_subcases": ["a", "b", "c", "d", "e"], "evidence_tags": {"a": ["project_id", "revision"], "b": ["project_id"], "c": ["project_id"], "d": ["project_id"], "e": ["project_id", "revision"]}},
+    {"id": "NED-09", "subcases": ["a", "b", "c", "d", "e"], "desktop_subcases": ["a", "b", "c", "d", "e"], "evidence_tags": {"a": ["project_id"], "b": ["project_id", "run_id"], "c": ["project_id"], "d": ["project_id"], "e": ["project_id", "revision"]}},
+    {"id": "NED-10", "subcases": ["a", "b", "c", "d", "e", "f", "g", "h"], "desktop_subcases": ["a", "b", "c", "d", "e", "f", "g", "h"], "evidence_tags": {"a": ["project_id", "revision"], "b": ["project_id", "revision"], "c": ["project_id", "revision"], "d": ["project_id", "revision"], "e": ["project_id"], "f": ["project_id"], "g": ["project_id"], "h": ["project_id", "revision"]}},
+    {"id": "NED-11", "subcases": ["a", "b", "c", "d", "e", "f", "g"], "desktop_subcases": ["a", "b", "c", "f", "g"], "evidence_tags": {"a": ["project_id", "revision"], "b": ["project_id", "revision"], "c": ["project_id", "revision"], "f": ["project_id"], "g": ["project_id", "revision"]}},
+    {"id": "NED-12", "subcases": ["a", "b", "c", "d"], "desktop_subcases": []},
+    {"id": "NED-13", "subcases": ["a", "b", "c", "d"], "desktop_subcases": ["a", "b", "c", "d"], "evidence_tags": {"a": ["project_id", "revision"], "b": ["project_id", "input_sha256"], "c": ["project_id", "run_id", "revision", "output_sha256"], "d": ["project_id"]}},
+    {"id": "NED-14", "subcases": ["a", "b", "c", "d", "e"], "desktop_subcases": ["a", "b", "c", "d", "e"], "evidence_tags": {"a": ["project_id", "revision"], "b": ["project_id", "revision", "run_id", "input_sha256", "output_sha256"], "c": ["project_id", "revision", "run_id", "output_sha256"], "d": ["project_id", "revision", "run_id"], "e": ["project_id", "run_id", "revision", "output_sha256"]}}
+  ]
+}
