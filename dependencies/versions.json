@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "lock_source": "vcpkg registry snapshot be563dfee81e88f9f6cf68839dff5b671b5cfb37, with source archive SHA-512 pins",
+  "juce": {
+    "version": "8.0.7",
+    "url": "https://github.com/juce-framework/JUCE/archive/refs/tags/8.0.7.tar.gz",
+    "sha512": "ca404d94f8f79d9644f391342807dde279d1d313ef597a5d7fa88760e0459f2639cb98b6523c3ae71b2641357df63353c1f32e9b33dd9f050f5651fba470ec33",
+    "license": "GPL-3.0-or-later OR JUCE commercial licence; distribution choice not made"
+  },
+  "catch2": {
+    "version": "3.11.0",
+    "url": "https://github.com/catchorg/Catch2/archive/refs/tags/v3.11.0.tar.gz",
+    "sha512": "a95495142f915d6e9c2a23e80fe360343e9097680066a2f9d3037a070ba5f81ee5559a0407cc9e972dc2afae325873f1fc7ea07a64012c0f01aac6e549f03e3f",
+    "license": "BSL-1.0"
+  },
+  "speexdsp": {
+    "version": "1.2.1",
+    "url": "https://downloads.xiph.org/releases/speex/speexdsp-1.2.1.tar.gz",
+    "sha512": "41b5f37b48db5cb8c5a0f6437a4a8266d2627a5b7c1088de8549fe0bf0bb3105b7df8024fe207eef194096e0726ea73e2b53e0a4293d8db8e133baa0f8a3bad3",
+    "license": "BSD-3-Clause"
+  }
+}

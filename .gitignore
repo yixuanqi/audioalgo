@@ -1,0 +1,21 @@
+# Generated builds, test reports, and IDE output
+/build/
+/cmake-build-*/
+/out/
+/.vs/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+
+# Windows and IDE user state
+Thumbs.db
+Desktop.ini
+*.user
+*.suo
