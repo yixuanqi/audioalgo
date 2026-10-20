@@ -4,6 +4,12 @@
 #include "../../apps/editor/EditorTopologyCommands.h"
 #include "audio_project/ProjectFileIO.h"
 #include "audio_run_service/RunService.h"
+#include "audio_editor_application/EditorController.h"
+#include "../../apps/editor/EditorCompletionDispatch.h"
+#include "../../apps/editor/EditorWorkerPool.h"
+#include "../../apps/editor/EditorWorkJob.h"
+#include "audio_editor_application/RunReception.h"
+#include "plugins/builtin/registration.h"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -12,11 +18,18 @@
 
 #include <algorithm>
 #include <cmath>
+#include <chrono>
+#include <condition_variable>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <iterator>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 #include <vector>
 
 using audioalgo::AudioBuffer;
@@ -28,14 +41,13 @@ using audioalgo::RunSuccess;
 using audioalgo::WavEncoding;
 using audioalgo::load_project_file;
 using audioalgo::read_wav_file;
-using audioalgo::register_builtin_juce_processors;
-using audioalgo::register_builtin_node_descriptors;
+using audioalgo::register_builtin_nodes;
 using audioalgo::save_project_file;
 using audioalgo::write_wav_file;
 
 namespace {
 struct TemporaryDirectory {
-    std::filesystem::path path = std::filesystem::temp_directory_path() /
+    std::filesystem::path path = std::filesystem::current_path() / ".audioalgo-test-tmp" /
         std::filesystem::u8path("AudioAlgo 音频 E2E " + juce::Uuid().toString().toStdString());
     TemporaryDirectory() { std::filesystem::create_directories(path); }
     ~TemporaryDirectory() { std::error_code ignored; std::filesystem::remove_all(path, ignored); }
@@ -58,6 +70,8 @@ struct RunMetadata {
     std::string input_file;
     std::string input_sha256;
     std::string output_sha256;
+    std::string request_id;
+    std::uint64_t session_epoch = 0;
 };
 
 std::optional<RunMetadata> read_run_metadata(const std::filesystem::path& path) {
@@ -73,14 +87,19 @@ std::optional<RunMetadata> read_run_metadata(const std::filesystem::path& path) 
     const auto input_file = object->getProperty("input_file");
     const auto input_hash = object->getProperty("input_sha256");
     const auto output_hash = object->getProperty("output_sha256");
+    const auto request_id = object->getProperty("request_id");
+    const auto session_epoch = object->getProperty("session_epoch");
     if (!run_id.isString() || !project_id.isString() || (!revision.isInt64() && !revision.isInt()) ||
-        !input_file.isString() || !input_hash.isString() || !output_hash.isString())
+        !input_file.isString() || !input_hash.isString() || !output_hash.isString() || !request_id.isString() ||
+        (!session_epoch.isInt64() && !session_epoch.isInt()))
         return std::nullopt;
     return RunMetadata{
         run_id.toString().toStdString(), project_id.toString().toStdString(),
         static_cast<std::uint64_t>(static_cast<juce::int64>(revision)),
         input_file.toString().toStdString(),
-        input_hash.toString().toStdString(), output_hash.toString().toStdString()};
+        input_hash.toString().toStdString(), output_hash.toString().toStdString(),
+        request_id.toString().toStdString(),
+        static_cast<std::uint64_t>(static_cast<juce::int64>(session_epoch))};
 }
 
 struct CliRunOutcome {
@@ -126,7 +145,691 @@ ProjectModel make_project() {
     project.selected_output_node_id = "output";
     return project;
 }
+
+struct RunDisplayState {
+    std::string result = "B-result";
+    std::string waveform = "B-waveform";
+    std::filesystem::path playback_file = "B.wav";
+    std::string status = "B-ready";
+    bool operator==(const RunDisplayState&) const = default;
+};
 } // namespace
+
+TEST_CASE("AR-08.g Controller and RunService reject schema violations with located diagnostics",
+          "[R2][AR-08.g][native_integration]") {
+    juce::ScopedJuceInitialiser_GUI juce_message_environment;
+    TemporaryDirectory temporary;
+    const auto project_path = temporary.path / "invalid-project.aaproj";
+    {
+        std::ofstream project_file(project_path, std::ios::binary);
+        REQUIRE(project_file.good());
+        project_file << "placeholder";
+    }
+
+    NodeRegistry descriptors;
+    register_builtin_nodes(descriptors);
+    auto project = make_project();
+    audioalgo::editor::EditorController controller(descriptors);
+    controller.adopt_project(project);
+
+    const auto controller_parameter = controller.set_parameter("gain", "gain_db", 99.0);
+    REQUIRE(controller_parameter.status == audioalgo::editor::ParameterEditStatus::rejected);
+    REQUIRE(controller_parameter.diagnostic.has_value());
+    CHECK(controller_parameter.diagnostic->code == "parameter_out_of_range");
+    CHECK(controller_parameter.diagnostic->node_id == "gain");
+    CHECK(controller_parameter.diagnostic->port_id == "gain_db");
+
+    const auto controller_connection = controller.connect({"gain", "missing_output", "output", "audio"});
+    REQUIRE(controller_connection.status == audioalgo::editor::ProjectEditStatus::rejected);
+    REQUIRE_FALSE(controller_connection.diagnostics.empty());
+    CHECK(controller_connection.diagnostics.front().code == "connection_source_port_missing");
+    CHECK(controller_connection.diagnostics.front().node_id == "gain");
+    CHECK(controller_connection.diagnostics.front().port_id == "missing_output");
+
+    RunService service(descriptors);
+    auto invalid_parameter_project = project;
+    invalid_parameter_project.nodes[1].parameters["gain_db"] = 99.0;
+    const auto parameter_run = service.run({invalid_parameter_project, project_path,
+                                            temporary.path / "invalid-parameter-run", 127});
+    const auto* parameter_diagnostic = std::get_if<audioalgo::Diagnostic>(&parameter_run);
+    REQUIRE(parameter_diagnostic != nullptr);
+    CHECK(parameter_diagnostic->code == controller_parameter.diagnostic->code);
+    CHECK(parameter_diagnostic->node_id == controller_parameter.diagnostic->node_id);
+    CHECK(parameter_diagnostic->port_id == controller_parameter.diagnostic->port_id);
+    CHECK(parameter_diagnostic->node_id == "gain");
+    CHECK(parameter_diagnostic->port_id == "gain_db");
+
+    auto invalid_connection_project = project;
+    invalid_connection_project.connections.back().from_port = "missing_output";
+    const auto connection_run = service.run({invalid_connection_project, project_path,
+                                             temporary.path / "invalid-connection-run", 127});
+    const auto* connection_diagnostic = std::get_if<audioalgo::Diagnostic>(&connection_run);
+    REQUIRE(connection_diagnostic != nullptr);
+    CHECK(connection_diagnostic->code == controller_connection.diagnostics.front().code);
+    CHECK(connection_diagnostic->node_id == controller_connection.diagnostics.front().node_id);
+    CHECK(connection_diagnostic->port_id == controller_connection.diagnostics.front().port_id);
+    CHECK(connection_diagnostic->node_id == "gain");
+    CHECK(connection_diagnostic->port_id == "missing_output");
+}
+
+TEST_CASE("AR-03.g", "[architecture][native_integration][run_identity]") {
+    juce::ScopedJuceInitialiser_GUI juce_message_environment;
+    TemporaryDirectory temporary;
+    const auto project_path = temporary.path / "delayed A.aaproj";
+    const auto input_path = temporary.path / "input.wav";
+    AudioBuffer input(48000, {"left", "right"}, 513);
+    for (std::size_t frame = 0; frame < input.frame_count(); ++frame) {
+        input.mutable_channel(0)[frame] = static_cast<float>(0.3 * std::sin(frame * 0.03));
+        input.mutable_channel(1)[frame] = static_cast<float>(0.2 * std::cos(frame * 0.05));
+    }
+    REQUIRE(std::holds_alternative<audioalgo::WavWriteSummary>(write_wav_file(input_path, input, WavEncoding::float32)));
+    auto project_a = make_project();
+    project_a.project_id = "project-A";
+    REQUIRE(std::holds_alternative<std::monostate>(save_project_file(project_path, project_a)));
+
+    NodeRegistry descriptors;
+    register_builtin_nodes(descriptors);
+    RunService service(descriptors);
+    const audioalgo::RunIdentity identity{"project-A", 11, "request-A", project_a.revision};
+    RunRequest request{project_a, project_path, temporary.path / "A-run", 127};
+    request.identity = identity; // assigned before the worker is queued
+
+    audioalgo::RunReception reception;
+    reception.begin(identity);
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool worker_started = false;
+    bool release_worker = false;
+    bool delivered = false;
+    bool run_succeeded = false;
+    bool identity_matches = false;
+    std::string run_id;
+    RunDisplayState display_b;
+    const auto before_open = display_b;
+    auto project_b_id = project_a.project_id;
+    auto project_b_epoch = std::uint64_t{11};
+    const auto project_b_revision = project_a.revision;
+
+    std::thread worker([&] {
+        {
+            std::unique_lock lock(mutex);
+            worker_started = true;
+            condition.notify_one();
+            condition.wait(lock, [&] { return release_worker; });
+        }
+        auto outcome = service.run(request);
+        const auto* success = std::get_if<RunSuccess>(&outcome);
+        run_succeeded = success != nullptr;
+        if (success != nullptr) {
+            run_id = success->run_id;
+            identity_matches = success->identity == identity;
+        }
+        juce::MessageManager::callAsync([&, outcome = std::move(outcome)]() mutable {
+            if (const auto* result = std::get_if<RunSuccess>(&outcome)) {
+                if (reception.accepts(identity, project_b_id, project_b_epoch, project_b_revision))
+                    display_b = {result->run_id, "A-waveform", result->output_file, "A-complete"};
+            }
+            {
+                std::lock_guard lock(mutex);
+                delivered = true;
+            }
+            condition.notify_one();
+            juce::MessageManager::getInstance()->stopDispatchLoop();
+        });
+    });
+    {
+        std::unique_lock lock(mutex);
+        REQUIRE(condition.wait_for(lock, std::chrono::seconds(5), [&] { return worker_started; }));
+    }
+
+    // Opening a distinct project with the same revision revokes A's authority.
+    reception.invalidate();
+    project_b_id = "project-B";
+    project_b_epoch = 12;
+    const auto after_open = display_b;
+    {
+        std::lock_guard lock(mutex);
+        release_worker = true;
+    }
+    condition.notify_one();
+    auto* message_manager = juce::MessageManager::getInstance();
+    std::thread watchdog([&] {
+        std::unique_lock lock(mutex);
+        if (!condition.wait_for(lock, std::chrono::seconds(5), [&] { return delivered; }))
+            message_manager->stopDispatchLoop();
+    });
+    message_manager->runDispatchLoop();
+    watchdog.join();
+    worker.join();
+
+    REQUIRE(run_succeeded);
+    REQUIRE(identity_matches);
+    REQUIRE_FALSE(run_id.empty());
+    REQUIRE(run_id == identity.request_id);
+    REQUIRE(delivered);
+    REQUIRE(project_b_revision == project_a.revision);
+    REQUIRE(display_b == after_open);
+    REQUIRE(display_b == before_open);
+    REQUIRE(std::filesystem::exists(temporary.path / "A-run" / "output.wav"));
+    REQUIRE(reception.active() == std::nullopt);
+    const auto metadata = read_run_metadata(temporary.path / "A-run" / "run.json");
+    REQUIRE(metadata.has_value());
+    REQUIRE(metadata->run_id == identity.request_id);
+    REQUIRE(metadata->request_id == identity.request_id);
+    REQUIRE(metadata->project_id == identity.project_id);
+    REQUIRE(metadata->session_epoch == identity.session_epoch);
+    REQUIRE(metadata->project_revision == identity.revision);
+}
+
+TEST_CASE("AR-09.d RunService keeps its registry alive across owner release",
+          "[architecture][native_integration][lifecycle]") {
+    juce::ScopedJuceInitialiser_GUI juce_message_environment;
+    TemporaryDirectory temporary;
+    const auto project_path = temporary.path / "registry lease.aaproj";
+    const auto input_path = temporary.path / "input.wav";
+    AudioBuffer input(48000, {"left", "right"}, 513);
+    for (std::size_t frame = 0; frame < input.frame_count(); ++frame) {
+        input.mutable_channel(0)[frame] = static_cast<float>(0.25 * std::sin(frame * 0.017));
+        input.mutable_channel(1)[frame] = static_cast<float>(-0.18 * std::cos(frame * 0.023));
+    }
+    REQUIRE(std::holds_alternative<audioalgo::WavWriteSummary>(
+        write_wav_file(input_path, input, WavEncoding::float32)));
+
+    auto project = make_project();
+    project.project_id = "registry-lease-project";
+    CHECK(std::get<double>(project.nodes[1].parameters.at("gain_db")) == Catch::Approx(6.0));
+    REQUIRE(std::holds_alternative<std::monostate>(save_project_file(project_path, project)));
+
+    auto registry = std::make_shared<NodeRegistry>();
+    REQUIRE(register_builtin_nodes(*registry));
+    std::weak_ptr<const NodeRegistry> registry_lifetime = registry;
+    RunService service{std::shared_ptr<const NodeRegistry>(registry)};
+    const audioalgo::RunIdentity identity{"registry-lease-project", 19, "registry-lease-run", project.revision};
+    RunRequest request{project, project_path, temporary.path / "worker-run", 127};
+    request.identity = identity;
+
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool worker_started = false;
+    bool release_worker = false;
+    bool worker_finished = false;
+    std::optional<audioalgo::RunOutcome> outcome;
+    auto* const message_manager = juce::MessageManager::getInstance();
+    std::thread worker([service = std::move(service), request = std::move(request), registry_lifetime,
+                        &mutex, &condition, &worker_started, &release_worker, &worker_finished, &outcome,
+                        message_manager]() mutable {
+        {
+            std::unique_lock lock(mutex);
+            worker_started = true;
+            condition.notify_one();
+            condition.wait(lock, [&] { return release_worker; });
+        }
+        if (registry_lifetime.expired()) {
+            outcome = audioalgo::Diagnostic{"registry_released_early", "RunService lost its node registry"};
+        } else {
+            outcome = service.run(request);
+        }
+        {
+            std::lock_guard lock(mutex);
+            worker_finished = true;
+        }
+        condition.notify_one();
+        message_manager->stopDispatchLoop();
+    });
+
+    bool started = false;
+    {
+        std::unique_lock lock(mutex);
+        started = condition.wait_for(lock, std::chrono::seconds(5), [&] { return worker_started; });
+    }
+    registry.reset(); // Simulate the editor releasing its owner while the worker is still queued.
+    const bool retained_after_owner_release = !registry_lifetime.expired();
+    {
+        std::lock_guard lock(mutex);
+        release_worker = true;
+    }
+    condition.notify_one();
+    message_manager->runDispatchLoop();
+    bool finished = false;
+    {
+        std::lock_guard lock(mutex);
+        finished = worker_finished;
+    }
+    worker.join();
+
+    REQUIRE(started);
+    REQUIRE(finished);
+    REQUIRE(retained_after_owner_release);
+    REQUIRE(outcome.has_value());
+    REQUIRE(std::holds_alternative<RunSuccess>(*outcome));
+    const auto& success = std::get<RunSuccess>(*outcome);
+    CHECK(success.identity == identity);
+    CHECK(success.run_id == identity.request_id);
+    CHECK(success.frames == input.frame_count());
+    CHECK(std::filesystem::exists(success.output_file));
+    CHECK(std::filesystem::exists(success.manifest_file));
+    CHECK(std::filesystem::exists(success.complete_file));
+    const auto rendered = read_wav_file(success.output_file);
+    REQUIRE(std::holds_alternative<AudioBuffer>(rendered));
+    const auto& rendered_audio = std::get<AudioBuffer>(rendered);
+    CHECK(rendered_audio.frame_count() == input.frame_count());
+    CHECK(rendered_audio.sample_rate_hz() == input.sample_rate_hz());
+    CHECK(rendered_audio.channel_count() == input.channel_count());
+    const auto expected_gain = std::pow(10.0, 6.0 / 20.0);
+    for (const auto frame : {std::size_t{1}, std::size_t{128}, std::size_t{512}}) {
+        CHECK(rendered_audio.channel(0)[frame] == Catch::Approx(input.channel(0)[frame] * expected_gain).margin(2.0e-6));
+        CHECK(rendered_audio.channel(1)[frame] == Catch::Approx(input.channel(1)[frame] * expected_gain).margin(2.0e-6));
+    }
+    const auto metadata = read_run_metadata(success.manifest_file);
+    REQUIRE(metadata.has_value());
+    CHECK(metadata->run_id == identity.request_id);
+    CHECK(metadata->project_id == identity.project_id);
+    CHECK(metadata->session_epoch == identity.session_epoch);
+    CHECK(metadata->project_revision == identity.revision);
+    CHECK(metadata->input_file == input_path.filename().string());
+    CHECK(metadata->input_sha256 == success.input_sha256);
+    CHECK(metadata->output_sha256 == success.output_sha256);
+
+    if (const auto* artifact_path = std::getenv("AUDIOALGO_T05B_ARTIFACT_OUTPUT");
+        artifact_path != nullptr && artifact_path[0] != '\0') {
+        const auto artifact_directory = std::filesystem::u8path(artifact_path);
+        REQUIRE_FALSE(std::filesystem::exists(artifact_directory));
+        REQUIRE(std::filesystem::create_directories(artifact_directory));
+        CHECK(std::filesystem::copy_file(success.output_file, artifact_directory / "output.wav"));
+        CHECK(std::filesystem::copy_file(success.manifest_file, artifact_directory / "run.json"));
+        CHECK(std::filesystem::copy_file(success.complete_file, artifact_directory / "complete.json"));
+    }
+    CHECK(registry_lifetime.expired());
+}
+
+TEST_CASE("AR-09.d queued completion is dropped after its component is destroyed",
+          "[architecture][native_integration][lifecycle]") {
+    juce::ScopedJuceInitialiser_GUI juce_message_environment;
+    struct CompletionTarget final : juce::Component {
+        int delivery_count = 0;
+        std::thread::id delivery_thread;
+    };
+
+    const auto message_thread = std::this_thread::get_id();
+    auto live_target = std::make_unique<CompletionTarget>();
+    auto destroyed_target = std::make_unique<CompletionTarget>();
+    auto live_state = std::make_shared<audioalgo::editor::ComponentDispatchState<CompletionTarget>>(*live_target);
+    auto destroyed_state = std::make_shared<audioalgo::editor::ComponentDispatchState<CompletionTarget>>(*destroyed_target);
+    std::weak_ptr<audioalgo::editor::ComponentDispatchState<CompletionTarget>> live_pointer = live_state;
+    std::weak_ptr<audioalgo::editor::ComponentDispatchState<CompletionTarget>> destroyed_pointer = destroyed_state;
+
+    std::mutex mutex;
+    std::condition_variable condition;
+    bool callbacks_queued = false;
+    bool live_scheduled = false;
+    bool destroyed_scheduled = false;
+    int destroyed_delivery_count = 0;
+    std::thread worker([&] {
+        live_scheduled = audioalgo::editor::dispatch_to_live_component(
+            live_pointer, [&](CompletionTarget& target) {
+                ++target.delivery_count;
+                target.delivery_thread = std::this_thread::get_id();
+            });
+        destroyed_scheduled = audioalgo::editor::dispatch_to_live_component(
+            destroyed_pointer, [&](CompletionTarget&) { ++destroyed_delivery_count; });
+        {
+            std::lock_guard lock(mutex);
+            callbacks_queued = true;
+        }
+        condition.notify_one();
+    });
+
+    bool queued = false;
+    {
+        std::unique_lock lock(mutex);
+        queued = condition.wait_for(lock, std::chrono::seconds(5), [&] { return callbacks_queued; });
+    }
+    worker.join();
+    REQUIRE(queued);
+    REQUIRE(live_scheduled);
+    REQUIRE(destroyed_scheduled);
+
+    destroyed_state->invalidate();
+    destroyed_target.reset(); // The completion is queued, but its View is gone before delivery.
+    destroyed_state.reset();
+    const auto stop_posted = juce::MessageManager::callAsync([] {
+        juce::MessageManager::getInstance()->stopDispatchLoop();
+    });
+    REQUIRE(stop_posted);
+    juce::MessageManager::getInstance()->runDispatchLoop();
+
+    CHECK(live_target->delivery_count == 1);
+    CHECK(live_target->delivery_thread == message_thread);
+    CHECK(destroyed_delivery_count == 0);
+    live_state->invalidate();
+}
+
+TEST_CASE("AR-09.e editor file work runs on a worker and completes on the message thread",
+          "[architecture][native_integration][async_io]") {
+    juce::ScopedJuceInitialiser_GUI juce_message_environment;
+    struct CompletionTarget final : juce::Component {
+        bool completed = false;
+        bool file_read_succeeded = false;
+        std::thread::id work_thread;
+        std::thread::id completion_thread;
+    };
+
+    CompletionTarget target;
+    auto state = std::make_shared<audioalgo::editor::ComponentDispatchState<CompletionTarget>>(target);
+    std::weak_ptr<audioalgo::editor::ComponentDispatchState<CompletionTarget>> weak_state = state;
+    const auto message_thread = std::this_thread::get_id();
+    const auto existing_source = std::filesystem::path(AUDIOALGO_SOURCE_DIR) / "apps" / "editor" / "Main.cpp";
+    audioalgo::editor::EditorWorkerPool pool(1);
+    auto* job = new audioalgo::editor::EditorWorkJob<CompletionTarget, std::pair<std::thread::id, bool>>(
+        weak_state,
+        [existing_source] {
+            std::ifstream input(existing_source, std::ios::binary);
+            char first_byte = 0;
+            input.read(&first_byte, 1);
+            return std::pair{std::this_thread::get_id(), input.gcount() == 1};
+        },
+        [](CompletionTarget& component, std::pair<std::thread::id, bool> result) {
+            component.work_thread = result.first;
+            component.file_read_succeeded = result.second;
+            component.completion_thread = std::this_thread::get_id();
+            component.completed = true;
+            juce::MessageManager::getInstance()->stopDispatchLoop();
+        });
+    REQUIRE(pool.add_job(job, true));
+
+    std::mutex watchdog_mutex;
+    std::condition_variable watchdog_condition;
+    bool dispatch_finished = false;
+    std::thread watchdog([&] {
+        std::unique_lock lock(watchdog_mutex);
+        if (!watchdog_condition.wait_for(lock, std::chrono::seconds(5), [&] { return dispatch_finished; })) {
+            lock.unlock();
+            (void)juce::MessageManager::callAsync([] {
+                juce::MessageManager::getInstance()->stopDispatchLoop();
+            });
+        }
+    });
+
+    juce::MessageManager::getInstance()->runDispatchLoop();
+    {
+        std::lock_guard lock(watchdog_mutex);
+        dispatch_finished = true;
+    }
+    watchdog_condition.notify_one();
+    watchdog.join();
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (pool.get_num_jobs() != 0 && std::chrono::steady_clock::now() < deadline)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+    CHECK(target.completed);
+    CHECK(target.file_read_succeeded);
+    CHECK(target.work_thread != message_thread);
+    CHECK(target.completion_thread == message_thread);
+    state->invalidate();
+}
+
+TEST_CASE("PERF-01 editor heartbeat stays responsive during a controlled slow Python task",
+          "[architecture][native_integration][performance][PERF-01]") {
+    juce::ScopedJuceInitialiser_GUI juce_message_environment;
+    struct WorkObservation {
+        std::thread::id work_thread;
+        bool file_read_succeeded = false;
+        bool python_started = false;
+        bool python_finished = false;
+    };
+    struct CompletionTarget final : juce::Component {
+        bool completed = false;
+        WorkObservation observation;
+        std::thread::id completion_thread;
+    };
+    struct Heartbeat final : juce::Timer {
+        explicit Heartbeat(std::chrono::steady_clock::time_point started)
+            : started(started), previous(started) {}
+
+        void timerCallback() override {
+            const auto now = std::chrono::steady_clock::now();
+            gaps_ms.push_back(std::chrono::duration<double, std::milli>(now - previous).count());
+            previous = now;
+        }
+
+        std::chrono::steady_clock::time_point started;
+        std::chrono::steady_clock::time_point previous;
+        std::vector<double> gaps_ms;
+    };
+
+    CompletionTarget target;
+    auto state = std::make_shared<audioalgo::editor::ComponentDispatchState<CompletionTarget>>(target);
+    std::weak_ptr<audioalgo::editor::ComponentDispatchState<CompletionTarget>> weak_state = state;
+    const auto message_thread = std::this_thread::get_id();
+    const auto existing_source = std::filesystem::path(AUDIOALGO_SOURCE_DIR) / "apps" / "editor" / "Main.cpp";
+    audioalgo::editor::EditorWorkerPool pool(1);
+    auto* job = new audioalgo::editor::EditorWorkJob<CompletionTarget, WorkObservation>(
+        weak_state,
+        [existing_source] {
+            std::ifstream input(existing_source, std::ios::binary);
+            char first_byte = 0;
+            input.read(&first_byte, 1);
+            const bool file_read_succeeded = input.gcount() == 1;
+            juce::StringArray arguments;
+            arguments.add(juce::String::fromUTF8(AUDIOALGO_PYTHON_EXECUTABLE));
+            arguments.add("-c");
+            arguments.add("import time; time.sleep(10)");
+            juce::ChildProcess child;
+            const bool python_started = child.start(arguments);
+            const bool process_finished = python_started && child.waitForProcessToFinish(12000);
+            return WorkObservation{std::this_thread::get_id(), file_read_succeeded, python_started,
+                                   process_finished && child.getExitCode() == 0};
+        },
+        [](CompletionTarget& component, WorkObservation observation) {
+            component.observation = observation;
+            component.completion_thread = std::this_thread::get_id();
+            component.completed = true;
+            juce::MessageManager::getInstance()->stopDispatchLoop();
+        });
+    REQUIRE(pool.add_job(job, true));
+
+    const auto started = std::chrono::steady_clock::now();
+    Heartbeat heartbeat(started);
+    heartbeat.startTimer(20);
+    std::mutex watchdog_mutex;
+    std::condition_variable watchdog_condition;
+    bool dispatch_finished = false;
+    std::thread watchdog([&] {
+        std::unique_lock lock(watchdog_mutex);
+        if (!watchdog_condition.wait_for(lock, std::chrono::seconds(15), [&] { return dispatch_finished; })) {
+            lock.unlock();
+            (void)juce::MessageManager::callAsync([] {
+                juce::MessageManager::getInstance()->stopDispatchLoop();
+            });
+        }
+    });
+    juce::MessageManager::getInstance()->runDispatchLoop();
+    {
+        std::lock_guard lock(watchdog_mutex);
+        dispatch_finished = true;
+    }
+    watchdog_condition.notify_one();
+    watchdog.join();
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (pool.get_num_jobs() != 0 && std::chrono::steady_clock::now() < deadline)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+    std::sort(heartbeat.gaps_ms.begin(), heartbeat.gaps_ms.end());
+    const auto p95_index = heartbeat.gaps_ms.empty() ? 0 :
+        static_cast<std::size_t>(std::ceil(0.95 * static_cast<double>(heartbeat.gaps_ms.size()))) - 1;
+    const auto p95_ms = heartbeat.gaps_ms.empty() ? 0.0 : heartbeat.gaps_ms[p95_index];
+    const auto maximum_ms = heartbeat.gaps_ms.empty() ? 0.0 : heartbeat.gaps_ms.back();
+    std::cout << "PERF-01 samples=" << heartbeat.gaps_ms.size()
+              << " p95_heartbeat_interval_ms=" << p95_ms
+              << " max_heartbeat_interval_ms=" << maximum_ms << '\n';
+
+    CHECK(std::chrono::steady_clock::now() - started >= std::chrono::seconds(10));
+    CHECK(heartbeat.gaps_ms.size() >= 450);
+    CHECK(p95_ms <= 100.0);
+    CHECK(maximum_ms <= 500.0);
+    CHECK(target.completed);
+    CHECK(target.observation.file_read_succeeded);
+    CHECK(target.observation.python_started);
+    CHECK(target.observation.python_finished);
+    CHECK(target.observation.work_thread != message_thread);
+    CHECK(target.completion_thread == message_thread);
+    state->invalidate();
+}
+
+TEST_CASE("AR-09.d editor shutdown drains a timed-out worker before destroying its view",
+          "[architecture][native_integration][lifecycle]") {
+    juce::ScopedJuceInitialiser_GUI juce_message_environment;
+    struct Gate {
+        std::mutex mutex;
+        std::condition_variable condition;
+        bool entered = false;
+        bool release = false;
+        bool message_callback_delivered = false;
+    };
+    struct CompletionTarget final : juce::Component {
+        std::atomic<int> delivery_count{0};
+    };
+    struct ControlledRunJob final : juce::ThreadPoolJob {
+        ControlledRunJob(std::shared_ptr<Gate> gate,
+                         std::shared_ptr<audioalgo::NodeRegistry> registry,
+                         std::weak_ptr<audioalgo::editor::ComponentDispatchState<CompletionTarget>> target,
+                         std::atomic<bool>& destroyed,
+                         std::atomic<bool>& exit_requested,
+                         std::atomic<bool>& completion_posted,
+                         std::atomic<bool>& message_dispatch_posted,
+                         std::atomic<bool>& message_pump_acknowledged)
+            : ThreadPoolJob("controlled editor render"), gate(std::move(gate)), registry(std::move(registry)),
+              target(std::move(target)), destroyed(destroyed), exit_requested(exit_requested),
+              completion_posted(completion_posted), message_dispatch_posted(message_dispatch_posted),
+              message_pump_acknowledged(message_pump_acknowledged) {}
+
+        ~ControlledRunJob() override { destroyed.store(true); }
+
+        JobStatus runJob() override {
+            {
+                std::unique_lock lock(gate->mutex);
+                gate->entered = true;
+                gate->condition.notify_one();
+                gate->condition.wait(lock, [&] { return gate->release; });
+            }
+            exit_requested.store(shouldExit());
+            message_dispatch_posted.store(juce::MessageManager::callAsync([gate = gate] {
+                {
+                    std::lock_guard lock(gate->mutex);
+                    gate->message_callback_delivered = true;
+                }
+                gate->condition.notify_one();
+            }));
+            if (message_dispatch_posted.load()) {
+                std::unique_lock lock(gate->mutex);
+                message_pump_acknowledged.store(gate->condition.wait_for(
+                    lock, std::chrono::seconds(5), [&] { return gate->message_callback_delivered; }));
+            }
+            completion_posted.store(audioalgo::editor::dispatch_to_live_component(
+                target, [](CompletionTarget& component) { ++component.delivery_count; }));
+            return jobHasFinished;
+        }
+
+        std::shared_ptr<Gate> gate;
+        std::shared_ptr<audioalgo::NodeRegistry> registry;
+        std::weak_ptr<audioalgo::editor::ComponentDispatchState<CompletionTarget>> target;
+        std::atomic<bool>& destroyed;
+        std::atomic<bool>& exit_requested;
+        std::atomic<bool>& completion_posted;
+        std::atomic<bool>& message_dispatch_posted;
+        std::atomic<bool>& message_pump_acknowledged;
+    };
+    struct QueuedJob final : juce::ThreadPoolJob {
+        QueuedJob(std::atomic<bool>& destroyed, std::atomic<bool>& ran)
+            : ThreadPoolJob("queued editor render"), destroyed(destroyed), ran(ran) {}
+        ~QueuedJob() override { destroyed.store(true); }
+        JobStatus runJob() override { ran.store(true); return jobHasFinished; }
+        std::atomic<bool>& destroyed;
+        std::atomic<bool>& ran;
+    };
+
+    auto gate = std::make_shared<Gate>();
+    auto target = std::make_unique<CompletionTarget>();
+    auto lifetime_state = std::make_shared<
+        audioalgo::editor::ComponentDispatchState<CompletionTarget>>(*target);
+    std::weak_ptr<audioalgo::editor::ComponentDispatchState<CompletionTarget>> weak_target = lifetime_state;
+    std::atomic<bool> active_job_destroyed{false};
+    std::atomic<bool> active_job_observed_cancel{false};
+    std::atomic<bool> active_job_posted_completion{false};
+    std::atomic<bool> message_dispatch_posted{false};
+    std::atomic<bool> message_pump_acknowledged{false};
+    std::atomic<bool> queued_job_destroyed{false};
+    std::atomic<bool> queued_job_ran{false};
+    std::weak_ptr<audioalgo::NodeRegistry> registry_lifetime;
+    bool registry_retained_while_running = false;
+    bool shutdown_started = false;
+    bool shutdown_timeout_observed = false;
+    bool shutdown_callback_on_message_thread = false;
+    bool pool_empty_at_shutdown_callback = false;
+    bool worker_pool_destroyed = false;
+    const auto message_thread = std::this_thread::get_id();
+
+    {
+        audioalgo::editor::EditorWorkerPool worker_pool(1);
+        auto registry = std::make_shared<audioalgo::NodeRegistry>();
+        registry_lifetime = registry;
+        worker_pool.add_job(new ControlledRunJob(
+            gate, registry, weak_target, active_job_destroyed,
+            active_job_observed_cancel, active_job_posted_completion,
+            message_dispatch_posted, message_pump_acknowledged), true);
+        bool active_job_entered = false;
+        {
+            std::unique_lock lock(gate->mutex);
+            gate->condition.wait_for(lock, std::chrono::seconds(5), [&] { return gate->entered; });
+            active_job_entered = gate->entered;
+        }
+        worker_pool.add_job(new QueuedJob(queued_job_destroyed, queued_job_ran), true);
+        registry.reset();
+        registry_retained_while_running = active_job_entered && !registry_lifetime.expired();
+
+        // This is the same first action as EditorComponent's close path.
+        // The worker's eventual completion must not reach the closing View.
+        lifetime_state->invalidate();
+
+        std::thread release_job([gate] {
+            std::this_thread::sleep_for(std::chrono::milliseconds(5200));
+            {
+                std::lock_guard lock(gate->mutex);
+                gate->release = true;
+            }
+            gate->condition.notify_one();
+        });
+
+        shutdown_started = worker_pool.shutdown_async(5000, [&](bool first_wait_timed_out) {
+            shutdown_timeout_observed = first_wait_timed_out;
+            shutdown_callback_on_message_thread = std::this_thread::get_id() == message_thread;
+            pool_empty_at_shutdown_callback = worker_pool.get_num_jobs() == 0;
+            juce::MessageManager::getInstance()->stopDispatchLoop();
+        });
+        if (!shutdown_started)
+            juce::MessageManager::callAsync([] { juce::MessageManager::getInstance()->stopDispatchLoop(); });
+        juce::MessageManager::getInstance()->runDispatchLoop();
+        release_job.join();
+        worker_pool.join_shutdown();
+    }
+    worker_pool_destroyed = true;
+
+    CHECK(registry_retained_while_running);
+    CHECK(shutdown_started);
+    CHECK(shutdown_timeout_observed);
+    CHECK(shutdown_callback_on_message_thread);
+    CHECK(pool_empty_at_shutdown_callback);
+    CHECK(active_job_observed_cancel.load());
+    CHECK(message_dispatch_posted.load());
+    CHECK(message_pump_acknowledged.load());
+    CHECK(active_job_destroyed.load());
+    CHECK(queued_job_destroyed.load());
+    CHECK_FALSE(queued_job_ran.load());
+    CHECK_FALSE(active_job_posted_completion.load());
+    CHECK(target->delivery_count.load() == 0);
+    CHECK(registry_lifetime.expired());
+    CHECK(worker_pool_destroyed);
+}
 
 TEST_CASE("E2E-01 RunService and CLI share a project snapshot and gain oracle", "[G1][E2E-01]") {
     juce::ScopedJuceInitialiser_GUI juce_message_environment;
@@ -145,10 +848,8 @@ TEST_CASE("E2E-01 RunService and CLI share a project snapshot and gain oracle", 
     const auto loaded = load_project_file(project_path);
     REQUIRE(std::holds_alternative<ProjectModel>(loaded));
     NodeRegistry descriptors;
-    register_builtin_node_descriptors(descriptors);
-    audioalgo::JuceProcessorRegistry processors;
-    register_builtin_juce_processors(processors);
-    RunService service(descriptors, processors);
+    register_builtin_nodes(descriptors);
+    RunService service(descriptors);
 
     const auto service_output_dir = temporary.path / "service-run";
     const auto service_run = service.run({std::get<ProjectModel>(loaded), project_path, service_output_dir, 127});
@@ -207,10 +908,8 @@ TEST_CASE("NED-04.c", "[node_interaction][NED-04]") {
     REQUIRE(std::holds_alternative<std::monostate>(save_project_file(project_path, project)));
 
     NodeRegistry descriptors;
-    register_builtin_node_descriptors(descriptors);
-    audioalgo::JuceProcessorRegistry processors;
-    register_builtin_juce_processors(processors);
-    RunService service(descriptors, processors);
+    register_builtin_nodes(descriptors);
+    RunService service(descriptors);
 
     const auto service_output = temporary.path / "service-run";
     const auto service_result = service.run({project, project_path, service_output, 127});
@@ -246,7 +945,7 @@ TEST_CASE("NED-10.g", "[node_interaction][NED-10]") {
     const audioalgo::Connection target{"file", "audio", "gain", "audio_in"};
 
     NodeRegistry descriptors;
-    register_builtin_node_descriptors(descriptors);
+    register_builtin_nodes(descriptors);
     REQUIRE(descriptors.register_descriptor({
         "test.required_side_input", "1.0.0", "Required side input block",
         {{"audio_in", "audio.pcm@1", audioalgo::PortDirection::input, true},
@@ -283,9 +982,7 @@ TEST_CASE("NED-10.g", "[node_interaction][NED-10]") {
 
     const auto project_path = temporary.path / "inserted-incomplete.aaproj";
     REQUIRE(std::holds_alternative<std::monostate>(save_project_file(project_path, project)));
-    audioalgo::JuceProcessorRegistry processors;
-    register_builtin_juce_processors(processors);
-    RunService service(descriptors, processors);
+    RunService service(descriptors);
     const auto output_directory = temporary.path / "incomplete-run";
     const auto run_result = service.run({project, project_path, output_directory, 127});
     const auto* run_error = std::get_if<audioalgo::Diagnostic>(&run_result);
@@ -311,7 +1008,7 @@ TEST_CASE("NED-06.d", "[node_interaction][NED-06]") {
     const auto original_revision = project.revision;
 
     NodeRegistry geometry_registry;
-    register_builtin_node_descriptors(geometry_registry);
+    register_builtin_nodes(geometry_registry);
     const auto preview_transform = audioalgo::editor::CanvasCoordinateTransform{};
     auto preview_node = project.nodes[1];
     preview_node.x = 220.0;
@@ -350,10 +1047,8 @@ TEST_CASE("NED-06.d", "[node_interaction][NED-06]") {
     REQUIRE_FALSE(audioalgo::editor::move_node_layout(project, dirty_state, "missing", 0.0, 0.0));
 
     NodeRegistry descriptors;
-    register_builtin_node_descriptors(descriptors);
-    audioalgo::JuceProcessorRegistry processors;
-    register_builtin_juce_processors(processors);
-    RunService service(descriptors, processors);
+    register_builtin_nodes(descriptors);
+    RunService service(descriptors);
     const auto before = service.run({make_project(), project_path, temporary.path / "before-run", 127});
     const auto after = service.run({project, project_path, temporary.path / "after-run", 127});
     REQUIRE(std::holds_alternative<RunSuccess>(before));
@@ -393,7 +1088,7 @@ TEST_CASE("NED-09.b", "[node_interaction][NED-09]") {
     REQUIRE(std::holds_alternative<audioalgo::WavWriteSummary>(write_wav_file(input_path, input, WavEncoding::float32)));
 
     NodeRegistry descriptors;
-    register_builtin_node_descriptors(descriptors);
+    register_builtin_nodes(descriptors);
     auto project = make_project();
     REQUIRE(audioalgo::editor::delete_node(project, descriptors, "output"));
     REQUIRE(project.selected_output_node_id.empty());
@@ -413,9 +1108,7 @@ TEST_CASE("NED-09.b", "[node_interaction][NED-09]") {
     REQUIRE(audioalgo::try_add_connection(project, {"gain", "audio_out", "output-recreated", "audio"}, descriptors).empty());
     REQUIRE(project.revision == revision_with_sink + 1);
     REQUIRE(std::holds_alternative<std::monostate>(save_project_file(project_path, project)));
-    audioalgo::JuceProcessorRegistry processors;
-    register_builtin_juce_processors(processors);
-    RunService service(descriptors, processors);
+    RunService service(descriptors);
     const auto outcome = service.run({project, project_path, temporary.path / "recreated-run", 127});
     REQUIRE(std::holds_alternative<RunSuccess>(outcome));
     const auto& result = std::get<RunSuccess>(outcome);
@@ -437,7 +1130,7 @@ TEST_CASE("NED-09.d", "[node_interaction][NED-09]") {
         write_wav_file(temporary.path / "input.wav", input, WavEncoding::float32)));
 
     NodeRegistry descriptors;
-    register_builtin_node_descriptors(descriptors);
+    register_builtin_nodes(descriptors);
     auto project = make_project();
     REQUIRE(audioalgo::editor::delete_node(project, descriptors, "output"));
     REQUIRE(audioalgo::editor::try_add_node_from_descriptor(
@@ -453,9 +1146,7 @@ TEST_CASE("NED-09.d", "[node_interaction][NED-09]") {
     REQUIRE(reopened.selected_output_node_id == "output-reopened");
     REQUIRE(reopened.revision == project.revision);
 
-    audioalgo::JuceProcessorRegistry processors;
-    register_builtin_juce_processors(processors);
-    RunService service(descriptors, processors);
+    RunService service(descriptors);
     const auto outcome = service.run({reopened, project_path, temporary.path / "reopened-run", 127});
     REQUIRE(std::holds_alternative<RunSuccess>(outcome));
     const auto& result = std::get<RunSuccess>(outcome);
@@ -480,7 +1171,7 @@ TEST_CASE("NED-13.b", "[node_interaction][NED-13]") {
 
     auto project = make_project();
     NodeRegistry descriptors;
-    register_builtin_node_descriptors(descriptors);
+    register_builtin_nodes(descriptors);
     const auto inserted = audioalgo::editor::try_insert_library_node_on_connection(
         project, descriptors, "builtin.gain", "saved-input-preservation-gain",
         {"gain", "audio_out", "output", "audio"}, 324.0, 54.0);
@@ -493,9 +1184,7 @@ TEST_CASE("NED-13.b", "[node_interaction][NED-13]") {
     REQUIRE(std::get<std::string>(reopened.nodes.front().parameters.at("path")) == "input.wav");
     REQUIRE(read_file_bytes(input_path) == input_bytes_before_save);
 
-    audioalgo::JuceProcessorRegistry processors;
-    register_builtin_juce_processors(processors);
-    RunService service(descriptors, processors);
+    RunService service(descriptors);
     const auto original_run = service.run({project, project_path, temporary.path / "original-run", 127});
     const auto reopened_run = service.run({reopened, project_path, temporary.path / "reopened-run", 127});
     REQUIRE(std::holds_alternative<RunSuccess>(original_run));
@@ -522,7 +1211,7 @@ TEST_CASE("NED-13.c", "[node_interaction][NED-13]") {
 
     auto project = make_project();
     NodeRegistry descriptors;
-    register_builtin_node_descriptors(descriptors);
+    register_builtin_nodes(descriptors);
     const auto inserted = audioalgo::editor::try_insert_library_node_on_connection(
         project, descriptors, "builtin.gain", "oracle-inserted-gain",
         {"gain", "audio_out", "output", "audio"}, 326.0, 62.0);
@@ -548,9 +1237,7 @@ TEST_CASE("NED-13.c", "[node_interaction][NED-13]") {
                edge.to_node == "output" && edge.to_port == "audio";
     }));
 
-    audioalgo::JuceProcessorRegistry processors;
-    register_builtin_juce_processors(processors);
-    RunService service(descriptors, processors);
+    RunService service(descriptors);
     const auto outcome = service.run({reopened, project_path, temporary.path / "inserted-oracle-run", 127});
     REQUIRE(std::holds_alternative<RunSuccess>(outcome));
     const auto& result = std::get<RunSuccess>(outcome);
@@ -587,7 +1274,7 @@ TEST_CASE("NED-14.a", "[node_interaction][NED-14]") {
     project.project_id = "ned14-a-new-graph-project";
     project.name = "New graph workflow";
     NodeRegistry descriptors;
-    register_builtin_node_descriptors(descriptors);
+    register_builtin_nodes(descriptors);
     auto source = audioalgo::editor::make_node_instance(
         descriptors, project.nodes, "builtin.file_source", "new-file", 40.0, 60.0);
     REQUIRE(source.has_value());
@@ -608,9 +1295,7 @@ TEST_CASE("NED-14.a", "[node_interaction][NED-14]") {
     REQUIRE(audioalgo::validate_project(project, descriptors).empty());
     REQUIRE(std::holds_alternative<std::monostate>(save_project_file(project_path, project)));
 
-    audioalgo::JuceProcessorRegistry processors;
-    register_builtin_juce_processors(processors);
-    RunService service(descriptors, processors);
+    RunService service(descriptors);
     const auto outcome = service.run({project, project_path, temporary.path / "new-graph-run", 127});
     REQUIRE(std::holds_alternative<RunSuccess>(outcome));
     const auto& result = std::get<RunSuccess>(outcome);
@@ -651,7 +1336,7 @@ TEST_CASE("NED-14.b", "[node_interaction][NED-14]") {
     project.project_id = "ned14-b-inserted-unity-project";
     project.name = "Inserted gain unity acceptance";
     NodeRegistry descriptors;
-    register_builtin_node_descriptors(descriptors);
+    register_builtin_nodes(descriptors);
     const auto inserted = audioalgo::editor::try_insert_library_node_on_connection(
         project, descriptors, "builtin.gain", "inserted-minus-six-gain",
         {"gain", "audio_out", "output", "audio"}, 326.0, 62.0);
@@ -673,9 +1358,7 @@ TEST_CASE("NED-14.b", "[node_interaction][NED-14]") {
     REQUIRE(reopened.nodes.size() == 4);
     REQUIRE(reopened.connections.size() == 3);
 
-    audioalgo::JuceProcessorRegistry processors;
-    register_builtin_juce_processors(processors);
-    RunService service(descriptors, processors);
+    RunService service(descriptors);
     const auto service_outcome = service.run(
         {reopened, project_path, temporary.path / "inserted-unity-service", 127});
     REQUIRE(std::holds_alternative<RunSuccess>(service_outcome));
@@ -737,7 +1420,7 @@ TEST_CASE("NED-14.c", "[node_interaction][NED-14]") {
     project.project_id = "ned14-c-inserted-zero-gain-project";
     project.name = "Inserted zero gain participation acceptance";
     NodeRegistry descriptors;
-    register_builtin_node_descriptors(descriptors);
+    register_builtin_nodes(descriptors);
     const auto inserted = audioalgo::editor::try_insert_library_node_on_connection(
         project, descriptors, "builtin.gain", "inserted-zero-gain",
         {"gain", "audio_out", "output", "audio"}, 326.0, 62.0);
@@ -758,9 +1441,7 @@ TEST_CASE("NED-14.c", "[node_interaction][NED-14]") {
     REQUIRE(reopened.nodes.size() == 4);
     REQUIRE(reopened.connections.size() == 3);
 
-    audioalgo::JuceProcessorRegistry processors;
-    register_builtin_juce_processors(processors);
-    RunService service(descriptors, processors);
+    RunService service(descriptors);
     const auto service_outcome = service.run(
         {reopened, project_path, temporary.path / "inserted-zero-service", 127});
     REQUIRE(std::holds_alternative<RunSuccess>(service_outcome));
@@ -822,7 +1503,7 @@ TEST_CASE("NED-14.d", "[node_interaction][NED-14]") {
     project.project_id = "ned14-d-reconnect-project";
     project.name = "Disconnect reconnect persistence";
     NodeRegistry descriptors;
-    register_builtin_node_descriptors(descriptors);
+    register_builtin_nodes(descriptors);
     const audioalgo::Connection original_output_edge{
         "gain", "audio_out", "output", "audio"};
     const auto inserted = audioalgo::editor::try_insert_library_node_on_connection(
@@ -837,9 +1518,7 @@ TEST_CASE("NED-14.d", "[node_interaction][NED-14]") {
     ++project.revision;
     REQUIRE(std::holds_alternative<std::monostate>(save_project_file(project_path, project)));
 
-    audioalgo::JuceProcessorRegistry processors;
-    register_builtin_juce_processors(processors);
-    RunService service(descriptors, processors);
+    RunService service(descriptors);
     const audioalgo::Connection inserted_output_edge{
         "reconnect-inserted-gain", "audio_out", "output", "audio"};
     REQUIRE(audioalgo::editor::try_disconnect_connection(project, inserted_output_edge));
@@ -932,7 +1611,7 @@ TEST_CASE("NED-14.e", "[node_interaction][NED-14]") {
     project.project_id = "ned14-e-correlated-project";
     project.name = "Correlated inserted graph";
     NodeRegistry descriptors;
-    register_builtin_node_descriptors(descriptors);
+    register_builtin_nodes(descriptors);
     const auto inserted = audioalgo::editor::try_insert_library_node_on_connection(
         project, descriptors, "builtin.gain", "correlated-inserted-gain",
         {"gain", "audio_out", "output", "audio"}, 326.0, 62.0);
@@ -970,9 +1649,7 @@ TEST_CASE("NED-14.e", "[node_interaction][NED-14]") {
     REQUIRE(reopened.nodes.size() == 4);
     REQUIRE(reopened.connections.size() == 3);
 
-    audioalgo::JuceProcessorRegistry processors;
-    register_builtin_juce_processors(processors);
-    RunService service(descriptors, processors);
+    RunService service(descriptors);
     const auto service_result = service.run({
         reopened, project_path, temporary.path / "correlated-service", 127});
     REQUIRE(std::holds_alternative<RunSuccess>(service_result));
@@ -1030,10 +1707,8 @@ TEST_CASE("NED-01.b", "[node_interaction][NED-01]") {
     REQUIRE(read_file_bytes(input_path) == original_input_bytes);
 
     NodeRegistry descriptors;
-    register_builtin_node_descriptors(descriptors);
-    audioalgo::JuceProcessorRegistry processors;
-    register_builtin_juce_processors(processors);
-    RunService service(descriptors, processors);
+    register_builtin_nodes(descriptors);
+    RunService service(descriptors);
     const auto service_outcome = service.run({
         reopened, project_path, temporary.path / "中文 service run", 127});
     REQUIRE(std::holds_alternative<RunSuccess>(service_outcome));
@@ -1052,4 +1727,60 @@ TEST_CASE("NED-01.b", "[node_interaction][NED-01]") {
     REQUIRE(service_metadata->input_sha256 == cli_metadata->input_sha256);
     REQUIRE(service_metadata->input_sha256 == service_result.input_sha256);
     REQUIRE(read_file_bytes(input_path) == original_input_bytes);
+}
+
+TEST_CASE("AR-05.e a saved Gain project replays through one registered implementation", "[R1][AR-05.e]") {
+    juce::ScopedJuceInitialiser_GUI juce_message_environment;
+    TemporaryDirectory temporary;
+    const auto project_path = temporary.path / "legacy-gain.aaproj";
+    const auto input_path = temporary.path / "input.wav";
+    AudioBuffer input(48000, {"left", "right"}, 641);
+    for (std::size_t frame = 0; frame < input.frame_count(); ++frame) {
+        input.mutable_channel(0)[frame] = static_cast<float>(0.42 * std::sin(frame * 0.027));
+        input.mutable_channel(1)[frame] = static_cast<float>(-0.23 * std::cos(frame * 0.039));
+    }
+    REQUIRE(std::holds_alternative<audioalgo::WavWriteSummary>(write_wav_file(input_path, input, WavEncoding::float32)));
+
+    // Exactly one built-in catalog, and the composition root refuses to register twice.
+    NodeRegistry descriptors;
+    REQUIRE(register_builtin_nodes(descriptors));
+    CHECK(descriptors.descriptors().size() == 4);
+    CHECK_FALSE(register_builtin_nodes(descriptors));
+    CHECK(descriptors.descriptors().size() == 4);
+    CHECK(descriptors.find("builtin.gain") != nullptr);
+    CHECK(descriptors.find("builtin.gain")->version == "1.0.0");
+    CHECK(descriptors.create_processor("builtin.gain", "gain-probe").processor != nullptr);
+
+    const auto project = make_project();
+    REQUIRE(std::holds_alternative<std::monostate>(save_project_file(project_path, project)));
+    const auto loaded = load_project_file(project_path);
+    REQUIRE(std::holds_alternative<ProjectModel>(loaded));
+    const auto& reopened = std::get<ProjectModel>(loaded);
+
+    RunService service(descriptors);
+    const auto first = service.run({project, project_path, temporary.path / "legacy-first", 127});
+    const auto second = service.run({reopened, project_path, temporary.path / "legacy-second", 127});
+    REQUIRE(std::holds_alternative<RunSuccess>(first));
+    REQUIRE(std::holds_alternative<RunSuccess>(second));
+    const auto& first_result = std::get<RunSuccess>(first);
+    const auto& second_result = std::get<RunSuccess>(second);
+    CHECK(first_result.output_sha256 == second_result.output_sha256);
+    CHECK(first_result.frames == second_result.frames);
+    CHECK(first_result.frames == input.frame_count());
+    CHECK(first_result.input_sha256 == second_result.input_sha256);
+
+    // The playback data path reads the published artifact and matches the independent oracle.
+    const auto published = read_wav_file(first_result.output_file);
+    REQUIRE(std::holds_alternative<AudioBuffer>(published));
+    const auto& playback = std::get<AudioBuffer>(published);
+    REQUIRE(playback.channel_count() == input.channel_count());
+    REQUIRE(playback.frame_count() == input.frame_count());
+    const double gain = std::pow(10.0, 6.0 / 20.0);
+    for (std::size_t channel = 0; channel < input.channel_count(); ++channel) {
+        for (std::size_t frame = 0; frame < input.frame_count(); ++frame) {
+            const double expected = static_cast<double>(input.channel(channel)[frame]) * gain;
+            const double tolerance = 2.0e-6 + 1.0e-5 * std::abs(expected);
+            REQUIRE(std::abs(static_cast<double>(playback.channel(channel)[frame]) - expected) <= tolerance);
+        }
+    }
 }

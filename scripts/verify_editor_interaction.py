@@ -68,7 +68,7 @@ def source_tree_hash() -> str:
     digest = hashlib.sha256()
     for path in sorted(ROOT.rglob("*")):
         parts = path.relative_to(ROOT).parts
-        if not path.is_file() or any(part in {"build", ".git", "__pycache__", ".venv"} for part in parts):
+        if not path.is_file() or any(part in {"build", ".git", "__pycache__", ".venv", ".audioalgo-test-tmp"} for part in parts):
             continue
         relative = path.relative_to(ROOT).as_posix().encode("utf-8")
         digest.update(len(relative).to_bytes(4, "big"))

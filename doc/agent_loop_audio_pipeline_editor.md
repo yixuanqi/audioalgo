@@ -16,6 +16,8 @@ updated: 2026-10-16
 
 2026-10-17 当前优先修复项：文字显示、节点库拖放与连线插入按[专项方案](plan_editor_node_interaction.md)、[专项测试](testing_editor_node_interaction.md)和[专项执行规程](agent_loop_editor_node_interaction.md)的 NI0000～NI0006 实施。专项内持续开发、自验证、自迭代，无需每阶段确认；专项结束如实保留原平台 Gate 缺项，再按平台任务继续。主文档中的通用启动提示不能覆盖专项 NED 全部子用例和桌面证据要求。
 
+2026-10-18 当前重构入口更新：按[重构方案](plan_architecture_refactor.md)、[重构测试](testing_architecture_refactor.md)、[重构执行规程](agent_loop_architecture_refactor.md)从R0～R6连续直接开发。首条产品Red为AR-03.a，独立算法/控制层/自动表单/插件接入均须真实验证；保留原平台与NED验收，外部桌面限制不冻结独立后端开发。此前NI优先条目作为历史背景，当前顺序以重构规程为准；常规阶段不重新请求确认。
+
 ## 2. 首次启动与恢复工作
 
 按顺序执行：

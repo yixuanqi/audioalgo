@@ -8,12 +8,22 @@
 
 namespace audioalgo {
 
+// JSON retained by the host without interpreting its value. This keeps plugin- and
+// version-specific project data round-trippable without adding JUCE to the model.
+struct OpaqueJsonField {
+    std::string name;
+    std::string value_json;
+    bool operator==(const OpaqueJsonField&) const = default;
+};
+
 struct NodeInstance {
     std::string id;
     std::string type_id;
     NodeParameters parameters;
     double x = 0.0;
     double y = 0.0;
+    std::vector<OpaqueJsonField> opaque_parameters;
+    std::vector<OpaqueJsonField> serialized_extensions;
 };
 
 struct Connection {
@@ -21,6 +31,7 @@ struct Connection {
     std::string from_port;
     std::string to_node;
     std::string to_port;
+    std::vector<OpaqueJsonField> serialized_extensions;
 };
 
 struct ProjectModel {
@@ -31,6 +42,7 @@ struct ProjectModel {
     std::vector<NodeInstance> nodes;
     std::vector<Connection> connections;
     std::string selected_output_node_id;
+    std::vector<OpaqueJsonField> serialized_extensions;
 };
 
 struct GraphDiagnostic {
@@ -40,12 +52,12 @@ struct GraphDiagnostic {
     std::string port_id;
 };
 
-[[nodiscard]] std::vector<GraphDiagnostic> validate_project(const ProjectModel& project, const NodeRegistry& registry);
+[[nodiscard]] std::vector<GraphDiagnostic> validate_project(const ProjectModel& project, const NodeCatalog& registry);
 [[nodiscard]] std::vector<GraphDiagnostic> validate_project_structure(const ProjectModel& project,
-                                                                      const NodeRegistry& registry);
+                                                                      const NodeCatalog& registry);
 [[nodiscard]] std::vector<GraphDiagnostic> try_add_connection(ProjectModel& project, Connection connection,
-                                                              const NodeRegistry& registry);
-[[nodiscard]] std::vector<std::string> topological_order(const ProjectModel& project, const NodeRegistry& registry,
+                                                              const NodeCatalog& registry);
+[[nodiscard]] std::vector<std::string> topological_order(const ProjectModel& project, const NodeCatalog& registry,
                                                            std::vector<GraphDiagnostic>& diagnostics);
 
 } // namespace audioalgo

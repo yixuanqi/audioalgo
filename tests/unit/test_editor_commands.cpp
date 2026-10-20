@@ -5,6 +5,7 @@
 #include "../../apps/editor/EditorTopologyHistory.h"
 #include "../../apps/editor/EditorTopologyCommands.h"
 #include "../../apps/editor/EditorKeyboardShortcuts.h"
+#include "plugins/builtin/registration.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -71,7 +72,7 @@ std::filesystem::path temporary_project_directory() {
 
 TEST_CASE("NED-03.a", "[node_interaction][NED-03]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
 
     const auto edit_diagnostics = audioalgo::try_add_connection(
@@ -93,7 +94,7 @@ TEST_CASE("NED-03.a", "[node_interaction][NED-03]") {
 
 TEST_CASE("NED-03.b", "[node_interaction][NED-03]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
 
     const auto first_edge_diagnostics = audioalgo::try_add_connection(
@@ -110,7 +111,7 @@ TEST_CASE("NED-03.b", "[node_interaction][NED-03]") {
 
 TEST_CASE("NED-03.c", "[node_interaction][NED-03]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     project.nodes.push_back({"unused-gain-1", "builtin.gain", {{"gain_db", 0.0}}, 240.0, 180.0});
     project.nodes.push_back({"unused-gain-2", "builtin.gain", {{"gain_db", 0.0}}, 470.0, 180.0});
@@ -127,7 +128,7 @@ TEST_CASE("NED-03.c", "[node_interaction][NED-03]") {
 
 TEST_CASE("NED-03.d", "[node_interaction][NED-03]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     project.revision = 23;
 
@@ -139,7 +140,7 @@ TEST_CASE("NED-03.d", "[node_interaction][NED-03]") {
 
 TEST_CASE("NED-03.e", "[node_interaction][NED-03]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     const auto directory = temporary_project_directory();
     const auto path = directory / "incomplete.aaproj";
     auto project = disconnected_file_gain_output();
@@ -164,7 +165,7 @@ TEST_CASE("NED-03.e", "[node_interaction][NED-03]") {
 TEST_CASE("NED-04.a", "[node_interaction][NED-04]") {
     SECTION("missing endpoints and ports identify the requested endpoint") {
         audioalgo::NodeRegistry registry;
-        audioalgo::register_builtin_node_descriptors(registry);
+        audioalgo::register_builtin_nodes(registry);
         auto project = disconnected_file_gain_output();
         require_diagnostic(audioalgo::try_add_connection(project, {"ghost", "audio", "gain", "audio_in"}, registry),
                            "connection_source_missing", "ghost", "audio");
@@ -178,7 +179,7 @@ TEST_CASE("NED-04.a", "[node_interaction][NED-04]") {
 
     SECTION("type mismatch and self-connections are rejected") {
         audioalgo::NodeRegistry registry;
-        audioalgo::register_builtin_node_descriptors(registry);
+        audioalgo::register_builtin_nodes(registry);
         REQUIRE(registry.register_descriptor({
             "test.control_source", "1.0.0", "Control source",
             {{"control", "control.value@1", audioalgo::PortDirection::output, false}}, {},
@@ -193,7 +194,7 @@ TEST_CASE("NED-04.a", "[node_interaction][NED-04]") {
 
     SECTION("cycles, duplicate edges and duplicate inputs are rejected") {
         audioalgo::NodeRegistry registry;
-        audioalgo::register_builtin_node_descriptors(registry);
+        audioalgo::register_builtin_nodes(registry);
         audioalgo::ProjectModel cyclic;
         cyclic.nodes = {
             {"gain-a", "builtin.gain", {{"gain_db", 0.0}}, 0.0, 0.0},
@@ -216,7 +217,7 @@ TEST_CASE("NED-04.a", "[node_interaction][NED-04]") {
 
 TEST_CASE("NED-04.b", "[node_interaction][NED-04]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     project.revision = 52;
     project.name = "Atomic rejection";
@@ -233,7 +234,7 @@ TEST_CASE("NED-04.b", "[node_interaction][NED-04]") {
 
 TEST_CASE("NED-09.a", "[node_interaction][NED-09]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     audioalgo::ProjectModel project;
     project.project_id = "delete-output-project";
     project.revision = 8;
@@ -263,7 +264,7 @@ TEST_CASE("NED-09.a", "[node_interaction][NED-09]") {
 
 TEST_CASE("NED-09.e", "[node_interaction][NED-09]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     project.nodes.insert(project.nodes.begin() + 2,
                          {"gain-b", "builtin.gain", {{"gain_db", -6.0}}, 350.0, 30.0});
@@ -365,7 +366,7 @@ TEST_CASE("NED-11.g", "[node_interaction][NED-11]") {
 
 TEST_CASE("NED-09.c", "[node_interaction][NED-09]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     project.revision = 17;
     const auto before = project;
@@ -387,7 +388,7 @@ TEST_CASE("NED-09.c", "[node_interaction][NED-09]") {
 
 TEST_CASE("NED-07.a", "[node_interaction][NED-07]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     project.revision = 31;
     const auto original_count = project.nodes.size();
@@ -458,7 +459,7 @@ TEST_CASE("NED-07.d", "[node_interaction][NED-07]") {
 
 TEST_CASE("NED-07.e", "[node_interaction][NED-07]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     std::erase_if(project.nodes, [](const auto& node) { return node.type_id == "builtin.file_source"; });
     project.revision = 45;
@@ -485,7 +486,7 @@ TEST_CASE("NED-07.e", "[node_interaction][NED-07]") {
 
 TEST_CASE("NED-07.f", "[node_interaction][NED-07]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     const auto source_project = disconnected_file_gain_output();
     auto current_project = source_project;
     std::erase_if(current_project.nodes, [](const auto& node) { return node.type_id == "builtin.file_source"; });
@@ -505,7 +506,7 @@ TEST_CASE("NED-07.f", "[node_interaction][NED-07]") {
 
 TEST_CASE("NED-08.a", "[node_interaction][NED-08]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto base = disconnected_file_gain_output();
     base.revision = 10;
 
@@ -580,7 +581,7 @@ TEST_CASE("NED-08.c", "[node_interaction][NED-08]") {
 
 TEST_CASE("NED-08.d", "[node_interaction][NED-08]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     project.revision = 74;
     project.nodes.push_back({"file-2", "builtin.file_source", {{"path", std::string("other.wav")}}, 12.0, 210.0});
@@ -599,7 +600,7 @@ TEST_CASE("NED-08.d", "[node_interaction][NED-08]") {
 
 TEST_CASE("NED-08.e", "[node_interaction][NED-08]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     project.revision = 91;
     const audioalgo::Connection selected{"file", "audio", "gain", "audio_in"};
@@ -627,7 +628,7 @@ TEST_CASE("NED-08.e", "[node_interaction][NED-08]") {
 
 TEST_CASE("NED-10.a", "[node_interaction][NED-10]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     project.revision = 100;
     const audioalgo::Connection target{"file", "audio", "gain", "audio_in"};
@@ -705,7 +706,7 @@ TEST_CASE("NED-10.a", "[node_interaction][NED-10]") {
 
 TEST_CASE("NED-10.b", "[node_interaction][NED-10]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     project.nodes.push_back({"branch-gain", "builtin.gain", {{"gain_db", 0.0}}, 470.0, 180.0});
     const audioalgo::Connection target{"file", "audio", "gain", "audio_in"};
@@ -736,7 +737,7 @@ TEST_CASE("NED-10.b", "[node_interaction][NED-10]") {
 
 TEST_CASE("NED-10.c", "[node_interaction][NED-10]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     project.nodes.push_back({"existing-gain", "builtin.gain", {{"gain_db", -6.0}}, 190.0, 24.0});
     const audioalgo::Connection target{"file", "audio", "gain", "audio_in"};
@@ -780,7 +781,7 @@ TEST_CASE("NED-10.c", "[node_interaction][NED-10]") {
 TEST_CASE("NED-10.d", "[node_interaction][NED-10]") {
     SECTION("connected existing nodes are rejected without mutation") {
         audioalgo::NodeRegistry registry;
-        audioalgo::register_builtin_node_descriptors(registry);
+        audioalgo::register_builtin_nodes(registry);
         auto project = disconnected_file_gain_output();
         project.nodes.push_back({"connected-gain", "builtin.gain", {{"gain_db", -3.0}}, 520.0, 180.0});
         const audioalgo::Connection target{"file", "audio", "gain", "audio_in"};
@@ -794,7 +795,7 @@ TEST_CASE("NED-10.d", "[node_interaction][NED-10]") {
 
     SECTION("Source and Sink library entries are rejected on a connection") {
         audioalgo::NodeRegistry registry;
-        audioalgo::register_builtin_node_descriptors(registry);
+        audioalgo::register_builtin_nodes(registry);
         auto project = disconnected_file_gain_output();
         const audioalgo::Connection target{"file", "audio", "gain", "audio_in"};
         const auto before = project;
@@ -818,7 +819,7 @@ TEST_CASE("NED-10.d", "[node_interaction][NED-10]") {
 
     SECTION("a block node with incompatible port types is rejected atomically") {
         audioalgo::NodeRegistry registry;
-        audioalgo::register_builtin_node_descriptors(registry);
+        audioalgo::register_builtin_nodes(registry);
         REQUIRE(registry.register_descriptor({
             "test.control_block", "1.0.0", "Control block",
             {{"control_in", "control.value@1", audioalgo::PortDirection::input, true},
@@ -836,7 +837,7 @@ TEST_CASE("NED-10.d", "[node_interaction][NED-10]") {
 
 TEST_CASE("NED-10.f", "[node_interaction][NED-10]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     REQUIRE(registry.register_descriptor({
         "test.multi_audio", "1.0.0", "Multi audio block",
         {{"left_in", "audio.pcm@1", audioalgo::PortDirection::input, true},
@@ -876,7 +877,7 @@ TEST_CASE("NED-10.f", "[node_interaction][NED-10]") {
 
 TEST_CASE("NED-10.h", "[node_interaction][NED-10]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     const audioalgo::Connection target{"file", "audio", "gain", "audio_in"};
 
     SECTION("a project revision change invalidates a library-drop target snapshot") {
@@ -928,7 +929,7 @@ TEST_CASE("NED-10.h", "[node_interaction][NED-10]") {
 
 TEST_CASE("NED-11.a", "[node_interaction][NED-11]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     const audioalgo::Connection target{"file", "audio", "gain", "audio_in"};
     const audioalgo::Connection output{"gain", "audio_out", "out", "audio"};
 
@@ -1060,7 +1061,7 @@ TEST_CASE("NED-11.a", "[node_interaction][NED-11]") {
 
 TEST_CASE("NI0010.a", "[node_interaction][NI0010]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     project.nodes[1].x = 210.0;
     project.nodes[1].y = 90.0;
@@ -1123,7 +1124,7 @@ TEST_CASE("NI0010.a", "[node_interaction][NI0010]") {
 
 TEST_CASE("NI0010.b", "[node_interaction][NI0010]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     project.nodes.push_back({"gain-b", "builtin.gain", {{"gain_db", 0.0}}, 430.0, 90.0});
     project.nodes.push_back({"gain-side", "builtin.gain", {{"gain_db", 0.0}}, 430.0, 220.0});
@@ -1141,7 +1142,7 @@ TEST_CASE("NI0010.b", "[node_interaction][NI0010]") {
 
 TEST_CASE("NED-11.b", "[node_interaction][NED-11]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     const audioalgo::Connection target{"file", "audio", "gain", "audio_in"};
     const audioalgo::Connection retained{"gain", "audio_out", "out", "audio"};
@@ -1179,7 +1180,7 @@ TEST_CASE("NED-11.b", "[node_interaction][NED-11]") {
 
 TEST_CASE("NED-11.c", "[node_interaction][NED-11]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     project.nodes.push_back({"existing-gain", "builtin.gain", {{"gain_db", -6.0}}, 120.0, 260.0});
     const audioalgo::Connection target{"file", "audio", "gain", "audio_in"};
@@ -1231,7 +1232,7 @@ TEST_CASE("NED-11.c", "[node_interaction][NED-11]") {
 
 TEST_CASE("NED-11.d", "[node_interaction][NED-11]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     project.revision = 1000;
     audioalgo::editor::EditorTopologyHistory history;
@@ -1280,7 +1281,7 @@ TEST_CASE("NED-11.d", "[node_interaction][NED-11]") {
 
 TEST_CASE("NED-11.e", "[node_interaction][NED-11]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     project.revision = 1100;
     audioalgo::editor::EditorTopologyHistory history;
@@ -1321,7 +1322,7 @@ TEST_CASE("NED-11.e", "[node_interaction][NED-11]") {
 
 TEST_CASE("NED-11.f", "[node_interaction][NED-11]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     const audioalgo::Connection edge{"file", "audio", "gain", "audio_in"};
     audioalgo::editor::EditorTopologyHistory history;
@@ -1373,7 +1374,7 @@ TEST_CASE("NED-11.f", "[node_interaction][NED-11]") {
 
 TEST_CASE("NED-13.a", "[node_interaction][NED-13]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     auto project = disconnected_file_gain_output();
     project.project_id = "ned13-save-inserted-project";
     project.name = "Inserted node save round trip";

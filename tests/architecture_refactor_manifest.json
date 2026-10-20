@@ -1,0 +1,2056 @@
+{
+  "schema_version": 1,
+  "acceptance_source": "doc/testing_architecture_refactor.md",
+  "acceptance_document_sha256": "f6b296b60bb1640325fa632f3ae2b2e74ce33dbb5069b7c9ea274d73eb46a8d5",
+  "test_name_pattern": "{requirement_id}.{subcase_id}",
+  "stages": [
+    "R0",
+    "R1",
+    "R2",
+    "R3",
+    "R4",
+    "R5",
+    "R6"
+  ],
+  "legacy_sources": [
+    "doc/testing_audio_pipeline_editor.md",
+    "doc/testing_editor_node_interaction.md"
+  ],
+  "requirements": [
+    {
+      "id": "AR-01.a",
+      "stage": "R0",
+      "required": true,
+      "layer": "build_consumer",
+      "runner": "ctest",
+      "test_names": [
+        "AR-01.a"
+      ],
+      "test_methods": [
+        "test_a_current_environment_configs_and_real_baselines"
+      ],
+      "evidence_requirements": [
+        "记录当前源码、工具、依赖、全部配置与 CTest inventory；实际构建并运行 Debug/headless 受影响集合，分别列明失败/跳过/未执行，不引用旧数量认定当前通过。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-01.b",
+      "stage": "R0",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-01.b"
+      ],
+      "test_methods": [
+        "test_b_frozen_fixture_and_independent_cli_oracle"
+      ],
+      "evidence_requirements": [
+        "冻结只读 Legacy 工程/输入及解析 oracle；本次读取不改变 fixture/输入 hash，CLI 产物与工程/run ID 可关联。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-01.c",
+      "stage": "R0",
+      "required": true,
+      "layer": "infrastructure",
+      "runner": "ctest",
+      "test_names": [
+        "AR-01.c"
+      ],
+      "test_methods": [
+        "test_c_every_legacy_registration_maps_without_dropping_ned_desktop"
+      ],
+      "evidence_requirements": [
+        "所有现有 CORE/DSP/GRAPH/IO/PRJ/E2E 和 NED 注册有旧→新映射；拆 target 不丢失子用例，不将桌面要求改为可选；受影响旧用例实际执行。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-01.d",
+      "stage": "R0",
+      "required": true,
+      "layer": "build_consumer",
+      "runner": "ctest",
+      "test_names": [
+        "AR-01.d"
+      ],
+      "test_methods": [
+        "test_d_fresh_build_commands_bind_current_sources_and_binary_hashes"
+      ],
+      "evidence_requirements": [
+        "修改后重建对应可执行文件并记录源码、binary hash、配置与时间；应用锁定旧 exe 时可用已授权独立构建输出，旧进程截图不能充当新源码验证。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-02.a",
+      "stage": "R0",
+      "required": true,
+      "layer": "infrastructure",
+      "runner": "ctest",
+      "test_names": [
+        "AR-02.a"
+      ],
+      "test_methods": [
+        "test_manifest_exact_110_case_coverage_and_hash",
+        "test_missing_duplicate_and_document_hash_fail_closed"
+      ],
+      "evidence_requirements": [
+        "版本化 manifest 精确列出本文全部字母子用例、阶段、层次、runner、测试名和证据要求，并绑定本文内容 hash；漏一个、重复、非法阶段或文档 hash 不匹配均非零。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-02.b",
+      "stage": "R0",
+      "required": true,
+      "layer": "infrastructure",
+      "runner": "ctest",
+      "test_names": [
+        "AR-02.b",
+        "AR-02.b_review_desktop_and_stage_adversaries"
+      ],
+      "test_methods": [
+        "test_zero_tests_missing_registration_and_unexecuted_are_not_passed",
+        "test_wrong_configuration_binary_and_crashed_process_are_rejected",
+        "test_later_stage_does_not_pass_when_required_case_is_missing"
+      ],
+      "evidence_requirements": [
+        "零测试、缺一个注册、存在注册但未执行、错误配置/二进制、进程崩溃均非零；不能仅由测试名或总退出码推断逐用例结果。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-02.c",
+      "stage": "R0",
+      "required": true,
+      "layer": "infrastructure",
+      "runner": "ctest",
+      "test_names": [
+        "AR-02.c"
+      ],
+      "test_methods": [
+        "test_failure_and_skip_are_not_passed",
+        "test_timeout_failure_is_distinct_and_not_passed"
+      ],
+      "evidence_requirements": [
+        "受控断言失败/skip/timeout 均使子用例与阶段非 passed；解析逐用例 JUnit/CTest XML 并核对实际执行数量。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-02.d",
+      "stage": "R0",
+      "required": true,
+      "layer": "infrastructure",
+      "runner": "ctest",
+      "test_names": [
+        "AR-02.d"
+      ],
+      "test_methods": [
+        "test_missing_expired_wrong_hash_and_forged_evidence_are_rejected"
+      ],
+      "evidence_requirements": [
+        "缺失/过期/错误 hash 的桌面、运行产物、构建或独立审查证据为 not_verified 且最终非零；仅自填 passed JSON 不得通过。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-02.e",
+      "stage": "R0",
+      "required": true,
+      "layer": "infrastructure",
+      "runner": "ctest",
+      "test_names": [
+        "AR-02.e"
+      ],
+      "test_methods": [
+        "test_main_gate_inventory_keeps_quality_build_and_loop_requirements"
+      ],
+      "evidence_requirements": [
+        "原主 Gate 显式覆盖 QUAL-01～03、构建矩阵、桌面与设备要求，漏收任一即非零；测试文档章节组织变化不能使质量条目消失。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-02.f",
+      "stage": "R0",
+      "required": true,
+      "layer": "infrastructure",
+      "runner": "ctest",
+      "test_names": [
+        "AR-02.f"
+      ],
+      "test_methods": [
+        "test_report_shape_requires_timestamp_source_commands_and_case_reasons"
+      ],
+      "evidence_requirements": [
+        "每次写独立时间戳报告，含命令参数数组、cwd、UTC时间、退出码、日志/产物hash、逐用例状态与理由；失败不覆盖上次成功或本次原始日志。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-02.g",
+      "stage": "R0",
+      "required": true,
+      "layer": "infrastructure",
+      "runner": "gate_failure_probe",
+      "test_names": [
+        "AR-02.g"
+      ],
+      "test_methods": [
+        "test_failure_probe_proof_requires_red_gate_and_clean_restore"
+      ],
+      "evidence_requirements": [
+        "故意失败探针在临时独立工程/fixture 中实际失败，验证失败传到 Gate；恢复后正常 inventory 无探针残留。合成基础设施测试与真实产品验收清晰分开。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-03.a",
+      "stage": "R0",
+      "required": true,
+      "layer": "pure",
+      "runner": "ctest",
+      "test_names": [
+        "AR-03.a"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "工程 A 运行未结束，打开相同 revision 的工程 B；A 成功晚到后，B 的波形、播放文件、状态和当前结果均不改变。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-03.b",
+      "stage": "R0",
+      "required": true,
+      "layer": "pure",
+      "runner": "ctest",
+      "test_names": [
+        "AR-03.b"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "同一场景让 A 失败/进度/取消事件晚到，所有当前显示与状态同样不改变；错误分支必须先校验身份。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-03.c",
+      "stage": "R0",
+      "required": true,
+      "layer": "pure",
+      "runner": "ctest",
+      "test_names": [
+        "AR-03.c"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "同工程同 revision 发起两次请求，后请求先完成，再投递旧事件；只有最新有效请求更新当前结果。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-03.d",
+      "stage": "R0",
+      "required": true,
+      "layer": "pure",
+      "runner": "ctest",
+      "test_names": [
+        "AR-03.d"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "New/Open 增加 session_epoch，重开同 project_id/revision 也不能复用旧接收权限。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-03.e",
+      "stage": "R0",
+      "required": true,
+      "layer": "pure",
+      "runner": "ctest",
+      "test_names": [
+        "AR-03.e"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "参数/拓扑修改、Undo/Redo 创建新计算 revision；旧完成不得恢复当前结果资格，历史结果准确标过期。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-03.f",
+      "stage": "R0",
+      "required": true,
+      "layer": "pure",
+      "runner": "ctest",
+      "test_names": [
+        "AR-03.f"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "有效身份的成功/失败/进度可正常展示；旧成功仍可作为正确归属的历史产物保留，不能被错误标为当前。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-03.g",
+      "stage": "R0",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-03.g"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "真实原生后台运行与消息线程回填贯通，事件携带 project_id、epoch、request_id、revision；run_id 与请求对应且唯一，身份在排队前确定，日志/manifest 可追踪。"
+      ],
+      "legacy_requirements": [
+        "建立当前真实基线；主 G0/G1 原缺项继续记录，并推进可独立完成项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-04.a",
+      "stage": "R1",
+      "required": true,
+      "layer": "build_consumer",
+      "runner": "ctest",
+      "test_names": [
+        "AR-04.a"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "core/algorithms 公共头文件与链接依赖不含 NodeSDK、ProjectModel、JUCE、View；独立消费者实际编译调用 Gain。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-04.b",
+      "stage": "R1",
+      "required": true,
+      "layer": "build_consumer",
+      "runner": "ctest",
+      "test_names": [
+        "AR-04.b"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "全新构建目录只构建算法/core及其测试时，不获取 JUCE、不查找 Python、不初始化窗口/设备；无已缓存 JUCE 路径掩盖依赖。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-04.c",
+      "stage": "R1",
+      "required": true,
+      "layer": "build_consumer",
+      "runner": "ctest",
+      "test_names": [
+        "AR-04.c"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "算法测试是独立 pure target，不链接含 GUI 的大测试程序；在禁用 editor/Python/Speex 配置中实际执行且非零测试。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-04.d",
+      "stage": "R1",
+      "required": true,
+      "layer": "build_consumer",
+      "runner": "ctest",
+      "test_names": [
+        "AR-04.d"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "prepare/process/reset 的公开契约、借用视图有效期和配置错误有行为测试；算法无需节点 ID、JSON 或工程路径即可使用。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-04.e",
+      "stage": "R4",
+      "required": true,
+      "layer": "build/consumer",
+      "runner": "ctest",
+      "test_names": [
+        "AR-04.a"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "安装到临时前缀后，在独立工程通过导出 CMake target 编译并运行 Gain/ChannelSwap；导出 include/link 不依赖源码树绝对路径，安装后消费者禁网且成功。"
+      ],
+      "legacy_requirements": [
+        "EXT-01、旧 Gain 闭环完整回归；原 G0/G1 和 NED 缺项需继续收口"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-05.a",
+      "stage": "R1",
+      "required": true,
+      "layer": "pure",
+      "runner": "ctest",
+      "test_names": [
+        "AR-05.a"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "独立算法便捷接口与 block API 对固定长度/通道/增益矩阵满足数学 oracle，输入不变。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-05.b",
+      "stage": "R1",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-05.b"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "NodeAdapter 调同一内核，真实 JUCE wrapper、CLI 和实际 GUI 运行各自满足 oracle；样本、有效区间和输入 hash 正确。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": true
+    },
+    {
+      "id": "AR-05.c",
+      "stage": "R1",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-05.c"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "缺省、边界、越界、错误类型、NaN/Inf 参数/输入按原契约明确接受或拒绝；UI、controller、runtime 无校验绕过。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-05.d",
+      "stage": "R1",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-05.d",
+        "AR-05.d_isolation_guard"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "依赖与生产调用链证明生产通过 algorithms 库，backend/View 无第二份 Gain 运算；在受控隔离 mutation 中改变算法内核能使独立/节点/运行 oracle 同时捕获错误，随后完整恢复并重跑。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-05.e",
+      "stage": "R1",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-05.e"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "旧 Gain 工程保存重开后重新执行及播放数据路径正确；去掉旧 factory 路径后完整回归，无双注册或选择到旧实现。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-06.a",
+      "stage": "R1",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-06.a"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "一次注册原子加入描述和匹配执行工厂；重复类型/版本冲突、空工厂、非法端口失败后目录和工厂均不改变。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-06.b",
+      "stage": "R1",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-06.b",
+        "AR-06.b enum parameter instances must use a declared stable choice"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "默认值类型、范围、enum稳定值、参数重复、格式与能力约束不合法时拒绝，诊断指出具体字段。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-06.c",
+      "stage": "R1",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-06.c"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "两个同类型实例不共享算法状态，工厂构造失败返回节点可定位诊断，无崩溃或半准备计划。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-06.d",
+      "stage": "R1",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-06.d"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "View/app 通过只读 catalog 使用元数据，不能调用工厂；SDK/backend 不链接 builtin 插件或具体算法；GUI/CLI 装配的内置目录一致。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-06.e",
+      "stage": "R1",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-06.e",
+        "AR-06.e fixed-frame tails and non-audio ports are refused before execution"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "未知执行方式、缺 backend、未支持帧/端口能力明确 unavailable/unsupported，不能注册为可运行后静默直通。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-06.f",
+      "stage": "R1",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-06.f"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "通用描述和工厂接口支持新类型加入，不要求修改 SDK 的算法枚举或算法名分支；插件与通用类型扩展范围有实际变更清单。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-07.a",
+      "stage": "R1",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-07.a"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "wrapper 接受 SDK 原生实例，Gain 与一个测试处理器通过同一代码路径执行，backend 不认识具体算法 type_id。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-07.b",
+      "stage": "R1",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-07.b"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "1/2/4通道互异输入、尾部不足块、host块1/127/256/480/512/1024，已声明 N入/N出能力时计数和音频正确；尚未支持的能力明确拒绝。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-07.c",
+      "stage": "R1",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-07.c"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "prepare 只在计划准备执行，跨块保持同实例；新运行/reset 不复用不相容状态，实例释放顺序可观测。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-07.d",
+      "stage": "R1",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-07.d",
+        "AR-07.d the prepared callback allocates nothing for generic nodes too"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "处理回调不申请动态内存、做文件 I/O、启动 Python、解析 JSON 或复制整段音频；在完成 prepare/预热后的 wrapper+节点路径使用受控分配计数及I/O/线程探针验证，排除测试自身分配并记录范围。不据此宣称整个系统实时。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-07.e",
+      "stage": "R1",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-07.e",
+        "AR-07.e block output must be finite and prepare must not throw",
+        "AR-07.e a throwing prepare becomes a node-located diagnostic",
+        "AR-07.e non-audio ports are refused by the native boundary"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "SDK错误/可恢复异常携带节点和端口上下文，经统一诊断返回；无效输出/无进展不能形成静默成功。旧 JuceProcessorRegistry 算法路径迁移后不存在生产回退。"
+      ],
+      "legacy_requirements": [
+        "CORE-01、DSP-01、GRAPH-01～03、IO-01、PRJ-01、E2E-01 的受影响子集必须回归；GUI 对应证据不能由 CLI 代替"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-08.a",
+      "stage": "R2",
+      "required": true,
+      "layer": "pure",
+      "runner": "audio_editor_application_tests",
+      "test_names": [
+        "AR-08.a AddNode is controller-owned, undoable, and preserves redo on rejection",
+        "AR-08.a AddSourceNode records the chosen resource and supports undo and redo",
+        "AR-08.a Connect and Disconnect validate atomically and share undo history",
+        "AR-08.a DeleteNode keeps a branch instead of bypassing it",
+        "AR-08.a DeleteNode uses a legal linear bypass and preserves redo on rejection",
+        "AR-08.a Deleting the selected output clears it and undo restores it",
+        "AR-08.a Existing unconnected node insertion preserves identity and parameters",
+        "AR-08.a InsertNode replaces one edge, preserves branches, and is atomic",
+        "AR-08.a SwapProcessingNodes preserves node data and is undoable",
+        "AR-08.a SwapProcessingNodes reports revision exhaustion without changing state"
+      ],
+      "test_methods": [
+        "controller AddNode creates the descriptor defaults and preserves redo on invalid requests",
+        "controller AddSourceNode stores the selected resource path and records exact undo/redo revisions",
+        "controller Connect and Disconnect validate atomically and share command history",
+        "controller InsertNode and DeleteNode preserve branches and stable node data",
+        "controller SwapProcessingNodes preserves instance parameters and rejects exhausted revisions without state changes"
+      ],
+      "evidence_requirements": [
+        "通过 controller 在无窗口测试中添加、连接、断开、插入、删除，原子性/失败不变/分支保留满足既有 NED。"
+      ],
+      "legacy_requirements": [
+        "PRJ-02～04、RUN-03 的适用行为；所有既有拓扑/历史 NED 回归"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-08.b",
+      "stage": "R2",
+      "required": true,
+      "layer": "application",
+      "runner": "ctest",
+      "test_names": [
+        "AR-08.b SetParameter applies one validated revision and never bypasses schema"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "SetParameter 合法修改产生一个新计算 revision、可追踪实际值、dirty和过期状态；非法修改不改变模型/历史/有效当前结果。"
+      ],
+      "legacy_requirements": [
+        "PRJ-02～04、RUN-03 的适用行为；所有既有拓扑/历史 NED 回归"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-08.c",
+      "stage": "R2",
+      "required": true,
+      "layer": "controller and production slider route",
+      "runner": "R2_gain_slider_gesture_route",
+      "test_names": [
+        "AR-08.c Fixed parameter event table matches an independent project reducer",
+        "AR-08.c Gesture intents from a replaced project session cannot change the current gesture",
+        "AR-08.c Invalid gesture updates preserve the draft and block competing edits",
+        "AR-08.c Parameter gesture updates commit once and cancel without changing project state",
+        "AR-08.c Parameter history is scoped to the edited node instance",
+        "AR-08.c Parameter history restores every declared value type",
+        "AR-08.c Parameter undo restores the previous value and redo restores the edited value",
+        "AR-08.c Undo restores an absent parameter key and Redo restores its explicit value",
+        "R2_gain_slider_gesture_route"
+      ],
+      "test_methods": [
+        "independent event reducer checks actual values, key presence, revisions, and undo/redo stacks",
+        "stale gesture begin/update/commit/cancel intents cannot mutate or consume a gesture from a replacement session",
+        "production slider drag begins one session-scoped gesture, stages values, and commits once on release"
+      ],
+      "evidence_requirements": [
+        "参数修改可撤销重做，一次滑块手势合并为一条历史，取消手势不遗留部分参数；撤销重做 revision 单调递增。"
+      ],
+      "legacy_requirements": [
+        "PRJ-02～04、RUN-03 的适用行为；所有既有拓扑/历史 NED 回归"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-08.d",
+      "stage": "R2",
+      "required": true,
+      "layer": "controller",
+      "runner": "audio_editor_application_tests",
+      "test_names": [
+        "AR-08.d MoveNodeLayout changes only saved layout and keeps the current result valid",
+        "AR-08.d Invalid layout edits preserve project state and redo history",
+        "AR-08.d Layout history rejects edits outside node positions"
+      ],
+      "test_methods": [
+        "layout edits preserve compute revision and current result while changing only saved coordinates",
+        "invalid and ambiguous layout edits preserve the project, history, redo branch, and result status"
+      ],
+      "evidence_requirements": [
+        "MoveNodeLayout 只修改布局与保存状态，不改变计算 revision、不启动任务；参数/拓扑修改才使计算结果过期。"
+      ],
+      "legacy_requirements": [
+        "PRJ-02～04、RUN-03 的适用行为；所有既有拓扑/历史 NED 回归"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-08.e",
+      "stage": "R2",
+      "required": true,
+      "layer": "controller and production project replacement route",
+      "runner": "audio_editor_application_tests + R2_project_replacement_route",
+      "test_names": [
+        "AR-08.e Project replacement clears history and rejects late chooser results",
+        "R2_project_replacement_route"
+      ],
+      "test_methods": [
+        "New/Open invalidate old asynchronous work before adoption and clear controller history and gesture state",
+        "late chooser results cannot edit the replacement project and Open refreshes Undo/Redo controls after adoption"
+      ],
+      "evidence_requirements": [
+        "新增命令清除 redo，失败命令保留 redo；New/Open 清空历史、旧文件选择器/拖放/选择状态，不把后完成的操作写入新工程。"
+      ],
+      "legacy_requirements": [
+        "PRJ-02～04、RUN-03 的适用行为；所有既有拓扑/历史 NED 回归"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-08.f",
+      "stage": "R2",
+      "required": true,
+      "layer": "controller",
+      "runner": "audio_editor_application_tests",
+      "test_names": [
+        "AR-08.d Layout history composes with parameter history without swallowing either edit"
+      ],
+      "test_methods": [
+        "interleaved layout and parameter commands undo and redo their own deltas while retaining the other command's state"
+      ],
+      "evidence_requirements": [
+        "拓扑与参数/布局交错操作后，撤销目标行为符合记录的命令契约；不误吞后续不属于目标命令的状态，不保存 JUCE 对象。"
+      ],
+      "legacy_requirements": [
+        "PRJ-02～04、RUN-03 的适用行为；所有既有拓扑/历史 NED 回归"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-08.g",
+      "stage": "R2",
+      "required": true,
+      "layer": "controller and RunService validation",
+      "runner": "audio_editor_application_tests + audioalgo_tests native_integration",
+      "test_names": [
+        "AR-08.g Controller and RunService reject schema violations with located diagnostics"
+      ],
+      "test_methods": [
+        "controller and production RunService share descriptor validation for invalid parameter values and connections, preserving node and parameter/port IDs"
+      ],
+      "evidence_requirements": [
+        "controller 与 runtime 使用共用描述校验规则，绕过控件发非法参数/连线同样拒绝，诊断含 node/parameter/port ID。"
+      ],
+      "legacy_requirements": [
+        "PRJ-02～04、RUN-03 的适用行为；所有既有拓扑/历史 NED 回归"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-09.a",
+      "stage": "R2",
+      "required": true,
+      "layer": "pure application and injected production adapters",
+      "runner": "audio_editor_application_tests + R2_editor_service_injection",
+      "test_names": [
+        "AR-09.a injected document service opens only successful projects after host invalidation",
+        "AR-09.a injected document service clears dirty only after a successful save",
+        "AR-09.a preview service is replaceable without exposing a device backend",
+        "R2_editor_service_injection"
+      ],
+      "test_methods": [
+        "pure application document workflow adopts only successful loads, invalidates the prior host session before adoption, and preserves state on failure",
+        "save workflow clears dirty only after successful persistence; preview and resource ports are injected into the production editor without backend types in the public API"
+      ],
+      "evidence_requirements": [
+        "application/run_api 公共接口不包含 Component/Slider/AudioProcessorGraph 等控件和具体 backend 类型；application纯测试不链接JUCE实现。Open/Save和资源/播放经无JUCE接口注入，独立纯测试构建通过。"
+      ],
+      "legacy_requirements": [
+        "PRJ-02～04、RUN-03 的适用行为；所有既有拓扑/历史 NED 回归"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-09.b",
+      "stage": "R2",
+      "required": true,
+      "layer": "production view boundary",
+      "runner": "R2_production_gain_inspector_route",
+      "test_names": [
+        "R2_production_gain_inspector_route"
+      ],
+      "test_methods": [
+        "production Gain slider events submit a session-scoped controller intent from an owned snapshot; EditorComponent owns the controller and GraphCanvas receives a read-only project view"
+      ],
+      "evidence_requirements": [
+        "View 通过意图/命令和只读展示快照工作，不持可变 ProjectModel/节点实例；行为测试证明所有修改经过 controller 校验/历史。"
+      ],
+      "legacy_requirements": [
+        "PRJ-02～04、RUN-03 的适用行为；所有既有拓扑/历史 NED 回归"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-09.c",
+      "stage": "R2",
+      "required": true,
+      "layer": "pure controller and production View completion route",
+      "runner": "audio_editor_application_tests + audioalgo_tests native_integration + R2_run_completion_route",
+      "test_names": [
+        "AR-09.c A stale chooser result cannot consume the newer completion",
+        "AR-09.c a chooser callback after view shutdown is discarded",
+        "AR-09.c cancellation and reopen keep chooser completions isolated",
+        "AR-09.c late service notification cannot reference deleted nodes or stale View state",
+        "AR-09.c immutable snapshot intent is rejected after same-ID project replacement",
+        "AR-09.c delayed service completion cannot read a deleted node or update the current view",
+        "R2_run_completion_route"
+      ],
+      "test_methods": [
+        "invalidate a chooser on project replacement and prove its late result cannot consume the new chooser completion",
+        "close the completion slot at view shutdown and prove a late chooser callback cannot change view state or start another chooser",
+        "deliver a cancellation exactly once, then prove a reopened view receives its own completion while the closed view stays inert",
+        "delete the selected Gain through EditorController, then deliver a prior-revision RunReception completion and verify the deleted node, result identity, waveform, status, and playback state are not read or changed",
+        "read an owned node snapshot, reopen an identical project identity with the same node ID, then reject the stale session intent without changing the replacement model, revision, dirty/result status, or history; prove a current snapshot still applies a valid edit",
+        "block a real EditorRunJob inside RunService, delete its selected Gain through the controller, then let the successful render publish WAV/run/complete artifacts and verify the production identity-gated callback neither queries the deleted node nor changes current presentation state",
+        "bind the shared production run identity gate to Main.cpp::run_finished and invalidate active results before project presentation state is cleared"
+      ],
+      "evidence_requirements": [
+        "展示快照不含失效可变指针；删除节点、替换工程、异步任务晚到和关闭 View 不悬空访问。"
+      ],
+      "legacy_requirements": [
+        "PRJ-02～04、RUN-03 的适用行为；所有既有拓扑/历史 NED 回归"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-09.d",
+      "stage": "R2",
+      "required": true,
+      "layer": "editor worker and RunService lifecycle",
+      "runner": "audioalgo_tests native_integration",
+      "test_names": [
+        "AR-09.d RunService keeps its registry alive across owner release",
+        "AR-09.d queued completion is dropped after its component is destroyed",
+        "AR-09.d editor shutdown drains a timed-out worker before destroying its view",
+        "AR-09.d production RunJob publishes a real run and drops delivery after View close"
+      ],
+      "test_methods": [
+        "registry lease spans a controlled worker render and releases after job reclamation",
+        "queued component completion is dropped after message-thread invalidation and destruction",
+        "timed-out ThreadPool shutdown keeps the message loop alive and drains active and queued jobs",
+        "production EditorRunJob completes a real Gain render, publishes artifacts, delivers on the message thread, and drops the result after active View destruction"
+      ],
+      "evidence_requirements": [
+        "View 解除订阅后仍存活的 service 不回调已销毁 View；宿主销毁按取消/回收/销毁依赖顺序完成，无遗留 worker。"
+      ],
+      "legacy_requirements": [
+        "PRJ-02～04、RUN-03 的适用行为；所有既有拓扑/历史 NED 回归"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-09.e",
+      "stage": "R2",
+      "required": true,
+      "layer": "pure document completion and JUCE worker adapter",
+      "runner": "audio_editor_application_tests + audioalgo_tests + ctest",
+      "test_names": [
+        "AR-09.e asynchronous document completions reject edited and replaced snapshots",
+        "AR-09.e editor file work runs on a worker and completes on the message thread",
+        "PERF-01 editor heartbeat stays responsive during a controlled slow Python task",
+        "R2_editor_work_routes"
+      ],
+      "test_methods": [
+        "capture session and document-generation tokens, then reject a late save or open after the document changes",
+        "read a real project source file on EditorWorkJob and verify completion arrives on the JUCE message thread",
+        "sample 20 ms editor heartbeats for 10 seconds while a real Python child process sleeps on the worker and enforce PERF-01 p95/max budgets",
+        "verify production save/open/demo/resource routes submit work and Run does not probe source files on the UI thread"
+      ],
+      "evidence_requirements": [
+        "消息线程投递在 UI 适配实现，纯 controller 测试不用 JUCE；耗时工作/I/O 不在消息线程，完整心跳预算沿用 PERF-01。"
+      ],
+      "legacy_requirements": [
+        "PRJ-02～04、RUN-03 的适用行为；所有既有拓扑/历史 NED 回归"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-10.a",
+      "stage": "R3",
+      "required": true,
+      "layer": "component",
+      "runner": "ctest",
+      "test_names": [
+        "AR-10.a descriptor creates typed parameter controls and preserves stable enum values"
+      ],
+      "test_methods": [
+        "descriptor creates typed parameter controls and preserves stable enum values"
+      ],
+      "evidence_requirements": [
+        "bool/int/float/enum/string/path 由描述生成，标签/默认值/范围/步长/单位/help 与描述一致；enum 保存稳定值，不保存显示下标。"
+      ],
+      "legacy_requirements": [
+        "UI-01～03、受影响 NED 及 DPI/桌面证据；未完成使 R3 保持未验证，但不停止独立后端工作"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-10.b",
+      "stage": "R3",
+      "required": true,
+      "layer": "component",
+      "runner": "ctest",
+      "test_names": [
+        "AR-10.b parameter controls stay bound to the selected node across panel rebuilds"
+      ],
+      "test_methods": [
+        "parameter controls stay bound to the selected node across panel rebuilds"
+      ],
+      "evidence_requirements": [
+        "控件绑定 node_id+parameter_id，经 SetParameter 修改正确实例；切换节点/重建面板不触发误写，不把上个节点值带到下个节点。"
+      ],
+      "legacy_requirements": [
+        "UI-01～03、受影响 NED 及 DPI/桌面证据；未完成使 R3 保持未验证，但不停止独立后端工作"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-10.c",
+      "stage": "R3",
+      "required": true,
+      "layer": "component",
+      "runner": "ctest",
+      "test_names": [
+        "AR-10.c numeric text rejects malformed and out of range input then recovers",
+        "AR-10.c backend bypass rejects invalid types enums and missing resources with context"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "数值边界、非法字符串、未知enum、缺路径/资源均有具体诊断；禁用控件或绕过 UI 都不能越过后端校验。"
+      ],
+      "legacy_requirements": [
+        "UI-01～03、受影响 NED 及 DPI/桌面证据；未完成使 R3 保持未验证，但不停止独立后端工作"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-10.d",
+      "stage": "R3",
+      "required": true,
+      "layer": "component",
+      "runner": "ctest",
+      "test_names": [
+        "AR-10.d reset defaults uses controller history and refreshes typed controls"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "reset-to-default 提交同一命令/历史路径，Undo/Redo 同步控件与模型，单位与默认值不在 View 重复硬编码。"
+      ],
+      "legacy_requirements": [
+        "UI-01～03、受影响 NED 及 DPI/桌面证据；未完成使 R3 保持未验证，但不停止独立后端工作"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-10.e",
+      "stage": "R3",
+      "required": true,
+      "layer": "component",
+      "runner": "ctest",
+      "test_names": [
+        "AR-10.e declarative conditions refresh controls and opaque structures remain read only"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "支持的 visible/enabled 声明规则按参数更新，不执行任意脚本；未知结构字段只读且说明原因，保存不丢值。"
+      ],
+      "legacy_requirements": [
+        "UI-01～03、受影响 NED 及 DPI/桌面证据；未完成使 R3 保持未验证，但不停止独立后端工作"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-10.f",
+      "stage": "R3",
+      "required": true,
+      "layer": "component",
+      "runner": "ctest",
+      "test_names": [
+        "AR-10.f node summaries follow descriptor metadata and preserve full tooltip values"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "通用节点摘要来自 descriptor；新增算法元数据变化无需增加画布 type_id 判断，完整tooltip保留。"
+      ],
+      "legacy_requirements": [
+        "UI-01～03、受影响 NED 及 DPI/桌面证据；未完成使 R3 保持未验证，但不停止独立后端工作"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-10.g",
+      "stage": "R3",
+      "required": true,
+      "layer": "component",
+      "runner": "ctest",
+      "test_names": [
+        "AR-10.g six production controls drive native audio and the recorded run snapshot"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "实际组件控件改变真实执行/报告：使用测试插件的 enabled(bool)、repeat(int)、scale(float)、polarity(enum)、tag(string)、coefficient(resource path)。参考公式 `y=x*(enabled?repeat*scale*polarity*coefficient:1)`，polarity为±1，系数资源固定；tag只影响报告，不伪装成DSP参数。各字段有独立预设期望和资源hash，禁止只断言数值“发生变化”。"
+      ],
+      "legacy_requirements": [
+        "UI-01～03、受影响 NED 及 DPI/桌面证据；未完成使 R3 保持未验证，但不停止独立后端工作"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-10.h",
+      "stage": "R3",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "至少实际桌面完成 Gain 调参、另一个描述驱动节点参数编辑、运行和错误恢复；GUI产物通过数值oracle，鼠标/键盘输入、截图与项目/run ID对应。"
+      ],
+      "legacy_requirements": [
+        "UI-01～03、受影响 NED 及 DPI/桌面证据；未完成使 R3 保持未验证，但不停止独立后端工作"
+      ],
+      "desktop_required": true
+    },
+    {
+      "id": "AR-11.a",
+      "stage": "R3",
+      "required": true,
+      "layer": "component",
+      "runner": "ctest",
+      "test_names": [
+        "AR-11.a separated view components retain controller intents and presentation state"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "Main.cpp 仅组装窗口/服务和生命周期；画布、库、参数、波形、运行状态形成独立组件；以职责/依赖审查判定，不用任意行数作通过阈值。"
+      ],
+      "legacy_requirements": [
+        "UI-01～03、受影响 NED 及 DPI/桌面证据；未完成使 R3 保持未验证，但不停止独立后端工作"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-11.b",
+      "stage": "R3",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "真实桌面完成库拖入、端口连接、选线断开、处理节点插入/删除、Undo/Redo；模型和视图一致，原 NED 全部相关子用例仍成立。"
+      ],
+      "legacy_requirements": [
+        "UI-01～03、受影响 NED 及 DPI/桌面证据；未完成使 R3 保持未验证，但不停止独立后端工作"
+      ],
+      "desktop_required": true
+    },
+    {
+      "id": "AR-11.c",
+      "stage": "R3",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "New→Open→调参→Run→保存→重开→重跑，输出归属正确；输入文件不变，GUI/CLI同快照均满足oracle。"
+      ],
+      "legacy_requirements": [
+        "UI-01～03、受影响 NED 及 DPI/桌面证据；未完成使 R3 保持未验证，但不停止独立后端工作"
+      ],
+      "desktop_required": true
+    },
+    {
+      "id": "AR-11.d",
+      "stage": "R3",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "100/150/200% DPI、中文与空格路径、窗口缩放、长标签/tooltip符合原 UI-07/NED；截图来自本次真实应用，不生成假界面。"
+      ],
+      "legacy_requirements": [
+        "UI-01～03、受影响 NED 及 DPI/桌面证据；未完成使 R3 保持未验证，但不停止独立后端工作"
+      ],
+      "desktop_required": true
+    },
+    {
+      "id": "AR-11.e",
+      "stage": "R3",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "播放/暂停、设备不可用诊断与实际输出数据路径保持正确；真实听评和设备证据按主验收记录，无设备不能报告最终播放验收通过。"
+      ],
+      "legacy_requirements": [
+        "UI-01～03、受影响 NED 及 DPI/桌面证据；未完成使 R3 保持未验证，但不停止独立后端工作"
+      ],
+      "desktop_required": true
+    },
+    {
+      "id": "AR-12.a",
+      "stage": "R4",
+      "required": true,
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-12.a ChannelSwap joins the shared catalog through plugin composition"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "加入全新 namespaced ChannelSwap 算法/描述/adapter/注册/示例；仅允许插件、算法、注册、构建、测试和示例范围变更。"
+      ],
+      "legacy_requirements": [
+        "EXT-01、旧 Gain 闭环完整回归；原 G0/G1 和 NED 缺项需继续收口"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-12.b",
+      "stage": "R4",
+      "required": true,
+      "layer": "infrastructure",
+      "runner": "ctest",
+      "test_names": [
+        "AR-12.b"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "记录接入前后通用 View/参数表单/compiler/scheduler 文件清单与内容hash，确认无产品修改；无 Git 时以实际文件manifest对比，新建通用文件也纳入审查，不能仅比较已知旧文件。"
+      ],
+      "legacy_requirements": [
+        "EXT-01、旧 Gain 闭环完整回归；原 G0/G1 和 NED 缺项需继续收口"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-12.c",
+      "stage": "R4",
+      "required": true,
+      "layer": "pure/native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-12.c ChannelSwap block matrix follows an independent stereo permutation oracle",
+        "AR-12.c ChannelSwap instances reset format errors and aliased views are isolated",
+        "AR-12.d ChannelSwap library controls native rendering and CLI follow the stereo oracle"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "双通道互异固定信号交换精确符合解析oracle；单/四通道支持或拒绝按描述一致，错误参数、两实例/reset/尾部符合声明。"
+      ],
+      "legacy_requirements": [
+        "EXT-01、旧 Gain 闭环完整回归；原 G0/G1 和 NED 缺项需继续收口"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-12.d",
+      "stage": "R4",
+      "required": true,
+      "layer": "component/desktop",
+      "runner": "ctest",
+      "test_names": [
+        "AR-12.d ChannelSwap library controls native rendering and CLI follow the stereo oracle"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "在实际 GUI 从节点库添加并调参/连接执行，CLI同工程执行，GUI/CLI均符合oracle；显示端口/参数不增加类型特判。"
+      ],
+      "legacy_requirements": [
+        "EXT-01、旧 Gain 闭环完整回归；原 G0/G1 和 NED 缺项需继续收口"
+      ],
+      "desktop_required": true
+    },
+    {
+      "id": "AR-12.e",
+      "stage": "R4",
+      "required": true,
+      "layer": "native_integration/build_consumer",
+      "runner": "ctest",
+      "test_names": [
+        "AR-12.e",
+        "AR-04.a",
+        "AR-12.a ChannelSwap joins the shared catalog through plugin composition"
+      ],
+      "test_methods": [],
+      "evidence_requirements": [
+        "输出/指标注册、帮助和演示工程完整，独立算法消费者可用；结构检查、实际行为及新插件接入记录共同满足 EXT-01。"
+      ],
+      "legacy_requirements": [
+        "EXT-01、旧 Gain 闭环完整回归；原 G0/G1 和 NED 缺项需继续收口"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-13.a",
+      "stage": "R2",
+      "required": true,
+      "layer": "project file IO and RunService",
+      "runner": "audioalgo_tests",
+      "test_names": [
+        "AR-13.a Frozen schema1 Gain project loads saves reopens and runs against the legacy oracle"
+      ],
+      "test_methods": [
+        "copy the immutable R0 schema1 fixture, compare known graph and layout fields through save/reopen, run the reopened project against an independent float64 Gain oracle, and hash-check frozen/input bytes"
+      ],
+      "evidence_requirements": [
+        "R0 冻结的 schema1 工程可打开/保存/重开/重新运行；已知参数、连接、节点ID和布局保留，输出符合旧语义oracle。"
+      ],
+      "legacy_requirements": [
+        "PRJ-02～04、RUN-03 的适用行为；所有既有拓扑/历史 NED 回归"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-13.b",
+      "stage": "R2",
+      "required": true,
+      "layer": "project persistence and missing-plugin runtime",
+      "runner": "audioalgo_tests",
+      "test_names": [
+        "AR-13.b Unknown plugin fields and nested parameters survive roundtrip and remain unavailable"
+      ],
+      "test_methods": [
+        "preserve root/node/connection extension objects and nested unknown-plugin parameters through load/save/reopen, then reject the absent plugin in validation and real RunService execution"
+      ],
+      "evidence_requirements": [
+        "未知插件的完整原始字段、嵌套参数、版本和连接无损往返；缺插件显示 missing 并阻止非法运行，不静默删除/替换。"
+      ],
+      "legacy_requirements": [
+        "PRJ-02～04、RUN-03 的适用行为；所有既有拓扑/历史 NED 回归"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-13.c",
+      "stage": "R2",
+      "required": true,
+      "layer": "project migration diagnostics and atomic file IO",
+      "runner": "audioalgo_tests",
+      "test_names": [
+        "AR-13.c Unsupported project schema returns a migration diagnostic without rewriting the file",
+        "NED-13.d"
+      ],
+      "test_methods": [
+        "reject a future schema with a migration-specific diagnostic and preserve its original bytes",
+        "inject failure replacing a real existing project file and verify its original bytes and reopened state remain intact"
+      ],
+      "evidence_requirements": [
+        "不支持schema返回迁移诊断；原子保存故障注入后旧文件完整；未知数据不因换序列化实现丢失。"
+      ],
+      "legacy_requirements": [
+        "PRJ-02～04、RUN-03 的适用行为；所有既有拓扑/历史 NED 回归"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-13.d",
+      "stage": "R2",
+      "required": true,
+      "layer": "project resource service and RunService",
+      "runner": "audioalgo_tests + R2_project_resource_service_route",
+      "test_names": [
+        "AR-13.d Missing source resources report a relocatable project resource diagnostic",
+        "R2_project_resource_service_route"
+      ],
+      "test_methods": [
+        "run a real frozen Gain project whose relative UTF-8 source is missing and require a resource-specific diagnostic without output publication; relocate through ProjectResourceService, save/reopen, render relative and external UTF-8 paths against a float64 6 dB oracle, and confirm both input byte sequences stay unchanged",
+        "verify the production chooser passes selections to the value-only resource service, RunService resolves through the injected service, and the editor's missing-file relink uses a session-scoped controller intent"
+      ],
+      "evidence_requirements": [
+        "相对/外部/中文空格路径及缺资源重新定位通过资源服务处理；路径选择器只提供选择结果，不在View实现资源解释；原音频hash不变。"
+      ],
+      "legacy_requirements": [
+        "PRJ-02～04、RUN-03 的适用行为；所有既有拓扑/历史 NED 回归"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-13.e",
+      "stage": "R2",
+      "required": true,
+      "layer": "project model, persistence and application revision",
+      "runner": "audioalgo_tests + R2_project_format_policy",
+      "test_names": [
+        "AR-13.e Schema v1 layout saves without changing compute revision or creating an implicit backup",
+        "R2_project_format_policy"
+      ],
+      "test_methods": [
+        "load the frozen schema-v1 fixture, move a node through EditorController, save and reopen while checking unchanged compute revision, current-result status, coordinates, no implicit backup, and unchanged frozen project/audio bytes",
+        "check ProjectModel and the audio_project target contain only value data with no processor or GUI dependency, and that the documented migration and backup policy matches supported v1/future-schema behavior"
+      ],
+      "evidence_requirements": [
+        "数据模型/持久化不含processor/GUI指针，计算revision与布局状态分离；迁移说明、版本和备份策略有实际fixture验证。"
+      ],
+      "legacy_requirements": [
+        "PRJ-02～04、RUN-03 的适用行为；所有既有拓扑/历史 NED 回归"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-14.a",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "编译器按能力/端口类型形成明确任务与原生区域，不按算法type_id分支；不支持数据类型在执行前定位拒绝。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-14.b",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "两个独立音频源、多输入/多输出、菱形/Mixer及有状态共享分支按完整 GRAPH-04 验证，AEC形状两路角色不串道。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-14.c",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "每音频端口保存可逆bus/channel映射；选定输出为(node_id,port_id)，按依赖反裁剪，观察不额外调用有状态处理器。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-14.d",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "文件/资源 source和sink通过注册任务实现，不把所有 source当WAV；几何/指标/clip不是伪装音频通道。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-14.e",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "GUI/CLI同计划的分支、多输出、端口与时序满足 E2E-02；计划、资源、实际参数和格式诊断可关联。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-15.a",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "prepare/reset次数、两实例隔离、跨块状态连续及新运行/seek/loop符合 DSP-02。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-15.b",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "F=480/512串联，所有规定host块及固定seed随机划分通过 GRAPH-05；不丢样/重样/漂移，FIFO峰值与容量有界。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-15.c",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "NeedMoreInput携带每端口consumed/produced；部分消费、部分输出、EOS和无进展预算符合 GRAPH-07，不按一次调用丢弃全部输入。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-15.d",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "已知延迟分支在真实JUCE图合并后脉冲对齐，只裁剪一次；原始/对齐产物长度/offset符合 GRAPH-06，未知延迟不进入区域。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-15.e",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "尾帧补齐、有限drain及不支持flush按算法声明验证，有效区间与报告一致，无假flush或无限循环。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-15.f",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "整数时间映射与稳定通道ID满足 CORE-02，10分钟采样映射误差不超过1个目标样本，借用视图不逃逸调用有效期。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-16.a",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "冻结后修改工程或磁盘输入，执行仍使用已固定资源版本；manifest hash与实际执行内容一致，不能只做前后hash检查。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-16.b",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "冻结实际默认参数、图/参数revision、资源清单、计划和依赖版本；报告能够独立重建本次请求，不读取可变UI状态。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-16.c",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "新运行目录独立；临时输出经校验后发布，complete.json最后写入，输出hash/长度/有效区间/延迟与文件一致。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-16.d",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "取消、异常、磁盘故障均不发布complete，不覆盖旧成功产物；临时数据有可验证清理/隔离，诊断仍保留。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-16.e",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "成功/历史/过期/失败分开，历史缓存版本不符不得命中；脚本快照与Python环境扩展后再通过 RUN-02，原生已过不代替Python证据。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-17.a",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "每项目至多一个执行+一个最新待执行请求，连续提交会替换旧排队请求，旧身份失效；实例/载荷/队列数量有界。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-17.b",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "原生受控可取消节点在块边界响应，受控fixture从取消到稳定状态≤5秒，且随后有效Gain成功；不把该预算推广到无响应原生第三方调用。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-17.c",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "关闭View、New/Open、宿主退出顺序正确，无悬空回调或遗留worker；不用强杀线程回收实例。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-17.d",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "连续50次编辑/运行/取消/重开验证无死锁、结果串用与保留对象随次数线性增长，符合 RUN-06。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-17.e",
+      "stage": "R5",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "取消/运行期间消息线程按PERF-01心跳测量，p95≤100ms、max≤500ms；错误/取消后可继续编辑运行，UI不丢工程。"
+      ],
+      "legacy_requirements": [
+        "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-18.a",
+      "stage": "R6",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "manifest扫描不导入用户代码，目录新插件/元数据产生同一目录模型；PY-01及EXT-02全量子用例通过。"
+      ],
+      "legacy_requirements": [
+        "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-18.b",
+      "stage": "R6",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "Python Gain/Stateful/clip类型、shape、dtype、NaN/Inf、两实例及跨块状态全部满足 PY-02/03/07，输出可继续接原生区域。"
+      ],
+      "legacy_requirements": [
+        "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-18.c",
+      "stage": "R6",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "代码/本地模块冻结并按hash区分，同名插件不冲突；修改后重启runner，版本/环境/实际文件符合 PY-05、RUN-02。"
+      ],
+      "legacy_requirements": [
+        "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-18.d",
+      "stage": "R6",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "真实独立进程协议、traceback、日志洪泛、崩溃、取消和进程树回收通过 PY-04/06/08、RUN-01/04/05；协作最多2秒、总回收最多5秒，之后有效任务成功。"
+      ],
+      "legacy_requirements": [
+        "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-18.e",
+      "stage": "R6",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "C++→PythonStateful→C++在GUI/CLI贯通 E2E-03；UI/设备回调不运行Python，消息/载荷大小预算真实检查，不修改通用View/算法分支接入。"
+      ],
+      "legacy_requirements": [
+        "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-19.a",
+      "stage": "R6",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "SpeexDenoise原库直调→core→节点→backend→CLI符合 ALG-01及ALG-04相关全部边界。"
+      ],
+      "legacy_requirements": [
+        "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-19.b",
+      "stage": "R6",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "SpeexAEC角色/偏移/状态/格式通过 ALG-02及ALG-04相关全部边界，不能靠信号猜测角色。"
+      ],
+      "legacy_requirements": [
+        "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-19.c",
+      "stage": "R6",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "Pyroomacoustics指定DAS接口直调与节点一致，几何/方向/通道/区间通过 ALG-03及ALG-04相关全部边界。"
+      ],
+      "legacy_requirements": [
+        "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-19.d",
+      "stage": "R6",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "QUAL-01/02/03全部按原主验收公式/阈值/固定区间通过；授权语音、真实同步阵列F07与分量参考齐备。仿真通过不能替代真实阵列。"
+      ],
+      "legacy_requirements": [
+        "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-19.e",
+      "stage": "R6",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "三个真实示例GUI/CLI符合 E2E-04，质量suite未达标真实非零；听评清单/发现保留，不能用主观听感替代数值或反过来冒充听评。"
+      ],
+      "legacy_requirements": [
+        "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-20.a",
+      "stage": "R6",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "G0～G6、NED、AR全部必需子用例有精确映射并真实执行，最终源码Release累计回归无缺失/失败/跳过/超时/未验证；对应 LOOP-02。"
+      ],
+      "legacy_requirements": [
+        "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-20.b",
+      "stage": "R6",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "UI-04～07、PERF-01～03、RUN-06、E2E-05全部通过；声谱、A/B、长文件缓存、真实设备和完整用户流程证据齐全。"
+      ],
+      "legacy_requirements": [
+        "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-20.c",
+      "stage": "R6",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "Release包在干净用户/受控隔离环境完成默认Gain/Python示例和离线运行，满足 PKG-01；不依赖开发机绝对路径或运行时下载。"
+      ],
+      "legacy_requirements": [
+        "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-20.d",
+      "stage": "R6",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "算法消费者/插件接入文档、构建注册、描述字段、参数/端口、状态/错误、支持限制与许可记录齐备；陌生调用方按文档可重跑。"
+      ],
+      "legacy_requirements": [
+        "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
+      ],
+      "desktop_required": false
+    },
+    {
+      "id": "AR-20.e",
+      "stage": "R6",
+      "required": true,
+      "layer": "unassigned",
+      "runner": "unassigned",
+      "test_names": [],
+      "test_methods": [],
+      "evidence_requirements": [
+        "旧路径/兼容临时桥接清理，依赖图与职责审查通过，无已知阻断；状态文档报告真实Gate、证据和限制，不能只写“重构完成”。"
+      ],
+      "legacy_requirements": [
+        "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
+      ],
+      "desktop_required": false
+    }
+  ]
+}

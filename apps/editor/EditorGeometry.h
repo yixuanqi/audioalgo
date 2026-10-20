@@ -115,7 +115,7 @@ struct NodeVisualGeometry {
 }
 
 [[nodiscard]] inline const NodeInstance* find_topmost_node_at(
-    const std::vector<NodeInstance>& nodes, const NodeRegistry& registry, EditorPoint point,
+    const std::vector<NodeInstance>& nodes, const NodeCatalog& registry, EditorPoint point,
     const CanvasCoordinateTransform& transform = {}, const std::string& ignored_node_id = {}) {
     for (auto it = nodes.rbegin(); it != nodes.rend(); ++it) {
         if (!ignored_node_id.empty() && it->id == ignored_node_id)
@@ -134,7 +134,7 @@ struct PortHit {
 };
 
 [[nodiscard]] inline std::optional<PortHit> find_topmost_port_at(
-    const std::vector<NodeInstance>& nodes, const NodeRegistry& registry, EditorPoint point,
+    const std::vector<NodeInstance>& nodes, const NodeCatalog& registry, EditorPoint point,
     const CanvasCoordinateTransform& transform = {}) {
     constexpr float port_hit_radius = 12.0f;
     for (auto it = nodes.rbegin(); it != nodes.rend(); ++it) {
@@ -165,7 +165,7 @@ struct NodePositionPreview {
 };
 
 [[nodiscard]] inline std::optional<CubicConnectionGeometry> make_connection_geometry(
-    const ProjectModel& project, const NodeRegistry& registry, const Connection& connection,
+    const ProjectModel& project, const NodeCatalog& registry, const Connection& connection,
     const CanvasCoordinateTransform& transform = {},
     const std::optional<NodePositionPreview>& position_preview = std::nullopt) {
     const auto source = std::find_if(project.nodes.begin(), project.nodes.end(), [&](const auto& node) {
@@ -246,7 +246,7 @@ inline void flatten_connection_curve(EditorPoint start, EditorPoint control1, Ed
 }
 
 [[nodiscard]] inline std::optional<std::size_t> find_visible_connection_at(
-    const ProjectModel& project, const NodeRegistry& registry, EditorPoint point, float tolerance = 8.0f,
+    const ProjectModel& project, const NodeCatalog& registry, EditorPoint point, float tolerance = 8.0f,
     const CanvasCoordinateTransform& transform = {}, const std::string& ignored_node_id = {}) {
     if (tolerance < 0.0f || find_topmost_node_at(project.nodes, registry, point, transform, ignored_node_id) != nullptr)
         return std::nullopt;
@@ -268,7 +268,7 @@ inline void flatten_connection_curve(EditorPoint start, EditorPoint control1, Ed
 }
 
 [[nodiscard]] inline std::optional<EditorPoint> find_node_placement(
-    const std::vector<NodeInstance>& existing_nodes, const NodeRegistry& registry,
+    const std::vector<NodeInstance>& existing_nodes, const NodeCatalog& registry,
     const NodeDescriptor& descriptor, float view_width, float view_height,
     const CanvasCoordinateTransform& transform = {}) {
     constexpr float left_margin = 16.0f;

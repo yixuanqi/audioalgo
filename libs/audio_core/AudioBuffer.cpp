@@ -27,6 +27,14 @@ std::span<float> AudioBuffer::mutable_channel(std::size_t index) {
     return channels_[index];
 }
 
+AudioChannelView AudioBuffer::channel_view(std::size_t index) const {
+    return {sample_rate_hz_, index, channel(index), valid_interval_};
+}
+
+MutableAudioChannelView AudioBuffer::mutable_channel_view(std::size_t index) {
+    return {sample_rate_hz_, index, mutable_channel(index), valid_interval_};
+}
+
 std::string AudioBuffer::format_error() const {
     if (sample_rate_hz_ != 16000 && sample_rate_hz_ != 48000)
         return "Only 16000 Hz and 48000 Hz audio is supported";

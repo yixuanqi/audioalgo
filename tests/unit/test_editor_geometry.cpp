@@ -1,6 +1,7 @@
 #include "../../apps/editor/EditorGeometry.h"
 #include "../../apps/editor/EditorComponentLayout.h"
 #include "../../apps/editor/EditorNodeCreation.h"
+#include "plugins/builtin/registration.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -138,7 +139,7 @@ TEST_CASE("NED-02.c", "[node_interaction][NED-02]") {
 
 TEST_CASE("NED-05.a", "[node_interaction][NED-05]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     const auto* gain_descriptor = registry.find("builtin.gain");
     REQUIRE(gain_descriptor != nullptr);
 
@@ -180,7 +181,7 @@ TEST_CASE("NED-05.a", "[node_interaction][NED-05]") {
 
 TEST_CASE("NED-05.b", "[node_interaction][NED-05]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     const auto* gain = registry.find("builtin.gain");
     REQUIRE(gain != nullptr);
     const auto gain_parameters = audioalgo::editor::default_node_parameters(*gain);
@@ -230,7 +231,7 @@ TEST_CASE("NED-05.c", "[node_interaction][NED-05]") {
 
 TEST_CASE("NED-05.d", "[node_interaction][NED-05]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     REQUIRE(registry.register_descriptor({
         "test.described_filter", "1.0.0", "Described Filter",
         {{"audio_in", "audio.pcm@1", audioalgo::PortDirection::input, true},
@@ -253,7 +254,7 @@ TEST_CASE("NED-05.d", "[node_interaction][NED-05]") {
 
 TEST_CASE("NED-05.e", "[node_interaction][NED-05]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     audioalgo::ProjectModel project;
     project.revision = 41;
     project.nodes.push_back({"existing", "builtin.gain", {{"gain_db", 3.0}}, 10.0, 20.0});
@@ -273,7 +274,7 @@ TEST_CASE("NED-05.e", "[node_interaction][NED-05]") {
 
 TEST_CASE("NED-06.a", "[node_interaction][NED-06]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     const std::vector<audioalgo::NodeInstance> nodes{
         {"painted-first", "builtin.gain", {{"gain_db", 0.0}}, 100.0, 100.0},
         {"painted-last", "builtin.output", {}, 130.0, 120.0},
@@ -287,7 +288,7 @@ TEST_CASE("NED-06.a", "[node_interaction][NED-06]") {
 
 TEST_CASE("NED-06.b", "[node_interaction][NED-06]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     audioalgo::ProjectModel project;
     project.nodes = {
         {"source", "builtin.file_source", {{"path", std::string("input.wav")}}, 20.0, 100.0},
@@ -308,7 +309,7 @@ TEST_CASE("NED-06.b", "[node_interaction][NED-06]") {
 
 TEST_CASE("NED-06.c", "[node_interaction][NED-06]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     const std::vector<audioalgo::NodeInstance> nodes{
         {"gain", "builtin.gain", {{"gain_db", 0.0}}, 100.0, 100.0},
     };
@@ -335,7 +336,7 @@ TEST_CASE("NED-06.c", "[node_interaction][NED-06]") {
 
 TEST_CASE("NED-06.e", "[node_interaction][NED-06]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     audioalgo::editor::CanvasCoordinateTransform transform;
     transform.pan_by({35.0f, -18.0f});
     const audioalgo::editor::EditorPoint model_position{300.0f, 100.0f};
@@ -386,7 +387,7 @@ TEST_CASE("NED-06.e", "[node_interaction][NED-06]") {
 
 TEST_CASE("NED-10.e", "[node_interaction][NED-10]") {
     audioalgo::NodeRegistry registry;
-    audioalgo::register_builtin_node_descriptors(registry);
+    audioalgo::register_builtin_nodes(registry);
     audioalgo::ProjectModel branched;
     branched.nodes = {
         {"file-near", "builtin.file_source", {{"path", std::string("input.wav")}}, 10.0, 10.0},

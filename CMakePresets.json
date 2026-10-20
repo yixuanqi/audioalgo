@@ -31,6 +31,22 @@
       }
     },
     {
+      "name": "windows-application-only",
+      "displayName": "Windows Application Only",
+      "generator": "Visual Studio 18 2026",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/windows-application-only",
+      "cacheVariables": {
+        "AUDIO_BUILD_EDITOR": "OFF",
+        "AUDIO_BUILD_RUNTIME": "OFF",
+        "AUDIO_ENABLE_PYTHON": "OFF",
+        "AUDIO_ENABLE_SPEEXDSP": "OFF",
+        "AUDIO_BUILD_TESTS": "ON",
+        "AUDIO_BUILD_INFRASTRUCTURE_TESTS": "ON",
+        "Python3_EXECUTABLE": "E:/0qyx/res/miniconda/python.exe"
+      }
+    },
+    {
       "name": "windows-release",
       "displayName": "Windows Release",
       "generator": "Visual Studio 18 2026",
@@ -48,11 +64,13 @@
   "buildPresets": [
     { "name": "windows-debug", "configurePreset": "windows-debug", "configuration": "Debug" },
     { "name": "windows-headless", "configurePreset": "windows-headless", "configuration": "Debug" },
+    { "name": "windows-application-only", "configurePreset": "windows-application-only", "configuration": "Debug" },
     { "name": "windows-release", "configurePreset": "windows-release", "configuration": "Release" }
   ],
   "testPresets": [
     { "name": "windows-debug", "configurePreset": "windows-debug", "configuration": "Debug", "output": { "outputOnFailure": true }, "execution": { "noTestsAction": "error" } },
     { "name": "windows-headless", "configurePreset": "windows-headless", "configuration": "Debug", "output": { "outputOnFailure": true }, "execution": { "noTestsAction": "error" } },
+    { "name": "windows-application-only", "configurePreset": "windows-application-only", "configuration": "Debug", "output": { "outputOnFailure": true }, "execution": { "noTestsAction": "error" } },
     { "name": "windows-release", "configurePreset": "windows-release", "configuration": "Release", "output": { "outputOnFailure": true }, "execution": { "noTestsAction": "error" } }
   ]
 }

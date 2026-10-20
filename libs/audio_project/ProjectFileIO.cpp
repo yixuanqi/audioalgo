@@ -2,8 +2,11 @@
 
 #include <juce_core/juce_core.h>
 
+#include <algorithm>
 #include <string>
 #include <type_traits>
+#include <initializer_list>
+#include <optional>
 
 namespace audioalgo {
 namespace {
@@ -46,6 +49,46 @@ bool var_to_parameter(const juce::var& value, ParameterValue& out) {
     return true;
 }
 
+bool is_known_property(const std::string& name, std::initializer_list<const char*> known) {
+    return std::any_of(known.begin(), known.end(), [&](const char* candidate) { return name == candidate; });
+}
+
+void retain_unknown_properties(const juce::DynamicObject& object, std::initializer_list<const char*> known,
+                               std::vector<OpaqueJsonField>& destination) {
+    const auto& properties = object.getProperties();
+    for (int index = 0; index < properties.size(); ++index) {
+        const auto name = to_utf8(properties.getName(index).toString());
+        if (is_known_property(name, known))
+            continue;
+        const auto json = juce::JSON::toString(properties.getValueAt(index), false);
+        destination.push_back({name, to_utf8(json)});
+    }
+}
+
+std::optional<juce::var> parse_opaque_json_value(const OpaqueJsonField& field) {
+    const auto wrapped = std::string("{\"value\":") + field.value_json + "}";
+    const auto wrapped_utf8 = juce::String::fromUTF8(wrapped.c_str());
+    const auto parsed = juce::JSON::parse(wrapped_utf8);
+    const auto* object = parsed.getDynamicObject();
+    if (object == nullptr)
+        return std::nullopt;
+    return object->getProperty("value");
+}
+
+bool append_opaque_properties(juce::DynamicObject& object, const std::vector<OpaqueJsonField>& fields,
+                              std::string& invalid_name) {
+    for (const auto& field : fields) {
+        const juce::Identifier name(juce::String::fromUTF8(field.name.c_str()));
+        const auto value = parse_opaque_json_value(field);
+        if (object.hasProperty(name) || !value.has_value()) {
+            invalid_name = field.name;
+            return false;
+        }
+        object.setProperty(name, *value);
+    }
+    return true;
+}
+
 Diagnostic bad_project(const std::string& message) {
     return {"project_invalid", message};
 }
@@ -74,6 +117,9 @@ ProjectLoadOutcome load_project_file(const std::filesystem::path& path) {
     project.revision = static_cast<std::uint64_t>(static_cast<juce::int64>(root->getProperty("revision")));
     if (!get_string(*root, "selected_output_node_id", project.selected_output_node_id))
         return bad_project("selected_output_node_id must be a string");
+    retain_unknown_properties(*root, {"schema_version", "project_id", "name", "revision",
+                                      "selected_output_node_id", "nodes", "connections"},
+                              project.serialized_extensions);
 
     const auto node_array_var = root->getProperty("nodes");
     const auto* node_array = node_array_var.getArray();
@@ -95,10 +141,16 @@ ProjectLoadOutcome load_project_file(const std::filesystem::path& path) {
         const auto& properties = parameters->getProperties();
         for (int index = 0; index < properties.size(); ++index) {
             ParameterValue value;
-            if (!var_to_parameter(properties.getValueAt(index), value))
-                return bad_project("Node parameter values must be bool, integer, float, or string");
-            node.parameters.emplace(to_utf8(properties.getName(index).toString()), std::move(value));
+            const auto name = to_utf8(properties.getName(index).toString());
+            if (!var_to_parameter(properties.getValueAt(index), value)) {
+                const auto json = juce::JSON::toString(properties.getValueAt(index), false);
+                node.opaque_parameters.push_back({name, to_utf8(json)});
+            } else {
+                node.parameters.emplace(name, std::move(value));
+            }
         }
+        retain_unknown_properties(*object, {"id", "type_id", "x", "y", "parameters"},
+                                  node.serialized_extensions);
         project.nodes.push_back(std::move(node));
     }
 
@@ -116,6 +168,8 @@ ProjectLoadOutcome load_project_file(const std::filesystem::path& path) {
             !get_string(*object, "to_node", connection.to_node) ||
             !get_string(*object, "to_port", connection.to_port))
             return bad_project("Each connection requires string node and port IDs");
+        retain_unknown_properties(*object, {"from_node", "from_port", "to_node", "to_port"},
+                                  connection.serialized_extensions);
         project.connections.push_back(std::move(connection));
     }
     return project;
@@ -139,7 +193,12 @@ ProjectSaveOutcome save_project_file(const std::filesystem::path& path, const Pr
         juce::DynamicObject::Ptr parameters = new juce::DynamicObject();
         for (const auto& [key, value] : node.parameters)
             parameters->setProperty(juce::Identifier(juce::String::fromUTF8(key.c_str())), parameter_to_var(value));
+        std::string invalid_field;
+        if (!append_opaque_properties(*parameters, node.opaque_parameters, invalid_field))
+            return Diagnostic{"project_extension_invalid", "Could not restore opaque node parameter " + invalid_field};
         object->setProperty("parameters", juce::var(parameters.get()));
+        if (!append_opaque_properties(*object, node.serialized_extensions, invalid_field))
+            return Diagnostic{"project_extension_invalid", "Could not restore opaque node field " + invalid_field};
         nodes.add(juce::var(object.get()));
     }
     root->setProperty("nodes", juce::var(nodes));
@@ -151,9 +210,16 @@ ProjectSaveOutcome save_project_file(const std::filesystem::path& path, const Pr
         object->setProperty("from_port", juce::String::fromUTF8(connection.from_port.c_str()));
         object->setProperty("to_node", juce::String::fromUTF8(connection.to_node.c_str()));
         object->setProperty("to_port", juce::String::fromUTF8(connection.to_port.c_str()));
+        std::string invalid_field;
+        if (!append_opaque_properties(*object, connection.serialized_extensions, invalid_field))
+            return Diagnostic{"project_extension_invalid", "Could not restore opaque connection field " + invalid_field};
         connections.add(juce::var(object.get()));
     }
     root->setProperty("connections", juce::var(connections));
+
+    std::string invalid_field;
+    if (!append_opaque_properties(*root, project.serialized_extensions, invalid_field))
+        return Diagnostic{"project_extension_invalid", "Could not restore opaque project field " + invalid_field};
 
     const auto json = juce::JSON::toString(juce::var(root.get()), true);
     const auto utf8 = json.toUTF8();

@@ -1,4 +1,5 @@
 #include "audio_juce_backend/JuceGraph.h"
+#include "plugins/builtin/registration.h"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -9,11 +10,9 @@
 #include <cmath>
 
 using audioalgo::AudioBuffer;
-using audioalgo::JuceProcessorRegistry;
 using audioalgo::NodeRegistry;
 using audioalgo::ProjectModel;
-using audioalgo::register_builtin_juce_processors;
-using audioalgo::register_builtin_node_descriptors;
+using audioalgo::register_builtin_nodes;
 using audioalgo::render_audio_graph;
 
 namespace {
@@ -38,9 +37,7 @@ ProjectModel stereo_gain_project() {
 TEST_CASE("GRAPH-03 domain connections preserve distinct JUCE graph channels", "[G1][GRAPH-03]") {
     juce::ScopedJuceInitialiser_GUI message_manager;
     NodeRegistry descriptors;
-    register_builtin_node_descriptors(descriptors);
-    JuceProcessorRegistry registry;
-    register_builtin_juce_processors(registry);
+    register_builtin_nodes(descriptors);
 
     AudioBuffer input(48000, {"left", "right"}, 513);
     for (std::size_t frame = 0; frame < input.frame_count(); ++frame) {
@@ -49,7 +46,7 @@ TEST_CASE("GRAPH-03 domain connections preserve distinct JUCE graph channels", "
     }
 
     const auto project = stereo_gain_project();
-    const auto rendered = render_audio_graph(project, descriptors, registry, input, 127);
+    const auto rendered = render_audio_graph(project, descriptors, input, 127);
     REQUIRE(std::holds_alternative<AudioBuffer>(rendered));
     const auto& output = std::get<AudioBuffer>(rendered);
     REQUIRE(output.channel_count() == 2);
@@ -68,7 +65,7 @@ TEST_CASE("GRAPH-03 domain connections preserve distinct JUCE graph channels", "
         node.x += 83.0;
         node.y -= 19.0;
     }
-    const auto moved_render = render_audio_graph(moved, descriptors, registry, input, 127);
+    const auto moved_render = render_audio_graph(moved, descriptors, input, 127);
     REQUIRE(std::holds_alternative<AudioBuffer>(moved_render));
     const auto& moved_output = std::get<AudioBuffer>(moved_render);
     for (std::size_t channel = 0; channel < 2; ++channel)
@@ -78,9 +75,7 @@ TEST_CASE("GRAPH-03 domain connections preserve distinct JUCE graph channels", "
 TEST_CASE("GRAPH-02 descriptor defaults and gain boundaries control real JUCE samples", "[G1][GRAPH-02]") {
     juce::ScopedJuceInitialiser_GUI message_manager;
     NodeRegistry descriptors;
-    register_builtin_node_descriptors(descriptors);
-    JuceProcessorRegistry processors;
-    register_builtin_juce_processors(processors);
+    register_builtin_nodes(descriptors);
 
     ProjectModel project;
     project.project_id = "graph-02-gain";
@@ -103,7 +98,7 @@ TEST_CASE("GRAPH-02 descriptor defaults and gain boundaries control real JUCE sa
     const std::array<double, 5> gains{-60.0, -6.0, 0.0, 6.0, 12.0};
     for (const auto gain_db : gains) {
         project.nodes[1].parameters["gain_db"] = gain_db;
-        const auto outcome = render_audio_graph(project, descriptors, processors, input, 3);
+        const auto outcome = render_audio_graph(project, descriptors, input, 3);
         REQUIRE(std::holds_alternative<AudioBuffer>(outcome));
         const auto& output = std::get<AudioBuffer>(outcome);
         REQUIRE(output.frame_count() == input.frame_count());
@@ -115,18 +110,18 @@ TEST_CASE("GRAPH-02 descriptor defaults and gain boundaries control real JUCE sa
     }
 
     project.nodes[1].parameters.erase("gain_db");
-    const auto default_outcome = render_audio_graph(project, descriptors, processors, input, 3);
+    const auto default_outcome = render_audio_graph(project, descriptors, input, 3);
     REQUIRE(std::holds_alternative<AudioBuffer>(default_outcome));
     REQUIRE(std::equal(input.channel(0).begin(), input.channel(0).end(),
                        std::get<AudioBuffer>(default_outcome).channel(0).begin()));
 
     project.nodes[1].parameters["gain_db"] = 12.1;
-    const auto outside_range = render_audio_graph(project, descriptors, processors, input, 3);
+    const auto outside_range = render_audio_graph(project, descriptors, input, 3);
     REQUIRE(std::holds_alternative<audioalgo::Diagnostic>(outside_range));
     REQUIRE(std::get<audioalgo::Diagnostic>(outside_range).code == "parameter_out_of_range");
 
     project.nodes[1].parameters["gain_db"] = std::string("6");
-    const auto wrong_type = render_audio_graph(project, descriptors, processors, input, 3);
+    const auto wrong_type = render_audio_graph(project, descriptors, input, 3);
     REQUIRE(std::holds_alternative<audioalgo::Diagnostic>(wrong_type));
     REQUIRE(std::get<audioalgo::Diagnostic>(wrong_type).code == "parameter_type");
 }

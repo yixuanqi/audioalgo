@@ -14,6 +14,7 @@
 #include <string>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 namespace audioalgo {
 namespace {
@@ -172,22 +173,39 @@ private:
 
 } // namespace
 
-RunService::RunService(const NodeRegistry& descriptors, const JuceProcessorRegistry& processors)
-    : descriptors_(descriptors), processors_(processors) {}
+RunService::RunService(const NodeRegistry& nodes, std::shared_ptr<const ProjectResourceService> resources)
+    : nodes_(&nodes), resources_(resources ? std::move(resources) : std::make_shared<ProjectResourceService>()) {}
+
+RunService::RunService(std::shared_ptr<const NodeRegistry> nodes,
+                       std::shared_ptr<const ProjectResourceService> resources)
+    : nodes_owner_(std::move(nodes)), nodes_(nodes_owner_.get()),
+      resources_(resources ? std::move(resources) : std::make_shared<ProjectResourceService>()) {}
 
 RunOutcome RunService::run(const RunRequest& request) const {
+    if (nodes_ == nullptr)
+        return Diagnostic{"node_registry_missing", "The run service has no node registry"};
+    auto identity = request.identity;
+    if (identity.request_id.empty()) {
+        identity.project_id = request.project.project_id;
+        identity.session_epoch = 0;
+        identity.request_id = juce::Uuid().toString().toStdString();
+        identity.revision = request.project.revision;
+    }
+    if (identity.project_id != request.project.project_id || identity.revision != request.project.revision)
+        return Diagnostic{"run_identity_mismatch", "Run identity does not belong to the requested project snapshot"};
     if (!std::filesystem::is_regular_file(request.project_file))
         return Diagnostic{"project_file_missing", "Project file does not exist"};
     if (request.output_directory.empty() || std::filesystem::exists(request.output_directory))
         return Diagnostic{"run_directory_exists", "Run output directory must be a new path"};
 
-    const auto graph_diagnostics = validate_project(request.project, descriptors_);
+    const auto graph_diagnostics = validate_project(request.project, *nodes_);
     if (!graph_diagnostics.empty())
-        return Diagnostic{graph_diagnostics.front().code, graph_diagnostics.front().message};
+        return Diagnostic{graph_diagnostics.front().code, graph_diagnostics.front().message,
+                          graph_diagnostics.front().node_id, graph_diagnostics.front().port_id};
 
     const NodeInstance* source_node = nullptr;
     for (const auto& node : request.project.nodes) {
-        const auto* descriptor = descriptors_.find(node.type_id);
+        const auto* descriptor = nodes_->find(node.type_id);
         if (descriptor != nullptr && descriptor->execution_kind == NodeExecutionKind::source) {
             if (source_node != nullptr)
                 return Diagnostic{"graph_shape_unsupported", "A G1 run requires exactly one audio source"};
@@ -198,22 +216,59 @@ RunOutcome RunService::run(const RunRequest& request) const {
         return Diagnostic{"source_node_missing", "Project has no registered audio source node"};
     const auto path_parameter = source_node->parameters.find("path");
     if (path_parameter == source_node->parameters.end() || !std::holds_alternative<std::string>(path_parameter->second))
-        return Diagnostic{"source_path_missing", "File source node requires a path parameter"};
+        return Diagnostic{"source_path_missing", "File source node requires a path parameter", source_node->id, "path"};
     const auto utf8_path = std::get<std::string>(path_parameter->second);
     if (utf8_path.empty())
-        return Diagnostic{"source_path_missing", "File source path must not be empty"};
+        return Diagnostic{"source_path_missing", "File source path must not be empty", source_node->id, "path"};
 
-    auto input_path = std::filesystem::u8path(utf8_path);
-    if (input_path.is_relative())
-        input_path = request.project_file.parent_path() / input_path;
-    input_path = input_path.lexically_normal();
+    const auto resource_path = resources_->resolve(utf8_path, request.project_file);
+    if (const auto* error = std::get_if<Diagnostic>(&resource_path)) {
+        auto contextual = *error;
+        if (contextual.code == "source_resource_missing") {
+            contextual.node_id = source_node->id;
+            contextual.port_id = "path";
+        }
+        return contextual;
+    }
+    const auto& input_path = std::get<std::filesystem::path>(resource_path);
     const auto input_hash_before = sha256_file(input_path);
     if (const auto* error = std::get_if<Diagnostic>(&input_hash_before))
         return *error;
     const auto audio_result = read_wav_file(input_path);
     if (const auto* error = std::get_if<Diagnostic>(&audio_result))
         return *error;
-    const auto rendered_result = render_audio_graph(request.project, descriptors_, processors_, std::get<AudioBuffer>(audio_result), request.block_size);
+    auto executed_project = request.project;
+    for (auto& node : executed_project.nodes)
+        if (const auto* descriptor = nodes_->find(node.type_id))
+            for (const auto& parameter : descriptor->parameters)
+                node.parameters.try_emplace(parameter.id, parameter.default_value);
+    auto rendering_project = executed_project;
+    struct ResourceRecord {
+        std::string node_id, parameter_id;
+        std::filesystem::path path;
+        std::string sha256;
+    };
+    std::vector<ResourceRecord> resource_records;
+    for (auto& node : rendering_project.nodes) {
+        const auto* descriptor = nodes_->find(node.type_id);
+        for (const auto& parameter : descriptor->parameters) {
+            if (!parameter.input_resource)
+                continue;
+            const auto& reference = std::get<std::string>(node.parameters.at(parameter.id));
+            if (reference.empty())
+                return Diagnostic{"resource_path_missing", "Input resource path must not be empty", node.id, parameter.id};
+            const auto resolved = resources_->resolve(reference, request.project_file);
+            if (const auto* error = std::get_if<Diagnostic>(&resolved))
+                return Diagnostic{"parameter_resource_missing", error->message, node.id, parameter.id};
+            const auto path = std::get<std::filesystem::path>(resolved);
+            const auto digest = sha256_file(path);
+            if (const auto* error = std::get_if<Diagnostic>(&digest))
+                return Diagnostic{error->code, error->message, node.id, parameter.id};
+            resource_records.push_back({node.id, parameter.id, path, std::get<std::string>(digest)});
+            node.parameters[parameter.id] = to_juce_file(path).getFullPathName().toStdString();
+        }
+    }
+    const auto rendered_result = render_audio_graph(rendering_project, *nodes_, std::get<AudioBuffer>(audio_result), request.block_size);
     if (const auto* error = std::get_if<Diagnostic>(&rendered_result))
         return *error;
     const auto input_hash_after = sha256_file(input_path);
@@ -222,13 +277,19 @@ RunOutcome RunService::run(const RunRequest& request) const {
     const auto input_hash = std::get<std::string>(input_hash_before);
     if (input_hash != std::get<std::string>(input_hash_after))
         return Diagnostic{"source_modified_during_run", "Input audio changed while the run was executing"};
+    for (const auto& resource : resource_records) {
+        const auto digest = sha256_file(resource.path);
+        if (!std::holds_alternative<std::string>(digest) || std::get<std::string>(digest) != resource.sha256)
+            return Diagnostic{"resource_modified_during_run", "Input resource changed while the run was executing",
+                              resource.node_id, resource.parameter_id};
+    }
 
     std::error_code filesystem_error;
     if (!std::filesystem::create_directory(request.output_directory, filesystem_error))
         return Diagnostic{"run_directory_create_failed", filesystem_error ? filesystem_error.message() : "Could not reserve a new run directory"};
     OutputDirectoryGuard output_guard(request.output_directory);
 
-    const auto run_id = juce::Uuid().toString().toStdString();
+    const auto run_id = identity.request_id;
     const auto output_file = request.output_directory / "output.wav";
     const auto write_result = write_wav_file(output_file, std::get<AudioBuffer>(rendered_result), WavEncoding::float32);
     if (const auto* error = std::get_if<Diagnostic>(&write_result))
@@ -237,11 +298,35 @@ RunOutcome RunService::run(const RunRequest& request) const {
     if (const auto* error = std::get_if<Diagnostic>(&output_hash_result))
         return *error;
 
+    // Keep the executed parameter values with each run, including descriptor defaults.
+    // The caller's editable project and original project file remain untouched.
+    const auto snapshot_file = request.output_directory / "project.aaproj";
+    const auto snapshot_result = save_project_file(snapshot_file, executed_project);
+    if (const auto* error = std::get_if<Diagnostic>(&snapshot_result))
+        return *error;
+    const auto snapshot_hash = sha256_file(snapshot_file);
+    if (const auto* error = std::get_if<Diagnostic>(&snapshot_hash))
+        return *error;
+
     juce::DynamicObject::Ptr manifest = new juce::DynamicObject();
     manifest->setProperty("schema_version", 1);
     manifest->setProperty("run_id", json_string(run_id));
     manifest->setProperty("project_id", json_string(request.project.project_id));
     manifest->setProperty("project_revision", static_cast<juce::int64>(request.project.revision));
+    manifest->setProperty("project_snapshot", "project.aaproj");
+    manifest->setProperty("project_snapshot_sha256", json_string(std::get<std::string>(snapshot_hash)));
+    juce::Array<juce::var> resource_manifest;
+    for (const auto& resource : resource_records) {
+        juce::DynamicObject::Ptr item = new juce::DynamicObject();
+        item->setProperty("node_id", json_string(resource.node_id));
+        item->setProperty("parameter_id", json_string(resource.parameter_id));
+        item->setProperty("path", to_juce_file(resource.path).getFullPathName());
+        item->setProperty("sha256", json_string(resource.sha256));
+        resource_manifest.add(juce::var(item.get()));
+    }
+    manifest->setProperty("resources", resource_manifest);
+    manifest->setProperty("session_epoch", static_cast<juce::int64>(identity.session_epoch));
+    manifest->setProperty("request_id", json_string(identity.request_id));
     manifest->setProperty("sample_rate_hz", static_cast<int>(std::get<AudioBuffer>(rendered_result).sample_rate_hz()));
     manifest->setProperty("channels", static_cast<int>(std::get<AudioBuffer>(rendered_result).channel_count()));
     manifest->setProperty("frames", static_cast<juce::int64>(std::get<AudioBuffer>(rendered_result).frame_count()));
@@ -268,7 +353,7 @@ RunOutcome RunService::run(const RunRequest& request) const {
 
     return RunSuccess{run_id, output_file, request.output_directory / "run.json", request.output_directory / "complete.json",
                       std::get<AudioBuffer>(rendered_result).frame_count(), input_hash,
-                      std::get<std::string>(output_hash_result)};
+                      std::get<std::string>(output_hash_result), identity};
 }
 
 } // namespace audioalgo

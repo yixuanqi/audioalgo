@@ -10,6 +10,8 @@ updated: 2026-10-16
 
 本文与 [开发方案](plan_audio_pipeline_editor_juce.md)、[Agent 迭代规程](agent_loop_audio_pipeline_editor.md)共同使用。所有测试 ID 是待实现的验收要求，不代表已有测试或通过结果。实现测试应标注对应 ID，测试注册清单包含 Gate、必需性、执行器和子用例。
 
+2026-10-18：算法库与编辑器分离另按[重构测试及通过准则](testing_architecture_refactor.md)验收AR-01～20的全部字母子用例；实施与方法见[重构方案](plan_architecture_refactor.md)、[重构Agent规程](agent_loop_architecture_refactor.md)。AR结果补充本文，不能替代G0～G6或NED；主验证器漏收QUAL章节/skip/桌面证据等问题须按AR-02真实修复，不能把当前脚本退出0视作全部验收完成。
+
 每个 ID 可以包含多条实际用例；该 ID 只有全部必需子用例通过才算通过。`passed`、`failed`、`not_run`、`not_verified`、`blocked`、`skipped` 分开记录；后五者均不能使对应必需 Gate 通过。阶段必需集合为开发方案 Gate 表中的集合，加全部前序 Gate 集合，G6 为全文全部 ID。
 
 算法数值正确性、算法质量、运行性能、GUI 行为分别判定，不能互相替代。用 mock 测取消和旧结果合法，但算法 Gate 必须使用真实实现。纯组件测试不能替代真实桌面交互；无设备环境不能报告播放已验证。

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "project_id": "audioalgo-demo-channel-swap-001",
+  "name": "Stereo Channel Swap Demo",
+  "revision": 1,
+  "selected_output_node_id": "output",
+  "nodes": [
+    {"id": "file", "type_id": "builtin.file_source", "x": 60.0, "y": 150.0, "parameters": {"path": "input.wav"}},
+    {"id": "swap", "type_id": "example.cpp_channel_swap", "x": 340.0, "y": 150.0, "parameters": {"enabled": true}},
+    {"id": "output", "type_id": "builtin.output", "x": 620.0, "y": 150.0, "parameters": {}}
+  ],
+  "connections": [
+    {"from_node": "file", "from_port": "audio", "to_node": "swap", "to_port": "audio_in"},
+    {"from_node": "swap", "from_port": "audio_out", "to_node": "output", "to_port": "audio"}
+  ]
+}

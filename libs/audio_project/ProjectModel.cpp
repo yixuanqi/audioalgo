@@ -24,21 +24,16 @@ bool parameter_matches(ParameterKind kind, const ParameterValue& value) {
     case ParameterKind::boolean: return std::holds_alternative<bool>(value);
     case ParameterKind::integer: return std::holds_alternative<std::int64_t>(value);
     case ParameterKind::floating: return std::holds_alternative<double>(value);
+    case ParameterKind::enumeration:
     case ParameterKind::string:
     case ParameterKind::path: return std::holds_alternative<std::string>(value);
     }
     return false;
 }
 
-std::optional<double> numeric_value(const ParameterValue& value) {
-    if (const auto* floating = std::get_if<double>(&value)) return *floating;
-    if (const auto* integer = std::get_if<std::int64_t>(&value)) return static_cast<double>(*integer);
-    return std::nullopt;
-}
-
 } // namespace
 
-static std::vector<GraphDiagnostic> validate_project_impl(const ProjectModel& project, const NodeRegistry& registry,
+static std::vector<GraphDiagnostic> validate_project_impl(const ProjectModel& project, const NodeCatalog& registry,
                                                           bool require_complete_inputs) {
     std::vector<GraphDiagnostic> diagnostics;
     std::map<std::string, const NodeInstance*, std::less<>> nodes;
@@ -60,6 +55,11 @@ static std::vector<GraphDiagnostic> validate_project_impl(const ProjectModel& pr
         }
         descriptors.emplace(node.id, descriptor);
 
+        for (const auto& parameter : node.opaque_parameters)
+            diagnostics.push_back({"parameter_value_unsupported",
+                                   "The current host cannot interpret this serialized parameter value",
+                                   node.id, parameter.name});
+
         for (const auto& parameter : node.parameters) {
             const auto spec = std::find_if(descriptor->parameters.begin(), descriptor->parameters.end(), [&](const ParameterDescriptor& candidate) {
                 return candidate.id == parameter.first;
@@ -72,12 +72,10 @@ static std::vector<GraphDiagnostic> validate_project_impl(const ProjectModel& pr
                 diagnostics.push_back({"parameter_type", "Parameter has the wrong value type", node.id, parameter.first});
                 continue;
             }
-            if (const auto numeric = numeric_value(parameter.second)) {
-                if (!std::isfinite(*numeric)) {
-                    diagnostics.push_back({"parameter_non_finite", "Parameter must be finite", node.id, parameter.first});
-                } else if ((spec->minimum && *numeric < *spec->minimum) || (spec->maximum && *numeric > *spec->maximum)) {
-                    diagnostics.push_back({"parameter_out_of_range", "Parameter is outside its described range", node.id, parameter.first});
-                }
+            // Value-level rules (range, finiteness, enum membership) come from the shared SDK schema
+            // so descriptors, saved projects, controller commands and the runtime cannot drift apart.
+            if (const auto value_error = validate_parameter_value(*spec, parameter.second)) {
+                diagnostics.push_back({value_error->code, value_error->message, node.id, parameter.first});
             }
         }
     }
@@ -165,16 +163,16 @@ static std::vector<GraphDiagnostic> validate_project_impl(const ProjectModel& pr
     return diagnostics;
 }
 
-std::vector<GraphDiagnostic> validate_project(const ProjectModel& project, const NodeRegistry& registry) {
+std::vector<GraphDiagnostic> validate_project(const ProjectModel& project, const NodeCatalog& registry) {
     return validate_project_impl(project, registry, true);
 }
 
-std::vector<GraphDiagnostic> validate_project_structure(const ProjectModel& project, const NodeRegistry& registry) {
+std::vector<GraphDiagnostic> validate_project_structure(const ProjectModel& project, const NodeCatalog& registry) {
     return validate_project_impl(project, registry, false);
 }
 
 std::vector<GraphDiagnostic> try_add_connection(ProjectModel& project, Connection connection,
-                                                const NodeRegistry& registry) {
+                                                const NodeCatalog& registry) {
     auto candidate = project;
     candidate.connections.push_back(std::move(connection));
     auto diagnostics = validate_project_structure(candidate, registry);
@@ -186,7 +184,7 @@ std::vector<GraphDiagnostic> try_add_connection(ProjectModel& project, Connectio
     return {};
 }
 
-std::vector<std::string> topological_order(const ProjectModel& project, const NodeRegistry& registry,
+std::vector<std::string> topological_order(const ProjectModel& project, const NodeCatalog& registry,
                                            std::vector<GraphDiagnostic>& diagnostics) {
     diagnostics = validate_project(project, registry);
     if (!diagnostics.empty())

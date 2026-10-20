@@ -1,4 +1,5 @@
 #include "audio_project/ProjectModel.h"
+#include "plugins/builtin/registration.h"
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -9,14 +10,14 @@ using audioalgo::NodeInstance;
 using audioalgo::NodeRegistry;
 using audioalgo::ParameterValue;
 using audioalgo::ProjectModel;
-using audioalgo::register_builtin_node_descriptors;
+using audioalgo::register_builtin_nodes;
 using audioalgo::topological_order;
 using audioalgo::validate_project;
 
 namespace {
 NodeRegistry make_registry() {
     NodeRegistry registry;
-    register_builtin_node_descriptors(registry);
+    register_builtin_nodes(registry);
     return registry;
 }
 

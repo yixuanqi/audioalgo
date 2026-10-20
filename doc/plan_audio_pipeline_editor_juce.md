@@ -17,6 +17,8 @@ language: zh-CN
 
 2026-10-17 增量：当前文字叠字、节点库拖放和连线插入修复，按[节点交互专项方案](plan_editor_node_interaction.md)、[专项验收](testing_editor_node_interaction.md)及[专项迭代规程](agent_loop_editor_node_interaction.md)实施。专项优先修复已暴露的图编辑阻断，仍保留原 G0/G1 未完成验收，不代表平台 Gate 已通过。
 
+2026-10-18 增量：当前算法库与编辑器隔离按[详细重构方案](plan_architecture_refactor.md)、[重构测试准则](testing_architecture_refactor.md)、[重构 Agent 规程](agent_loop_architecture_refactor.md)的R0～R6直接实施。该顺序用于当前重构，替代此前“先完成NI专项再做独立工作”的排程；原G0～G6与NED全部必需验收仍有效。保持现有Gain可运行，先以AR-03.a结果身份行为为Red，再完成算法单一实现和通用适配；常规过程无需确认，计划接口须先检查实际存在。
+
 2026-10-16 编写本文时，当前工作区仅包含方案文档，没有应用代码和已经验证的构建。下列目录、类名、命令和测试 ID 是待实现契约，不代表已经存在。后续 Agent 从当前仓库根开发，不创建另一个源码根，不引入 OLS/OIP 运行依赖。
 
 用户已授权按方案直接开发并进行自验证、自迭代，常规过程无需确认。允许创建源文件、测试、演示数据、构建配置、局部重构与修复；遵守工具权限。不得自动购买、发布、推送、提交 Git 或改动无关文件。许可不明时先完成本地开发及许可证记录，不自行作出商业分发承诺。

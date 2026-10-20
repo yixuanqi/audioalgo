@@ -10,13 +10,21 @@
 2. [测试与验收准则](doc/testing_audio_pipeline_editor.md)
 3. [Agent TDD 与 Loop Engineering 规程](doc/agent_loop_audio_pipeline_editor.md)
 
-处理编辑器文字显示、节点库拖放、连线或节点插入时，继续依次阅读：
+当前算法库与编辑器分离重构，继续依次阅读：
 
-4. [节点交互专项开发方案](doc/plan_editor_node_interaction.md)
-5. [节点交互专项测试与通过准则](doc/testing_editor_node_interaction.md)
-6. [节点交互专项 Agent 迭代规程](doc/agent_loop_editor_node_interaction.md)
+4. [架构重构详细开发方案](doc/plan_architecture_refactor.md)
+5. [架构重构测试与通过准则](doc/testing_architecture_refactor.md)
+6. [架构重构 Agent TDD 与 Loop Engineering 规程](doc/agent_loop_architecture_refactor.md)
 
-当前节点交互修复按专项 NI0000～NI0006 推进，逐项完成 NED-01～14 的全部必需子用例及真实桌面证据。专项文档中的待建接口、脚本和测试不是现有能力；专项通过不代表主平台 G0～G6 全部通过。
+处理编辑器文字显示、节点库拖放、连线、节点插入或拓扑历史时，再继续依次阅读：
+
+7. [节点交互专项开发方案](doc/plan_editor_node_interaction.md)
+8. [节点交互专项测试与通过准则](doc/testing_editor_node_interaction.md)
+9. [节点交互专项 Agent 迭代规程](doc/agent_loop_editor_node_interaction.md)
+
+当前代码任务按重构 R0～R6 持续实施，AR-01～20 全部字母子用例逐项验收；首条产品 Red 为 AR-03.a（不同工程、相同 revision，旧运行结果不得覆盖新工程）。节点交互已有 NI 系列历史实现和未完成证据，从状态文档与源码恢复，保留 NED-01～14 的全部必需子用例及真实桌面要求。受影响交互回归必须修复，外部证据不足不阻止独立后端切片。重构基本解耦、重构全阶段与平台 G0～G6 完成分开判定。
+
+所有方案中的待建接口、脚本、preset 和测试不是现有能力。后续 Agent 已获按规划直接开发、自验证、自迭代授权，常规阶段无需确认；方案文档就绪不表示代码已实现或验收通过。
 
 `doc/plan_audio_pipeline_editor_agent_guide.md` 是已被替代的历史方案。当前源码根就是本仓库；不依赖 OLS/OIP，也不应修改其他仓库。所有文档中的目标接口、脚本、测试和应用均须先检查是否存在，未实现的不能当成现成功能。
 
@@ -35,6 +43,8 @@
 - 交接时维护 `doc/development_status.md` 与 `build/reports/`，注明已完成 Gate、真实结果、阻塞项和下一条 Red 测试。尚未实现这些产物时先创建最小版本。
 
 ## 自主迭代
+
+用户已明确给予[全部重构持续开发授权](doc/agent_full_refactor_authorization.md)：从当前进展接续，完成R2后自行推进R3～R6，持续自验证、自迭代，直至R0～R6及全部累计必需验收通过；常规阶段不再确认。`doc/plan_agent_next_r2.md`是当前切片细化，不是整个任务的结束边界。外部证据不足如实挂账并继续独立工作；工具权限、用户明确暂停/取消及真实阻塞按授权文档处理。
 
 一次只推进一个可验收行为；发生失败先定位层次，保留重现用例。同一根因连续三次迭代没有进展时，缩小重现、检查上游接口和设计假设，记录调整后继续。只有缺少必要授权、资源或输入且无可行独立工作时才交接阻塞，不得把已知失败报告为完成。
 

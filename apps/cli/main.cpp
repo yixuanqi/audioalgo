@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "audio_node_sdk/NodeSDK.h"
+#include "plugins/builtin/registration.h"
 #include "audio_project/ProjectFileIO.h"
 #include "audio_run_service/RunService.h"
 
@@ -41,11 +42,12 @@ int run_cli(int argc, const char* const* argv) {
             return 1;
         }
 
-        audioalgo::NodeRegistry descriptors;
-        audioalgo::register_builtin_node_descriptors(descriptors);
-        audioalgo::JuceProcessorRegistry processors;
-        audioalgo::register_builtin_juce_processors(processors);
-        audioalgo::RunService service(descriptors, processors);
+        audioalgo::NodeRegistry nodes;
+        if (!audioalgo::register_builtin_nodes(nodes)) {
+            std::cerr << "builtin_node_registration_failed\n";
+            return 1;
+        }
+        audioalgo::RunService service(nodes);
         const auto outcome = service.run({std::get<audioalgo::ProjectModel>(loaded), project_file, output_directory, block_size});
         if (const auto* error = std::get_if<audioalgo::Diagnostic>(&outcome)) {
             std::cerr << error->code << ": " << error->message << '\n';

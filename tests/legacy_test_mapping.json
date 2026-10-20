@@ -1,0 +1,1782 @@
+{
+  "schema_version": 1,
+  "purpose": "Preserve old-to-current CTest names and required NED desktop subcases across target splits.",
+  "legacy_acceptance_documents": {
+    "pipeline": {
+      "path": "doc/testing_audio_pipeline_editor.md",
+      "sha256": "91da3c0e38e0bf03942ebedd03f00ba4b9272be78e7d04c5f53c754f65cd578c"
+    },
+    "node_interaction": {
+      "path": "doc/testing_editor_node_interaction.md",
+      "sha256": "3d23207f8afca099873a6a9815aedc6eaee24512a119079d0172a60ee4fd5fe3"
+    }
+  },
+  "desktop_required_ned_subcases": [
+    "NED-01.a",
+    "NED-01.b",
+    "NED-01.c",
+    "NED-02.a",
+    "NED-02.b",
+    "NED-02.c",
+    "NED-02.d",
+    "NED-03.a",
+    "NED-03.b",
+    "NED-03.c",
+    "NED-03.d",
+    "NED-03.e",
+    "NED-04.c",
+    "NED-05.a",
+    "NED-05.b",
+    "NED-05.c",
+    "NED-05.d",
+    "NED-06.a",
+    "NED-06.b",
+    "NED-06.c",
+    "NED-06.d",
+    "NED-06.e",
+    "NED-07.a",
+    "NED-07.b",
+    "NED-07.c",
+    "NED-07.d",
+    "NED-07.e",
+    "NED-07.f",
+    "NED-08.a",
+    "NED-08.b",
+    "NED-08.c",
+    "NED-08.d",
+    "NED-08.e",
+    "NED-09.a",
+    "NED-09.b",
+    "NED-09.c",
+    "NED-09.d",
+    "NED-09.e",
+    "NED-10.a",
+    "NED-10.b",
+    "NED-10.c",
+    "NED-10.d",
+    "NED-10.e",
+    "NED-10.f",
+    "NED-10.g",
+    "NED-10.h",
+    "NED-11.a",
+    "NED-11.b",
+    "NED-11.c",
+    "NED-11.f",
+    "NED-11.g",
+    "NED-13.a",
+    "NED-13.b",
+    "NED-13.c",
+    "NED-13.d",
+    "NED-14.a",
+    "NED-14.b",
+    "NED-14.c",
+    "NED-14.d",
+    "NED-14.e"
+  ],
+  "configurations": {
+    "debug": {
+      "legacy_junit": {
+        "path": "build/windows-debug/build/reports/loops/RF0000/baseline-debug-junit.xml",
+        "inventory_sha256": "90d59fa65ea509c90b5f49e1847927d45ca33b1f42effe293ed16160e8901db3",
+        "test_names": [
+          "BLD-04 Catch2 runner is active",
+          "BLD-04_gate_inventory_rejects_unregistered_ids",
+          "CORE-01 invalid formats and valid intervals return structured diagnostics",
+          "CORE-01 planar buffers preserve lengths, channel IDs and valid intervals",
+          "DSP-01 Gain matches an independent float64 oracle",
+          "DSP-01 Gain rejects malformed formats and parameters",
+          "E2E-01 RunService and CLI share a project snapshot and gain oracle",
+          "GRAPH-01 missing node and port diagnostics identify the endpoint",
+          "GRAPH-01 rejects cycles, self edges, missing ports and duplicate required inputs",
+          "GRAPH-01 valid File to Gain to Output graphs topologically compile",
+          "GRAPH-02 descriptor defaults and gain boundaries control real JUCE samples",
+          "GRAPH-03 domain connections preserve distinct JUCE graph channels",
+          "IO-01 PCM16 writes saturate and count clipped samples",
+          "IO-01 WAV PCM16 and float32 round trips preserve shape and values",
+          "NED-01.a",
+          "NED-01.b",
+          "NED-01.c",
+          "NED-02.a",
+          "NED-02.b",
+          "NED-02.c",
+          "NED-02.d",
+          "NED-03.a",
+          "NED-03.b",
+          "NED-03.c",
+          "NED-03.d",
+          "NED-03.e",
+          "NED-04.a",
+          "NED-04.b",
+          "NED-04.c",
+          "NED-05.a",
+          "NED-05.b",
+          "NED-05.c",
+          "NED-05.d",
+          "NED-05.e",
+          "NED-06.a",
+          "NED-06.b",
+          "NED-06.c",
+          "NED-06.d",
+          "NED-06.e",
+          "NED-07.a",
+          "NED-07.b",
+          "NED-07.c",
+          "NED-07.d",
+          "NED-07.e",
+          "NED-07.f",
+          "NED-08.a",
+          "NED-08.b",
+          "NED-08.c",
+          "NED-08.d",
+          "NED-08.e",
+          "NED-09.a",
+          "NED-09.b",
+          "NED-09.c",
+          "NED-09.d",
+          "NED-09.e",
+          "NED-10.a",
+          "NED-10.b",
+          "NED-10.c",
+          "NED-10.d",
+          "NED-10.e",
+          "NED-10.f",
+          "NED-10.g",
+          "NED-10.h",
+          "NED-11.a",
+          "NED-11.b",
+          "NED-11.c",
+          "NED-11.d",
+          "NED-11.e",
+          "NED-11.f",
+          "NED-11.g",
+          "NED-12.a",
+          "NED-12.b",
+          "NED-12.c",
+          "NED-12.d",
+          "NED-13.a",
+          "NED-13.b",
+          "NED-13.c",
+          "NED-13.d",
+          "NED-14.a",
+          "NED-14.b",
+          "NED-14.c",
+          "NED-14.d",
+          "NED-14.e",
+          "NI0010.a",
+          "NI0010.b",
+          "PRJ-01 invalid project JSON returns a diagnostic",
+          "PRJ-01 saving and reopening preserves graph, parameters, resources and layout",
+          "UI-00_editor_binary_launches_and_quits_smoke"
+        ],
+        "sha256": "2e473089f92bfe43f9f1d3ea7cf6a81ccb743a059d247378e5d6927125e387f1"
+      },
+      "current_inventory": {
+        "build_dir": "build/windows-debug",
+        "inventory_command": [
+          "ctest",
+          "--test-dir",
+          "E:\\0qyx\\dev\\0Idea\\audioalgo\\build\\windows-debug",
+          "-C",
+          "Debug",
+          "--show-only=json-v1",
+          "--no-tests=error"
+        ],
+        "inventory_sha256": "70deceff9b9dd16ac488ce8fde80385a8605e9b28c8c316d58e8bb761d8ceed9",
+        "test_names": [
+          "AR-01.a",
+          "AR-01.b",
+          "AR-01.c",
+          "AR-01.d",
+          "AR-02.a",
+          "AR-02.b",
+          "AR-02.b_review_desktop_and_stage_adversaries",
+          "AR-02.c",
+          "AR-02.d",
+          "AR-02.e",
+          "AR-02.f",
+          "AR-02.g",
+          "AR-03.a",
+          "AR-03.b",
+          "AR-03.c",
+          "AR-03.d",
+          "AR-03.e",
+          "AR-03.f",
+          "AR-03.g",
+          "AR-04.a",
+          "AR-04.b",
+          "AR-04.c",
+          "AR-04.d",
+          "AR-04.d Gain prepare/process/reset uses borrowed block views",
+          "AR-05.a",
+          "AR-05.a Gain APIs match a float64 oracle across the full block matrix",
+          "AR-05.b",
+          "AR-05.b Gain node adapter matches an independent block oracle",
+          "AR-05.c",
+          "AR-05.c Gain rejects invalid values consistently across adapter and runtime",
+          "AR-05.d",
+          "AR-05.d_isolation_guard",
+          "AR-05.e",
+          "AR-05.e a saved Gain project replays through one registered implementation",
+          "AR-06.a",
+          "AR-06.a failed paired registration leaves the descriptor and factory catalog unchanged",
+          "AR-06.b",
+          "AR-06.b descriptor validation rejects invalid schema and names its field",
+          "AR-06.b enum parameter instances must use a declared stable choice",
+          "AR-06.c",
+          "AR-06.c node instances keep state separate and factory failures stay inside the SDK",
+          "AR-06.d",
+          "AR-06.d plugin composition uses one catalog and exposes metadata read-only",
+          "AR-06.e",
+          "AR-06.e fixed-frame tails and non-audio ports are refused before execution",
+          "AR-06.e unsupported capabilities are refused before execution starts",
+          "AR-06.f",
+          "AR-06.f a new node type runs without touching generic SDK or view branches",
+          "AR-07.a",
+          "AR-07.a Gain and a test processor execute through one generic JUCE wrapper",
+          "AR-07.b",
+          "AR-07.b declared channel and block capabilities drive real audio",
+          "AR-07.c",
+          "AR-07.c one instance is prepared, reused across blocks and reset between runs",
+          "AR-07.d",
+          "AR-07.d the prepared block callback allocates nothing",
+          "AR-07.d the prepared callback allocates nothing for generic nodes too",
+          "AR-07.e",
+          "AR-07.e a throwing prepare becomes a node-located diagnostic",
+          "AR-07.e block output must be finite and prepare must not throw",
+          "AR-07.e node failures carry node and port context and never fail silently",
+          "AR-07.e non-audio ports are refused by the native boundary",
+          "AR-08.a AddNode is controller-owned, undoable, and preserves redo on rejection",
+          "AR-08.a AddSourceNode records the chosen resource and supports undo and redo",
+          "AR-08.a Connect and Disconnect validate atomically and share undo history",
+          "AR-08.a DeleteNode keeps a branch instead of bypassing it",
+          "AR-08.a DeleteNode uses a legal linear bypass and preserves redo on rejection",
+          "AR-08.a Deleting the selected output clears it and undo restores it",
+          "AR-08.a Existing unconnected node insertion preserves identity and parameters",
+          "AR-08.a InsertNode replaces one edge, preserves branches, and is atomic",
+          "AR-08.a SwapProcessingNodes preserves node data and is undoable",
+          "AR-08.a SwapProcessingNodes reports revision exhaustion without changing state",
+          "AR-08.b SetParameter applies one validated revision and never bypasses schema",
+          "AR-08.c Fixed parameter event table matches an independent project reducer",
+          "AR-08.c Gesture intents from a replaced project session cannot change the current gesture",
+          "AR-08.c Invalid gesture updates preserve the draft and block competing edits",
+          "AR-08.c Parameter gesture updates commit once and cancel without changing project state",
+          "AR-08.c Parameter history is scoped to the edited node instance",
+          "AR-08.c Parameter history restores every declared value type",
+          "AR-08.c Parameter undo restores the previous value and redo restores the edited value",
+          "AR-08.c Undo restores an absent parameter key and Redo restores its explicit value",
+          "AR-08.d Invalid layout edits preserve project state and redo history",
+          "AR-08.d Layout history composes with parameter history without swallowing either edit",
+          "AR-08.d Layout history rejects edits outside node positions",
+          "AR-08.d MoveNodeLayout changes only saved layout and keeps the current result valid",
+          "AR-08.e Project replacement clears history and rejects late chooser results",
+          "AR-08.g Controller and RunService reject schema violations with located diagnostics",
+          "AR-09.a injected document service clears dirty only after a successful save",
+          "AR-09.a injected document service opens only successful projects after host invalidation",
+          "AR-09.a preview service is replaceable without exposing a device backend",
+          "AR-09.c A stale chooser result cannot consume the newer completion",
+          "AR-09.c a chooser callback after view shutdown is discarded",
+          "AR-09.c cancellation and reopen keep chooser completions isolated",
+          "AR-09.c delayed service completion cannot read a deleted node or update the current view",
+          "AR-09.c immutable snapshot intent is rejected after same-ID project replacement",
+          "AR-09.c late service notification cannot reference deleted nodes or stale View state",
+          "AR-09.d RunService keeps its registry alive across owner release",
+          "AR-09.d editor shutdown drains a timed-out worker before destroying its view",
+          "AR-09.d production RunJob publishes a real run and drops delivery after View close",
+          "AR-09.d queued completion is dropped after its component is destroyed",
+          "AR-09.e asynchronous document completions reject edited and replaced snapshots",
+          "AR-09.e editor file work runs on a worker and completes on the message thread",
+          "AR-10.a descriptor creates typed parameter controls and preserves stable enum values",
+          "AR-10.b parameter controls stay bound to the selected node across panel rebuilds",
+          "AR-10.c backend bypass rejects invalid types enums and missing resources with context",
+          "AR-10.c numeric text rejects malformed and out of range input then recovers",
+          "AR-10.d reset defaults uses controller history and refreshes typed controls",
+          "AR-10.g six production controls drive native audio and the recorded run snapshot",
+          "AR-13.a Frozen schema1 Gain project loads saves reopens and runs against the legacy oracle",
+          "AR-13.b Unknown plugin fields and nested parameters survive roundtrip and remain unavailable",
+          "AR-13.c Unsupported project schema returns a migration diagnostic without rewriting the file",
+          "AR-13.d Missing source resources report a relocatable project resource diagnostic",
+          "AR-13.e Schema v1 layout saves without changing compute revision or creating an implicit backup",
+          "BLD-04 Catch2 runner is active",
+          "BLD-04_gate_inventory_rejects_unregistered_ids",
+          "CORE-01 invalid formats and valid intervals return structured diagnostics",
+          "CORE-01 planar buffers preserve lengths, channel IDs and valid intervals",
+          "DSP-01 Gain matches an independent float64 oracle",
+          "DSP-01 Gain rejects malformed formats and parameters",
+          "E2E-01 RunService and CLI share a project snapshot and gain oracle",
+          "GRAPH-01 missing node and port diagnostics identify the endpoint",
+          "GRAPH-01 rejects cycles, self edges, missing ports and duplicate required inputs",
+          "GRAPH-01 valid File to Gain to Output graphs topologically compile",
+          "GRAPH-02 descriptor defaults and gain boundaries control real JUCE samples",
+          "GRAPH-03 domain connections preserve distinct JUCE graph channels",
+          "IO-01 PCM16 writes saturate and count clipped samples",
+          "IO-01 WAV PCM16 and float32 round trips preserve shape and values",
+          "LOOP-01_gate_rejects_skipped_required_tests",
+          "NED-01.a",
+          "NED-01.b",
+          "NED-01.c",
+          "NED-02.a",
+          "NED-02.b",
+          "NED-02.c",
+          "NED-02.d",
+          "NED-03.a",
+          "NED-03.b",
+          "NED-03.c",
+          "NED-03.d",
+          "NED-03.e",
+          "NED-04.a",
+          "NED-04.b",
+          "NED-04.c",
+          "NED-05.a",
+          "NED-05.b",
+          "NED-05.c",
+          "NED-05.d",
+          "NED-05.e",
+          "NED-06.a",
+          "NED-06.b",
+          "NED-06.c",
+          "NED-06.d",
+          "NED-06.e",
+          "NED-07.a",
+          "NED-07.b",
+          "NED-07.c",
+          "NED-07.d",
+          "NED-07.e",
+          "NED-07.f",
+          "NED-08.a",
+          "NED-08.b",
+          "NED-08.c",
+          "NED-08.d",
+          "NED-08.e",
+          "NED-09.a",
+          "NED-09.b",
+          "NED-09.c",
+          "NED-09.d",
+          "NED-09.e",
+          "NED-10.a",
+          "NED-10.b",
+          "NED-10.c",
+          "NED-10.d",
+          "NED-10.e",
+          "NED-10.f",
+          "NED-10.g",
+          "NED-10.h",
+          "NED-11.a",
+          "NED-11.b",
+          "NED-11.c",
+          "NED-11.d",
+          "NED-11.e",
+          "NED-11.f",
+          "NED-11.g",
+          "NED-12.a",
+          "NED-12.b",
+          "NED-12.c",
+          "NED-12.d",
+          "NED-13.a",
+          "NED-13.b",
+          "NED-13.c",
+          "NED-13.d",
+          "NED-14.a",
+          "NED-14.b",
+          "NED-14.c",
+          "NED-14.d",
+          "NED-14.e",
+          "NI0010.a",
+          "NI0010.b",
+          "PERF-01 editor heartbeat stays responsive during a controlled slow Python task",
+          "PRJ-01 invalid project JSON returns a diagnostic",
+          "PRJ-01 saving and reopening preserves graph, parameters, resources and layout",
+          "R2_editor_application_boundary_guard",
+          "R2_editor_service_injection",
+          "R2_editor_work_routes",
+          "R2_gain_slider_gesture_route",
+          "R2_production_gain_inspector_route",
+          "R2_project_format_policy",
+          "R2_project_replacement_route",
+          "R2_project_resource_service_route",
+          "R2_run_completion_route",
+          "UI-00_editor_binary_launches_and_quits_smoke"
+        ]
+      },
+      "legacy_test_count": 88,
+      "current_test_count": 212,
+      "mapping": [
+        {
+          "legacy_test_name": "BLD-04 Catch2 runner is active",
+          "current_test_name": "BLD-04 Catch2 runner is active",
+          "requirement_id": "BLD-04",
+          "category": "BLD"
+        },
+        {
+          "legacy_test_name": "BLD-04_gate_inventory_rejects_unregistered_ids",
+          "current_test_name": "BLD-04_gate_inventory_rejects_unregistered_ids",
+          "requirement_id": "BLD-04",
+          "category": "BLD"
+        },
+        {
+          "legacy_test_name": "CORE-01 invalid formats and valid intervals return structured diagnostics",
+          "current_test_name": "CORE-01 invalid formats and valid intervals return structured diagnostics",
+          "requirement_id": "CORE-01",
+          "category": "CORE"
+        },
+        {
+          "legacy_test_name": "CORE-01 planar buffers preserve lengths, channel IDs and valid intervals",
+          "current_test_name": "CORE-01 planar buffers preserve lengths, channel IDs and valid intervals",
+          "requirement_id": "CORE-01",
+          "category": "CORE"
+        },
+        {
+          "legacy_test_name": "DSP-01 Gain matches an independent float64 oracle",
+          "current_test_name": "DSP-01 Gain matches an independent float64 oracle",
+          "requirement_id": "DSP-01",
+          "category": "DSP"
+        },
+        {
+          "legacy_test_name": "DSP-01 Gain rejects malformed formats and parameters",
+          "current_test_name": "DSP-01 Gain rejects malformed formats and parameters",
+          "requirement_id": "DSP-01",
+          "category": "DSP"
+        },
+        {
+          "legacy_test_name": "E2E-01 RunService and CLI share a project snapshot and gain oracle",
+          "current_test_name": "E2E-01 RunService and CLI share a project snapshot and gain oracle",
+          "requirement_id": "E2E-01",
+          "category": "E2E"
+        },
+        {
+          "legacy_test_name": "GRAPH-01 missing node and port diagnostics identify the endpoint",
+          "current_test_name": "GRAPH-01 missing node and port diagnostics identify the endpoint",
+          "requirement_id": "GRAPH-01",
+          "category": "GRAPH"
+        },
+        {
+          "legacy_test_name": "GRAPH-01 rejects cycles, self edges, missing ports and duplicate required inputs",
+          "current_test_name": "GRAPH-01 rejects cycles, self edges, missing ports and duplicate required inputs",
+          "requirement_id": "GRAPH-01",
+          "category": "GRAPH"
+        },
+        {
+          "legacy_test_name": "GRAPH-01 valid File to Gain to Output graphs topologically compile",
+          "current_test_name": "GRAPH-01 valid File to Gain to Output graphs topologically compile",
+          "requirement_id": "GRAPH-01",
+          "category": "GRAPH"
+        },
+        {
+          "legacy_test_name": "GRAPH-02 descriptor defaults and gain boundaries control real JUCE samples",
+          "current_test_name": "GRAPH-02 descriptor defaults and gain boundaries control real JUCE samples",
+          "requirement_id": "GRAPH-02",
+          "category": "GRAPH"
+        },
+        {
+          "legacy_test_name": "GRAPH-03 domain connections preserve distinct JUCE graph channels",
+          "current_test_name": "GRAPH-03 domain connections preserve distinct JUCE graph channels",
+          "requirement_id": "GRAPH-03",
+          "category": "GRAPH"
+        },
+        {
+          "legacy_test_name": "IO-01 PCM16 writes saturate and count clipped samples",
+          "current_test_name": "IO-01 PCM16 writes saturate and count clipped samples",
+          "requirement_id": "IO-01",
+          "category": "IO"
+        },
+        {
+          "legacy_test_name": "IO-01 WAV PCM16 and float32 round trips preserve shape and values",
+          "current_test_name": "IO-01 WAV PCM16 and float32 round trips preserve shape and values",
+          "requirement_id": "IO-01",
+          "category": "IO"
+        },
+        {
+          "legacy_test_name": "NED-01.a",
+          "current_test_name": "NED-01.a",
+          "requirement_id": "NED-01",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-01.b",
+          "current_test_name": "NED-01.b",
+          "requirement_id": "NED-01",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-01.c",
+          "current_test_name": "NED-01.c",
+          "requirement_id": "NED-01",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-02.a",
+          "current_test_name": "NED-02.a",
+          "requirement_id": "NED-02",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-02.b",
+          "current_test_name": "NED-02.b",
+          "requirement_id": "NED-02",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-02.c",
+          "current_test_name": "NED-02.c",
+          "requirement_id": "NED-02",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-02.d",
+          "current_test_name": "NED-02.d",
+          "requirement_id": "NED-02",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-03.a",
+          "current_test_name": "NED-03.a",
+          "requirement_id": "NED-03",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-03.b",
+          "current_test_name": "NED-03.b",
+          "requirement_id": "NED-03",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-03.c",
+          "current_test_name": "NED-03.c",
+          "requirement_id": "NED-03",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-03.d",
+          "current_test_name": "NED-03.d",
+          "requirement_id": "NED-03",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-03.e",
+          "current_test_name": "NED-03.e",
+          "requirement_id": "NED-03",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-04.a",
+          "current_test_name": "NED-04.a",
+          "requirement_id": "NED-04",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-04.b",
+          "current_test_name": "NED-04.b",
+          "requirement_id": "NED-04",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-04.c",
+          "current_test_name": "NED-04.c",
+          "requirement_id": "NED-04",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-05.a",
+          "current_test_name": "NED-05.a",
+          "requirement_id": "NED-05",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-05.b",
+          "current_test_name": "NED-05.b",
+          "requirement_id": "NED-05",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-05.c",
+          "current_test_name": "NED-05.c",
+          "requirement_id": "NED-05",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-05.d",
+          "current_test_name": "NED-05.d",
+          "requirement_id": "NED-05",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-05.e",
+          "current_test_name": "NED-05.e",
+          "requirement_id": "NED-05",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-06.a",
+          "current_test_name": "NED-06.a",
+          "requirement_id": "NED-06",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-06.b",
+          "current_test_name": "NED-06.b",
+          "requirement_id": "NED-06",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-06.c",
+          "current_test_name": "NED-06.c",
+          "requirement_id": "NED-06",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-06.d",
+          "current_test_name": "NED-06.d",
+          "requirement_id": "NED-06",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-06.e",
+          "current_test_name": "NED-06.e",
+          "requirement_id": "NED-06",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-07.a",
+          "current_test_name": "NED-07.a",
+          "requirement_id": "NED-07",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-07.b",
+          "current_test_name": "NED-07.b",
+          "requirement_id": "NED-07",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-07.c",
+          "current_test_name": "NED-07.c",
+          "requirement_id": "NED-07",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-07.d",
+          "current_test_name": "NED-07.d",
+          "requirement_id": "NED-07",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-07.e",
+          "current_test_name": "NED-07.e",
+          "requirement_id": "NED-07",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-07.f",
+          "current_test_name": "NED-07.f",
+          "requirement_id": "NED-07",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-08.a",
+          "current_test_name": "NED-08.a",
+          "requirement_id": "NED-08",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-08.b",
+          "current_test_name": "NED-08.b",
+          "requirement_id": "NED-08",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-08.c",
+          "current_test_name": "NED-08.c",
+          "requirement_id": "NED-08",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-08.d",
+          "current_test_name": "NED-08.d",
+          "requirement_id": "NED-08",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-08.e",
+          "current_test_name": "NED-08.e",
+          "requirement_id": "NED-08",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-09.a",
+          "current_test_name": "NED-09.a",
+          "requirement_id": "NED-09",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-09.b",
+          "current_test_name": "NED-09.b",
+          "requirement_id": "NED-09",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-09.c",
+          "current_test_name": "NED-09.c",
+          "requirement_id": "NED-09",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-09.d",
+          "current_test_name": "NED-09.d",
+          "requirement_id": "NED-09",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-09.e",
+          "current_test_name": "NED-09.e",
+          "requirement_id": "NED-09",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-10.a",
+          "current_test_name": "NED-10.a",
+          "requirement_id": "NED-10",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-10.b",
+          "current_test_name": "NED-10.b",
+          "requirement_id": "NED-10",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-10.c",
+          "current_test_name": "NED-10.c",
+          "requirement_id": "NED-10",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-10.d",
+          "current_test_name": "NED-10.d",
+          "requirement_id": "NED-10",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-10.e",
+          "current_test_name": "NED-10.e",
+          "requirement_id": "NED-10",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-10.f",
+          "current_test_name": "NED-10.f",
+          "requirement_id": "NED-10",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-10.g",
+          "current_test_name": "NED-10.g",
+          "requirement_id": "NED-10",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-10.h",
+          "current_test_name": "NED-10.h",
+          "requirement_id": "NED-10",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-11.a",
+          "current_test_name": "NED-11.a",
+          "requirement_id": "NED-11",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-11.b",
+          "current_test_name": "NED-11.b",
+          "requirement_id": "NED-11",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-11.c",
+          "current_test_name": "NED-11.c",
+          "requirement_id": "NED-11",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-11.d",
+          "current_test_name": "NED-11.d",
+          "requirement_id": "NED-11",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-11.e",
+          "current_test_name": "NED-11.e",
+          "requirement_id": "NED-11",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-11.f",
+          "current_test_name": "NED-11.f",
+          "requirement_id": "NED-11",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-11.g",
+          "current_test_name": "NED-11.g",
+          "requirement_id": "NED-11",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-12.a",
+          "current_test_name": "NED-12.a",
+          "requirement_id": "NED-12",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-12.b",
+          "current_test_name": "NED-12.b",
+          "requirement_id": "NED-12",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-12.c",
+          "current_test_name": "NED-12.c",
+          "requirement_id": "NED-12",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-12.d",
+          "current_test_name": "NED-12.d",
+          "requirement_id": "NED-12",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-13.a",
+          "current_test_name": "NED-13.a",
+          "requirement_id": "NED-13",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-13.b",
+          "current_test_name": "NED-13.b",
+          "requirement_id": "NED-13",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-13.c",
+          "current_test_name": "NED-13.c",
+          "requirement_id": "NED-13",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-13.d",
+          "current_test_name": "NED-13.d",
+          "requirement_id": "NED-13",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-14.a",
+          "current_test_name": "NED-14.a",
+          "requirement_id": "NED-14",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-14.b",
+          "current_test_name": "NED-14.b",
+          "requirement_id": "NED-14",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-14.c",
+          "current_test_name": "NED-14.c",
+          "requirement_id": "NED-14",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-14.d",
+          "current_test_name": "NED-14.d",
+          "requirement_id": "NED-14",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-14.e",
+          "current_test_name": "NED-14.e",
+          "requirement_id": "NED-14",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NI0010.a",
+          "current_test_name": "NI0010.a",
+          "requirement_id": null,
+          "category": "unclassified"
+        },
+        {
+          "legacy_test_name": "NI0010.b",
+          "current_test_name": "NI0010.b",
+          "requirement_id": null,
+          "category": "unclassified"
+        },
+        {
+          "legacy_test_name": "PRJ-01 invalid project JSON returns a diagnostic",
+          "current_test_name": "PRJ-01 invalid project JSON returns a diagnostic",
+          "requirement_id": "PRJ-01",
+          "category": "PRJ"
+        },
+        {
+          "legacy_test_name": "PRJ-01 saving and reopening preserves graph, parameters, resources and layout",
+          "current_test_name": "PRJ-01 saving and reopening preserves graph, parameters, resources and layout",
+          "requirement_id": "PRJ-01",
+          "category": "PRJ"
+        },
+        {
+          "legacy_test_name": "UI-00_editor_binary_launches_and_quits_smoke",
+          "current_test_name": "UI-00_editor_binary_launches_and_quits_smoke",
+          "requirement_id": "UI-00",
+          "category": "UI"
+        }
+      ]
+    },
+    "headless": {
+      "legacy_junit": {
+        "path": "build/windows-headless/build/reports/loops/RF0000/baseline-headless-junit.xml",
+        "inventory_sha256": "bd3804d426847c1c328a2e17e67038d5024c55600c08552ab70305a46691e3de",
+        "test_names": [
+          "BLD-04 Catch2 runner is active",
+          "BLD-04_gate_inventory_rejects_unregistered_ids",
+          "CORE-01 invalid formats and valid intervals return structured diagnostics",
+          "CORE-01 planar buffers preserve lengths, channel IDs and valid intervals",
+          "DSP-01 Gain matches an independent float64 oracle",
+          "DSP-01 Gain rejects malformed formats and parameters",
+          "E2E-01 RunService and CLI share a project snapshot and gain oracle",
+          "GRAPH-01 missing node and port diagnostics identify the endpoint",
+          "GRAPH-01 rejects cycles, self edges, missing ports and duplicate required inputs",
+          "GRAPH-01 valid File to Gain to Output graphs topologically compile",
+          "GRAPH-02 descriptor defaults and gain boundaries control real JUCE samples",
+          "GRAPH-03 domain connections preserve distinct JUCE graph channels",
+          "IO-01 PCM16 writes saturate and count clipped samples",
+          "IO-01 WAV PCM16 and float32 round trips preserve shape and values",
+          "NED-01.a",
+          "NED-01.b",
+          "NED-01.c",
+          "NED-02.a",
+          "NED-02.b",
+          "NED-02.c",
+          "NED-02.d",
+          "NED-03.a",
+          "NED-03.b",
+          "NED-03.c",
+          "NED-03.d",
+          "NED-03.e",
+          "NED-04.a",
+          "NED-04.b",
+          "NED-04.c",
+          "NED-05.a",
+          "NED-05.b",
+          "NED-05.c",
+          "NED-05.d",
+          "NED-05.e",
+          "NED-06.a",
+          "NED-06.b",
+          "NED-06.c",
+          "NED-06.d",
+          "NED-06.e",
+          "NED-07.a",
+          "NED-07.b",
+          "NED-07.c",
+          "NED-07.d",
+          "NED-07.e",
+          "NED-07.f",
+          "NED-08.a",
+          "NED-08.b",
+          "NED-08.c",
+          "NED-08.d",
+          "NED-08.e",
+          "NED-09.a",
+          "NED-09.b",
+          "NED-09.c",
+          "NED-09.d",
+          "NED-09.e",
+          "NED-10.a",
+          "NED-10.b",
+          "NED-10.c",
+          "NED-10.d",
+          "NED-10.e",
+          "NED-10.f",
+          "NED-10.g",
+          "NED-10.h",
+          "NED-11.a",
+          "NED-11.b",
+          "NED-11.c",
+          "NED-11.d",
+          "NED-11.e",
+          "NED-11.f",
+          "NED-11.g",
+          "NED-12.a",
+          "NED-12.b",
+          "NED-12.c",
+          "NED-12.d",
+          "NED-13.a",
+          "NED-13.b",
+          "NED-13.c",
+          "NED-13.d",
+          "NED-14.a",
+          "NED-14.b",
+          "NED-14.c",
+          "NED-14.d",
+          "NED-14.e",
+          "NI0010.a",
+          "NI0010.b",
+          "PRJ-01 invalid project JSON returns a diagnostic",
+          "PRJ-01 saving and reopening preserves graph, parameters, resources and layout"
+        ],
+        "sha256": "789e7bdbc3514e300edfea9ccfda2e8aa1f2c9ab710806ea11939a6875426eeb"
+      },
+      "current_inventory": {
+        "build_dir": "build/windows-headless",
+        "inventory_command": [
+          "ctest",
+          "--test-dir",
+          "E:\\0qyx\\dev\\0Idea\\audioalgo\\build\\windows-headless",
+          "-C",
+          "Debug",
+          "--show-only=json-v1",
+          "--no-tests=error"
+        ],
+        "inventory_sha256": "cb3a653dad426b5b6048d1bf9bc034d8eb3ae9f2b2c2b8dbb75c40f47baed948",
+        "test_names": [
+          "AR-01.a",
+          "AR-01.b",
+          "AR-01.c",
+          "AR-01.d",
+          "AR-02.a",
+          "AR-02.b",
+          "AR-02.b_review_desktop_and_stage_adversaries",
+          "AR-02.c",
+          "AR-02.d",
+          "AR-02.e",
+          "AR-02.f",
+          "AR-02.g",
+          "AR-03.a",
+          "AR-03.b",
+          "AR-03.c",
+          "AR-03.d",
+          "AR-03.e",
+          "AR-03.f",
+          "AR-03.g",
+          "AR-04.a",
+          "AR-04.b",
+          "AR-04.c",
+          "AR-04.d",
+          "AR-04.d Gain prepare/process/reset uses borrowed block views",
+          "AR-05.a",
+          "AR-05.a Gain APIs match a float64 oracle across the full block matrix",
+          "AR-05.b",
+          "AR-05.b Gain node adapter matches an independent block oracle",
+          "AR-05.c",
+          "AR-05.c Gain rejects invalid values consistently across adapter and runtime",
+          "AR-05.d",
+          "AR-05.d_isolation_guard",
+          "AR-05.e",
+          "AR-05.e a saved Gain project replays through one registered implementation",
+          "AR-06.a",
+          "AR-06.a failed paired registration leaves the descriptor and factory catalog unchanged",
+          "AR-06.b",
+          "AR-06.b descriptor validation rejects invalid schema and names its field",
+          "AR-06.b enum parameter instances must use a declared stable choice",
+          "AR-06.c",
+          "AR-06.c node instances keep state separate and factory failures stay inside the SDK",
+          "AR-06.d",
+          "AR-06.d plugin composition uses one catalog and exposes metadata read-only",
+          "AR-06.e",
+          "AR-06.e fixed-frame tails and non-audio ports are refused before execution",
+          "AR-06.e unsupported capabilities are refused before execution starts",
+          "AR-06.f",
+          "AR-06.f a new node type runs without touching generic SDK or view branches",
+          "AR-07.a",
+          "AR-07.a Gain and a test processor execute through one generic JUCE wrapper",
+          "AR-07.b",
+          "AR-07.b declared channel and block capabilities drive real audio",
+          "AR-07.c",
+          "AR-07.c one instance is prepared, reused across blocks and reset between runs",
+          "AR-07.d",
+          "AR-07.d the prepared block callback allocates nothing",
+          "AR-07.d the prepared callback allocates nothing for generic nodes too",
+          "AR-07.e",
+          "AR-07.e a throwing prepare becomes a node-located diagnostic",
+          "AR-07.e block output must be finite and prepare must not throw",
+          "AR-07.e node failures carry node and port context and never fail silently",
+          "AR-07.e non-audio ports are refused by the native boundary",
+          "AR-08.a AddNode is controller-owned, undoable, and preserves redo on rejection",
+          "AR-08.a AddSourceNode records the chosen resource and supports undo and redo",
+          "AR-08.a Connect and Disconnect validate atomically and share undo history",
+          "AR-08.a DeleteNode keeps a branch instead of bypassing it",
+          "AR-08.a DeleteNode uses a legal linear bypass and preserves redo on rejection",
+          "AR-08.a Deleting the selected output clears it and undo restores it",
+          "AR-08.a Existing unconnected node insertion preserves identity and parameters",
+          "AR-08.a InsertNode replaces one edge, preserves branches, and is atomic",
+          "AR-08.a SwapProcessingNodes preserves node data and is undoable",
+          "AR-08.a SwapProcessingNodes reports revision exhaustion without changing state",
+          "AR-08.b SetParameter applies one validated revision and never bypasses schema",
+          "AR-08.c Fixed parameter event table matches an independent project reducer",
+          "AR-08.c Gesture intents from a replaced project session cannot change the current gesture",
+          "AR-08.c Invalid gesture updates preserve the draft and block competing edits",
+          "AR-08.c Parameter gesture updates commit once and cancel without changing project state",
+          "AR-08.c Parameter history is scoped to the edited node instance",
+          "AR-08.c Parameter history restores every declared value type",
+          "AR-08.c Parameter undo restores the previous value and redo restores the edited value",
+          "AR-08.c Undo restores an absent parameter key and Redo restores its explicit value",
+          "AR-08.d Invalid layout edits preserve project state and redo history",
+          "AR-08.d Layout history composes with parameter history without swallowing either edit",
+          "AR-08.d Layout history rejects edits outside node positions",
+          "AR-08.d MoveNodeLayout changes only saved layout and keeps the current result valid",
+          "AR-08.e Project replacement clears history and rejects late chooser results",
+          "AR-08.g Controller and RunService reject schema violations with located diagnostics",
+          "AR-09.a injected document service clears dirty only after a successful save",
+          "AR-09.a injected document service opens only successful projects after host invalidation",
+          "AR-09.a preview service is replaceable without exposing a device backend",
+          "AR-09.c A stale chooser result cannot consume the newer completion",
+          "AR-09.c a chooser callback after view shutdown is discarded",
+          "AR-09.c cancellation and reopen keep chooser completions isolated",
+          "AR-09.c delayed service completion cannot read a deleted node or update the current view",
+          "AR-09.c immutable snapshot intent is rejected after same-ID project replacement",
+          "AR-09.c late service notification cannot reference deleted nodes or stale View state",
+          "AR-09.d RunService keeps its registry alive across owner release",
+          "AR-09.d editor shutdown drains a timed-out worker before destroying its view",
+          "AR-09.d production RunJob publishes a real run and drops delivery after View close",
+          "AR-09.d queued completion is dropped after its component is destroyed",
+          "AR-09.e asynchronous document completions reject edited and replaced snapshots",
+          "AR-09.e editor file work runs on a worker and completes on the message thread",
+          "AR-10.a descriptor creates typed parameter controls and preserves stable enum values",
+          "AR-10.b parameter controls stay bound to the selected node across panel rebuilds",
+          "AR-10.c backend bypass rejects invalid types enums and missing resources with context",
+          "AR-10.c numeric text rejects malformed and out of range input then recovers",
+          "AR-10.d reset defaults uses controller history and refreshes typed controls",
+          "AR-10.g six production controls drive native audio and the recorded run snapshot",
+          "AR-13.a Frozen schema1 Gain project loads saves reopens and runs against the legacy oracle",
+          "AR-13.b Unknown plugin fields and nested parameters survive roundtrip and remain unavailable",
+          "AR-13.c Unsupported project schema returns a migration diagnostic without rewriting the file",
+          "AR-13.d Missing source resources report a relocatable project resource diagnostic",
+          "AR-13.e Schema v1 layout saves without changing compute revision or creating an implicit backup",
+          "BLD-04 Catch2 runner is active",
+          "BLD-04_gate_inventory_rejects_unregistered_ids",
+          "CORE-01 invalid formats and valid intervals return structured diagnostics",
+          "CORE-01 planar buffers preserve lengths, channel IDs and valid intervals",
+          "DSP-01 Gain matches an independent float64 oracle",
+          "DSP-01 Gain rejects malformed formats and parameters",
+          "E2E-01 RunService and CLI share a project snapshot and gain oracle",
+          "GRAPH-01 missing node and port diagnostics identify the endpoint",
+          "GRAPH-01 rejects cycles, self edges, missing ports and duplicate required inputs",
+          "GRAPH-01 valid File to Gain to Output graphs topologically compile",
+          "GRAPH-02 descriptor defaults and gain boundaries control real JUCE samples",
+          "GRAPH-03 domain connections preserve distinct JUCE graph channels",
+          "IO-01 PCM16 writes saturate and count clipped samples",
+          "IO-01 WAV PCM16 and float32 round trips preserve shape and values",
+          "LOOP-01_gate_rejects_skipped_required_tests",
+          "NED-01.a",
+          "NED-01.b",
+          "NED-01.c",
+          "NED-02.a",
+          "NED-02.b",
+          "NED-02.c",
+          "NED-02.d",
+          "NED-03.a",
+          "NED-03.b",
+          "NED-03.c",
+          "NED-03.d",
+          "NED-03.e",
+          "NED-04.a",
+          "NED-04.b",
+          "NED-04.c",
+          "NED-05.a",
+          "NED-05.b",
+          "NED-05.c",
+          "NED-05.d",
+          "NED-05.e",
+          "NED-06.a",
+          "NED-06.b",
+          "NED-06.c",
+          "NED-06.d",
+          "NED-06.e",
+          "NED-07.a",
+          "NED-07.b",
+          "NED-07.c",
+          "NED-07.d",
+          "NED-07.e",
+          "NED-07.f",
+          "NED-08.a",
+          "NED-08.b",
+          "NED-08.c",
+          "NED-08.d",
+          "NED-08.e",
+          "NED-09.a",
+          "NED-09.b",
+          "NED-09.c",
+          "NED-09.d",
+          "NED-09.e",
+          "NED-10.a",
+          "NED-10.b",
+          "NED-10.c",
+          "NED-10.d",
+          "NED-10.e",
+          "NED-10.f",
+          "NED-10.g",
+          "NED-10.h",
+          "NED-11.a",
+          "NED-11.b",
+          "NED-11.c",
+          "NED-11.d",
+          "NED-11.e",
+          "NED-11.f",
+          "NED-11.g",
+          "NED-12.a",
+          "NED-12.b",
+          "NED-12.c",
+          "NED-12.d",
+          "NED-13.a",
+          "NED-13.b",
+          "NED-13.c",
+          "NED-13.d",
+          "NED-14.a",
+          "NED-14.b",
+          "NED-14.c",
+          "NED-14.d",
+          "NED-14.e",
+          "NI0010.a",
+          "NI0010.b",
+          "PERF-01 editor heartbeat stays responsive during a controlled slow Python task",
+          "PRJ-01 invalid project JSON returns a diagnostic",
+          "PRJ-01 saving and reopening preserves graph, parameters, resources and layout",
+          "R2_editor_application_boundary_guard",
+          "R2_editor_service_injection",
+          "R2_editor_work_routes",
+          "R2_gain_slider_gesture_route",
+          "R2_production_gain_inspector_route",
+          "R2_project_format_policy",
+          "R2_project_replacement_route",
+          "R2_project_resource_service_route",
+          "R2_run_completion_route"
+        ]
+      },
+      "legacy_test_count": 87,
+      "current_test_count": 211,
+      "mapping": [
+        {
+          "legacy_test_name": "BLD-04 Catch2 runner is active",
+          "current_test_name": "BLD-04 Catch2 runner is active",
+          "requirement_id": "BLD-04",
+          "category": "BLD"
+        },
+        {
+          "legacy_test_name": "BLD-04_gate_inventory_rejects_unregistered_ids",
+          "current_test_name": "BLD-04_gate_inventory_rejects_unregistered_ids",
+          "requirement_id": "BLD-04",
+          "category": "BLD"
+        },
+        {
+          "legacy_test_name": "CORE-01 invalid formats and valid intervals return structured diagnostics",
+          "current_test_name": "CORE-01 invalid formats and valid intervals return structured diagnostics",
+          "requirement_id": "CORE-01",
+          "category": "CORE"
+        },
+        {
+          "legacy_test_name": "CORE-01 planar buffers preserve lengths, channel IDs and valid intervals",
+          "current_test_name": "CORE-01 planar buffers preserve lengths, channel IDs and valid intervals",
+          "requirement_id": "CORE-01",
+          "category": "CORE"
+        },
+        {
+          "legacy_test_name": "DSP-01 Gain matches an independent float64 oracle",
+          "current_test_name": "DSP-01 Gain matches an independent float64 oracle",
+          "requirement_id": "DSP-01",
+          "category": "DSP"
+        },
+        {
+          "legacy_test_name": "DSP-01 Gain rejects malformed formats and parameters",
+          "current_test_name": "DSP-01 Gain rejects malformed formats and parameters",
+          "requirement_id": "DSP-01",
+          "category": "DSP"
+        },
+        {
+          "legacy_test_name": "E2E-01 RunService and CLI share a project snapshot and gain oracle",
+          "current_test_name": "E2E-01 RunService and CLI share a project snapshot and gain oracle",
+          "requirement_id": "E2E-01",
+          "category": "E2E"
+        },
+        {
+          "legacy_test_name": "GRAPH-01 missing node and port diagnostics identify the endpoint",
+          "current_test_name": "GRAPH-01 missing node and port diagnostics identify the endpoint",
+          "requirement_id": "GRAPH-01",
+          "category": "GRAPH"
+        },
+        {
+          "legacy_test_name": "GRAPH-01 rejects cycles, self edges, missing ports and duplicate required inputs",
+          "current_test_name": "GRAPH-01 rejects cycles, self edges, missing ports and duplicate required inputs",
+          "requirement_id": "GRAPH-01",
+          "category": "GRAPH"
+        },
+        {
+          "legacy_test_name": "GRAPH-01 valid File to Gain to Output graphs topologically compile",
+          "current_test_name": "GRAPH-01 valid File to Gain to Output graphs topologically compile",
+          "requirement_id": "GRAPH-01",
+          "category": "GRAPH"
+        },
+        {
+          "legacy_test_name": "GRAPH-02 descriptor defaults and gain boundaries control real JUCE samples",
+          "current_test_name": "GRAPH-02 descriptor defaults and gain boundaries control real JUCE samples",
+          "requirement_id": "GRAPH-02",
+          "category": "GRAPH"
+        },
+        {
+          "legacy_test_name": "GRAPH-03 domain connections preserve distinct JUCE graph channels",
+          "current_test_name": "GRAPH-03 domain connections preserve distinct JUCE graph channels",
+          "requirement_id": "GRAPH-03",
+          "category": "GRAPH"
+        },
+        {
+          "legacy_test_name": "IO-01 PCM16 writes saturate and count clipped samples",
+          "current_test_name": "IO-01 PCM16 writes saturate and count clipped samples",
+          "requirement_id": "IO-01",
+          "category": "IO"
+        },
+        {
+          "legacy_test_name": "IO-01 WAV PCM16 and float32 round trips preserve shape and values",
+          "current_test_name": "IO-01 WAV PCM16 and float32 round trips preserve shape and values",
+          "requirement_id": "IO-01",
+          "category": "IO"
+        },
+        {
+          "legacy_test_name": "NED-01.a",
+          "current_test_name": "NED-01.a",
+          "requirement_id": "NED-01",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-01.b",
+          "current_test_name": "NED-01.b",
+          "requirement_id": "NED-01",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-01.c",
+          "current_test_name": "NED-01.c",
+          "requirement_id": "NED-01",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-02.a",
+          "current_test_name": "NED-02.a",
+          "requirement_id": "NED-02",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-02.b",
+          "current_test_name": "NED-02.b",
+          "requirement_id": "NED-02",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-02.c",
+          "current_test_name": "NED-02.c",
+          "requirement_id": "NED-02",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-02.d",
+          "current_test_name": "NED-02.d",
+          "requirement_id": "NED-02",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-03.a",
+          "current_test_name": "NED-03.a",
+          "requirement_id": "NED-03",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-03.b",
+          "current_test_name": "NED-03.b",
+          "requirement_id": "NED-03",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-03.c",
+          "current_test_name": "NED-03.c",
+          "requirement_id": "NED-03",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-03.d",
+          "current_test_name": "NED-03.d",
+          "requirement_id": "NED-03",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-03.e",
+          "current_test_name": "NED-03.e",
+          "requirement_id": "NED-03",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-04.a",
+          "current_test_name": "NED-04.a",
+          "requirement_id": "NED-04",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-04.b",
+          "current_test_name": "NED-04.b",
+          "requirement_id": "NED-04",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-04.c",
+          "current_test_name": "NED-04.c",
+          "requirement_id": "NED-04",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-05.a",
+          "current_test_name": "NED-05.a",
+          "requirement_id": "NED-05",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-05.b",
+          "current_test_name": "NED-05.b",
+          "requirement_id": "NED-05",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-05.c",
+          "current_test_name": "NED-05.c",
+          "requirement_id": "NED-05",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-05.d",
+          "current_test_name": "NED-05.d",
+          "requirement_id": "NED-05",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-05.e",
+          "current_test_name": "NED-05.e",
+          "requirement_id": "NED-05",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-06.a",
+          "current_test_name": "NED-06.a",
+          "requirement_id": "NED-06",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-06.b",
+          "current_test_name": "NED-06.b",
+          "requirement_id": "NED-06",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-06.c",
+          "current_test_name": "NED-06.c",
+          "requirement_id": "NED-06",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-06.d",
+          "current_test_name": "NED-06.d",
+          "requirement_id": "NED-06",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-06.e",
+          "current_test_name": "NED-06.e",
+          "requirement_id": "NED-06",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-07.a",
+          "current_test_name": "NED-07.a",
+          "requirement_id": "NED-07",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-07.b",
+          "current_test_name": "NED-07.b",
+          "requirement_id": "NED-07",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-07.c",
+          "current_test_name": "NED-07.c",
+          "requirement_id": "NED-07",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-07.d",
+          "current_test_name": "NED-07.d",
+          "requirement_id": "NED-07",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-07.e",
+          "current_test_name": "NED-07.e",
+          "requirement_id": "NED-07",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-07.f",
+          "current_test_name": "NED-07.f",
+          "requirement_id": "NED-07",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-08.a",
+          "current_test_name": "NED-08.a",
+          "requirement_id": "NED-08",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-08.b",
+          "current_test_name": "NED-08.b",
+          "requirement_id": "NED-08",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-08.c",
+          "current_test_name": "NED-08.c",
+          "requirement_id": "NED-08",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-08.d",
+          "current_test_name": "NED-08.d",
+          "requirement_id": "NED-08",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-08.e",
+          "current_test_name": "NED-08.e",
+          "requirement_id": "NED-08",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-09.a",
+          "current_test_name": "NED-09.a",
+          "requirement_id": "NED-09",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-09.b",
+          "current_test_name": "NED-09.b",
+          "requirement_id": "NED-09",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-09.c",
+          "current_test_name": "NED-09.c",
+          "requirement_id": "NED-09",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-09.d",
+          "current_test_name": "NED-09.d",
+          "requirement_id": "NED-09",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-09.e",
+          "current_test_name": "NED-09.e",
+          "requirement_id": "NED-09",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-10.a",
+          "current_test_name": "NED-10.a",
+          "requirement_id": "NED-10",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-10.b",
+          "current_test_name": "NED-10.b",
+          "requirement_id": "NED-10",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-10.c",
+          "current_test_name": "NED-10.c",
+          "requirement_id": "NED-10",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-10.d",
+          "current_test_name": "NED-10.d",
+          "requirement_id": "NED-10",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-10.e",
+          "current_test_name": "NED-10.e",
+          "requirement_id": "NED-10",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-10.f",
+          "current_test_name": "NED-10.f",
+          "requirement_id": "NED-10",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-10.g",
+          "current_test_name": "NED-10.g",
+          "requirement_id": "NED-10",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-10.h",
+          "current_test_name": "NED-10.h",
+          "requirement_id": "NED-10",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-11.a",
+          "current_test_name": "NED-11.a",
+          "requirement_id": "NED-11",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-11.b",
+          "current_test_name": "NED-11.b",
+          "requirement_id": "NED-11",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-11.c",
+          "current_test_name": "NED-11.c",
+          "requirement_id": "NED-11",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-11.d",
+          "current_test_name": "NED-11.d",
+          "requirement_id": "NED-11",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-11.e",
+          "current_test_name": "NED-11.e",
+          "requirement_id": "NED-11",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-11.f",
+          "current_test_name": "NED-11.f",
+          "requirement_id": "NED-11",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-11.g",
+          "current_test_name": "NED-11.g",
+          "requirement_id": "NED-11",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-12.a",
+          "current_test_name": "NED-12.a",
+          "requirement_id": "NED-12",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-12.b",
+          "current_test_name": "NED-12.b",
+          "requirement_id": "NED-12",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-12.c",
+          "current_test_name": "NED-12.c",
+          "requirement_id": "NED-12",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-12.d",
+          "current_test_name": "NED-12.d",
+          "requirement_id": "NED-12",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-13.a",
+          "current_test_name": "NED-13.a",
+          "requirement_id": "NED-13",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-13.b",
+          "current_test_name": "NED-13.b",
+          "requirement_id": "NED-13",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-13.c",
+          "current_test_name": "NED-13.c",
+          "requirement_id": "NED-13",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-13.d",
+          "current_test_name": "NED-13.d",
+          "requirement_id": "NED-13",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-14.a",
+          "current_test_name": "NED-14.a",
+          "requirement_id": "NED-14",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-14.b",
+          "current_test_name": "NED-14.b",
+          "requirement_id": "NED-14",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-14.c",
+          "current_test_name": "NED-14.c",
+          "requirement_id": "NED-14",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-14.d",
+          "current_test_name": "NED-14.d",
+          "requirement_id": "NED-14",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NED-14.e",
+          "current_test_name": "NED-14.e",
+          "requirement_id": "NED-14",
+          "category": "NED"
+        },
+        {
+          "legacy_test_name": "NI0010.a",
+          "current_test_name": "NI0010.a",
+          "requirement_id": null,
+          "category": "unclassified"
+        },
+        {
+          "legacy_test_name": "NI0010.b",
+          "current_test_name": "NI0010.b",
+          "requirement_id": null,
+          "category": "unclassified"
+        },
+        {
+          "legacy_test_name": "PRJ-01 invalid project JSON returns a diagnostic",
+          "current_test_name": "PRJ-01 invalid project JSON returns a diagnostic",
+          "requirement_id": "PRJ-01",
+          "category": "PRJ"
+        },
+        {
+          "legacy_test_name": "PRJ-01 saving and reopening preserves graph, parameters, resources and layout",
+          "current_test_name": "PRJ-01 saving and reopening preserves graph, parameters, resources and layout",
+          "requirement_id": "PRJ-01",
+          "category": "PRJ"
+        }
+      ]
+    }
+  }
+}

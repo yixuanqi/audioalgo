@@ -200,7 +200,7 @@ struct LibraryNodeDropResult {
 };
 
 [[nodiscard]] inline std::optional<EditorPoint> find_library_node_drop_position(
-    const ProjectModel& project, const NodeRegistry& registry, const NodeDescriptor& descriptor,
+    const ProjectModel& project, const NodeCatalog& registry, const NodeDescriptor& descriptor,
     EditorPoint pointer_position, float view_width, float view_height,
     const CanvasCoordinateTransform& transform = {}) {
     constexpr float left_margin = 16.0f;
@@ -277,7 +277,7 @@ struct LibraryNodeDropResult {
 }
 
 [[nodiscard]] inline std::optional<LibraryNodeDropResult> try_drop_library_node(
-    ProjectModel& project, const NodeRegistry& registry, const std::string& type_id,
+    ProjectModel& project, const NodeCatalog& registry, const std::string& type_id,
     const std::string& node_id, EditorPoint pointer_position, float view_width, float view_height,
     const CanvasCoordinateTransform& transform = {}) {
     const auto* descriptor = registry.find(type_id);
@@ -291,7 +291,7 @@ struct LibraryNodeDropResult {
 }
 
 [[nodiscard]] inline std::optional<LibraryNodeDropResult> try_add_source_node_from_drop(
-    ProjectModel& project, const NodeRegistry& registry, const std::string& type_id,
+    ProjectModel& project, const NodeCatalog& registry, const std::string& type_id,
     const std::string& node_id, const std::string& resource_path_utf8, EditorPoint pointer_position,
     float view_width, float view_height, std::uint64_t source_epoch, std::uint64_t current_epoch,
     const CanvasCoordinateTransform& transform = {}) {

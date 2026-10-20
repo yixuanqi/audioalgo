@@ -1,0 +1,11 @@
+{
+  "sample_rate_hz": 48000,
+  "channels": 2,
+  "frames": 513,
+  "encoding": "PCM16",
+  "recipe": "L=round(7000*sin(frame*0.07)); R=round(6000*cos(frame*0.11)+1000)",
+  "seed": null,
+  "license": "locally generated analytic fixture; no external recording",
+  "input_sha256": "a1abe5fcd77518d5adb4505179cc654e32ca9b79884fd1fed0ab06140797f531",
+  "oracle": "enabled: output[0]=input[1], output[1]=input[0]; disabled: identity; original channel positions/length preserved"
+}

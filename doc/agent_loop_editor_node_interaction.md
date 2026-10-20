@@ -10,6 +10,8 @@ updated: 2026-10-17
 
 先读根 `AGENTS.md` 指定的三份主文档，再读[专项方案](plan_editor_node_interaction.md)、[专项验收](testing_editor_node_interaction.md)、本规程和最新 `development_status.md`。本文仅约束节点交互专项的实施顺序与证据，不替代主平台完成定义。
 
+2026-10-18当前重构任务还须先读[重构方案](plan_architecture_refactor.md)、[重构验收](testing_architecture_refactor.md)、[重构Agent规程](agent_loop_architecture_refactor.md)。当前总顺序以R0～R6为准；迁移画布/命令/参数时保持全部NED回归与桌面证据要求，旧NI优先安排不冻结独立后端工作，不能借重构删除本专项缺项。
+
 后续 Agent 按 NI0000～NI0006 直接修改和验证当前仓库。常规实现决定自行记录并推进，不在切片/阶段结束要求用户确认或重复授权；不以“方案已生成”“框架已有”“单元全绿”结束代码任务。仅遵守真实工具审批，必要权限/外部资源缺失时说明具体限制并继续独立工作。用户未要求自动提交、推送或发布，不得执行这些操作。
 
 本规程不要求启动定时任务、无限后台循环或子 Agent。Loop Engineering 是可追溯的有限行为迭代。

@@ -58,7 +58,7 @@ def main() -> None:
     py_info = capture([str(PYTHON), "-c", "import sys,platform; print(sys.executable); print(sys.version); print(platform.platform())"])
     cl_info = capture([str(CL), "/Bv"])
     vs_info = capture([str(VSWHERE), "-all", "-products", "*", "-format", "json"])
-    git_info = capture(["git", "rev-parse", "--show-toplevel"])
+    git_info = capture(["git", "rev-parse", "HEAD"])
 
     cache_candidates = {
         "JUCE": [ROOT / "build" / "windows-debug" / "_deps" / "juce-src", Path(r"E:\0qyx\res\vcpkg\installed\x64-windows\include\juce")],

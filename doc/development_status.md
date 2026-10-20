@@ -1,11 +1,170 @@
 # Development status
 
-Last updated: 2026-10-18 07:48 (Asia/Shanghai)
+## 当前状态与下一阶段入口（2026-10-20）
+
+- **当前已推进RF0006/T17 / AR-11.a，进入R4扩展准备**：Main仅保留应用/窗口/服务/插件组装和生命周期；画布、库、参数、波形、运行状态组件与外层IO/设备适配已分开，生产Workspace注入registry。新真实组件意图链与重建所有Debug下游后的受影响回归 **134/134**，0 failed/skipped；职责审查、JUnit与当前二进制证据见 `build/reports/loops/RF0006/T17-ar11a-view-components/`。这是保持既有行为的结构迁移，不制造人工Red；实际桌面仍暂停。R3自动行为候选稳定，但当前源码累计矩阵/桌面缺项未全过，不能宣称R3通过或基本解耦完成。下一条Red为 **R4 ChannelSwap未接入/未交换输出**，先保存通用产品文件清单与hash，接入只改允许范围；R4出口集中执行R0～R4全部累计验证，再继续R5/R6。
+
+- **当前已推进RF0006/T16 / AR-10.e**：受限类型化条件控制参数可见/启用状态，合法编辑及Undo后同步；非法条件描述原子拒绝；未知嵌套结构只读显示并说明，实际保存重开保留值。真实编译Red、组件行为Red和同目标Green齐全，受影响参数/注册/持久化/路由集合 **17/17**，Debug编辑器和测试增量构建成功。见 `build/reports/loops/RF0006/T16-ar10e-conditions-and-opaque/loop.md`。AR-10.a～g当前均有自动行为映射和Green，当前新源码全量累计仍待下一稳定里程碑；桌面AR-10.h保持暂停/未验证。下一实现为 **AR-11.a 剩余View职责拆分**，随后R4 ChannelSwap、R5、R6，常规阶段继续授权有效。
+
+- **当前已推进RF0006/T15 / AR-10.f**：通用摘要已替换画布Gain/File类型分支，使用描述标签、默认值、单位和稳定枚举显示标签；完整长路径/中文值保留在tooltip。真实Red为11断言中10失败，同目标与参数/文字/几何/路由集合Green **16/16**，编辑器增量构建成功。证据 `build/reports/loops/RF0006/T15-ar10f-descriptor-summary/loop.md`。下一实现Red为 **AR-10.e 条件参数与未知结构只读**，随后AR-11.a与R4～R6；未恢复桌面交互。
+- **M15此前冻结快照已正式汇总**：Debug212/212、headless211/211、纯应用76/76、Release212/212，0 failed/error/skipped；三构型七预设真实产物独立oracle均通过，最大绝对误差约2.98e-8。R2累计54passed/1not_verified；R3累计59passed/8not_run/1not_verified，清单/证据关联无错误。详情为 `build/reports/loops/RF0006/M15-parameter-milestone/summary.json`；首轮8项系统Temp权限失败与空筛选记录均保留，workspace TEMP同目标复测及完整矩阵随后通过。**T15源码已不同于M15冻结快照**，当前只对T15受影响集合报告Green，不把旧完整矩阵数量当新源码全量通过。
+
+- **RF0006/T12～T14 稳定候选，集中累计验收入口**：生产Inspector已从Main提取；AR-10.c数值文本严格拒绝与错误恢复、后端独立拒绝/资源定位，AR-10.d描述默认恢复/历史/控件同步，AR-10.g六控件→controller→真实WAV/报告闭环均有真实Red和同目标Green。T14相关集合18/18、T12最终拒绝集合5/5；七份实际产物由独立Python按固定倍率、原容差核对，最大绝对误差约2.98e-8，tag只变报告，参数快照及输入资源hash已核对。证据分别位于 `build/reports/loops/RF0006/T12-ar10c-validation/`、`T13-ar10d-default-reset/`、`T14-ar10g-component-render/`。这些数量只代表切片执行，当前新快照累计矩阵待执行，不能沿用T11数量宣称本轮全套通过。
+- 下一实现出口：**AR-10.e 条件字段/未知结构只读、AR-10.f 通用描述摘要、AR-11.a View职责拆分**，随后R4 ChannelSwap扩展证明并持续R5/R6。最新累计里程碑报告将写入 `build/reports/loops/RF0006/M15-parameter-milestone/summary.json`；报告不存在或有失败时不得视为通过。R3桌面/设备项和其他平台/NED缺项仍保持not_verified，未经用户明确恢复不尝试桌面操作。
+
+- **恢复入口已推进至 RF0006/T11 / AR-10.b**：恢复审计逐文件确认原快照源码无变化，记录中 Debug/headless binary hash 均与现有文件相符；实际 JUnit 为 Debug **208/208**、headless **207/207**、纯应用 **76/76**，0 failed/error/skipped，Debug/headless 均确有 AR-10.b 执行。T11 交接与审计见 `build/reports/loops/RF0006/T11-ar10b-node-instance-binding/loop.md` 和 `resume-audit-20261020.json`。下方T10数量及报告是历史快照，不是恢复开发起点。
+- 用户本次已明确恢复持续开发；被Escape中断的桌面交互仍暂停，未经明确恢复不重试，对应项保持 `not_verified`。当前下一行为 **T12 / AR-10.c 参数错误诊断与恢复**；随后默认恢复/历史同步及真实组件到运行产物闭环。文档候选更新后的新快照将在稳定里程碑集中构建与验收，旧日志不重贴hash。
+
+- 用户已[一次授权持续完成全部重构](agent_full_refactor_authorization.md)：R2后自行推进R3～R6，自验证、自迭代直至全部累计验收通过，常规阶段无需确认。本条授权不代表任何新增功能已实现或验收通过。
+- 按 [下一阶段 Agent 任务与自验证闭环](plan_agent_next_r2.md) 接续 RF0006。
+- **RF0006/T10 / R3 AR-10.a 累计验收快照**（源码树 hash `0ef687c2a7c359e0283b41d414f8c051fe2fe941f8738f30ca01aadacab12833`）：真实 JUCE `ParameterPanel` 按描述符生成 bool/int/float/enum/string/path 控件，通用 inspector 通过选中节点快照和 `EditorController` 路由；测试检查真实控件类型、标签、默认值、范围/步长、单位/help 与 enum 稳定值。AR-10.a Red/Green、AR-06.b 数值步长 Red/Green 和定向路由/NED 回归记录在 T10 目录。
+- 同一源码快照下 Debug CTest **207/207**、Headless **206/206**、runtime-off 应用构型 **76/76** 均为 0 failed/skipped/timeout；Release 的 AR-06.b、AR-10.a、NED-11 全子用例及 UI-00 **12/12**。Debug、Headless、纯应用、Release 全目标构建均成功。累计 JUnit/命令/二进制 hash 均在 `build/reports/loops/RF0006/T10-ar10a-descriptor-parameter-controls/`。
+- AR-01.a–d 在当前 Debug/Headless/runtime-off 库存下通过。AR-04.a/b/c 三个独立真实消费者构建测试、AR-05.d 隔离内核突变并恢复及 NED-12.a–d 均在对应完整套件实际执行通过。当前 AR-02.g G0 failure-propagation 探针先让 Gate 因真实断言失败退出，再恢复 fixture 后 Gate 通过；源绑定证据 `build/reports/gates/G0/failure_probe-20261020T054741.112086Z.json`。
+- 当前 R2 独立验收报告 `build/reports/architecture_refactor/20261020T054851.331507Z/report.json`：**54 passed、0 failed、0 not_run、1 not_verified**。唯一未核验为 AR-05.b 真实桌面运行数值与截图证据。当前 R3 报告 `build/reports/architecture_refactor/20261020T054915.974991Z/report.json`：**55 passed、0 failed、12 not_run、1 not_verified**；AR-10.a 已通过，剩余 12 项是尚未实现的 AR-10.b–h/AR-11 行为，AR-05.b 的外部证据缺项也继续挂账。两份报告均使用上述 T10 源码快照。
+- AR-05.b 真实编辑器证据尝试已记录：Computer Use 两次 `launch_app` 超时；经获准的本地进程创建后，编辑器进程73804和窗口8726684确实存在，但截图调用先后以 `FrameArrived timed out`、`window capture timed out` 失败。没有截到画面，AR-05.b仍为`not_verified`，记录 `desktop-capture-attempt.json`；不把窗口存在等同于GUI数值验收。
+- R2自动/纯应用行为继续通过；因AR-05.b缺少真实桌面截图，阶段报告仍未通过。T10 已按外部证据不足时继续独立工作的授权完成 AR-10.a Red/Green 与累计验收，保留桌面复测待办并继续 R3 自动行为。
+- RF0006/T01 参数 Undo 差量恢复、T02 controller 手势事务、T03 runtime-off 纯应用测试 target、T04a–T04f controller 命令切片均已实现并通过各自行为 Green；AR-08.a 仍待生产视图路由，AR-08.c 整体仍未通过，因为生产 GainInspector 尚未接入手势 API。
+- T03 证据：`build/reports/loops/RF0006/T03-pure-application/`。runtime-off Debug 累积 CTest 为20/20、0 failed/skip；独立边界守卫3/3。应用 target 链接行无 JUCE。AR-09.a仍未通过：Open/Save、资源和播放的无JUCE服务注入尚缺。
+- T04a AddNode 通过纯controller用例检查完整工程、默认参数、revision、dirty/stale、Undo/Redo及拒绝时redo保留；runtime/editor构建通过，工作区Temp下NED回归69/69。详情见 `build/reports/loops/RF0006/T04a-add-node/`。
+- T04b Connect/Disconnect 复用共享端口校验及纯断开helper，拒绝保持完整模型和undo/redo，错误诊断含节点/端口，且不能与参数手势交错。纯回归22/22，runtime/editor构建通过，NED回归69/69。详情见 `build/reports/loops/RF0006/T04b-connect-disconnect/`。
+- T04c 将新库节点插入接入纯controller，检查所选端口、原边替换、旁支保持、Undo/Redo及拒绝原子性；runtime/editor构建通过，纯回归23/23，NED回归69/69。详情见 `build/reports/loops/RF0006/T04c-insert-node/`。
+- T04d 将既有未连接节点插入接入纯controller，检查稳定ID和多类型参数保留、仅按请求更新位置、分支保持、Undo/Redo及失效/已连接目标原子拒绝；纯回归24/24、NED 69/69、runtime/editor构建通过。详情见 `build/reports/loops/RF0006/T04d-existing-node-insertion/`。
+- T04e controller DeleteNode 已完成真实 Red→Green：直线 block 可合法旁路、分支删除不误连、删除所选 Output 清空选择且 Undo 恢复；拒绝路径保留完整工程、历史与 redo。纯回归27/27、NED 69/69、桌面编辑器构建通过。NED 首次沙箱启动失败的两份记录已保留；提升权限后单项及完整套件通过。详情见 `build/reports/loops/RF0006/T04e-delete-node/`。
+- T04f controller MoveNodeLayout 实现共享纯命令和坐标专属历史项；行为检查覆盖 revision/stale、参数历史交错、无效/重复 ID、NaN、手势冲突和非布局字段保护。冻结快照 Debug CTest 为171/171、runtime-off纯应用31/31、NED69/69、边界守卫3/3；AR-01.a/c/d均通过。首轮完整Debug CTest为148/153，暴露源码/库存哈希过期及AR-04.c漏建纯editor application测试目标；未跳过必需测试，已修复并刷新映射。详情及失败记录见 `build/reports/loops/RF0006/T04f-move-node-layout/`。
+- T05a 异步文件选择器生命周期已完成一个可验收行为：旧A chooser回调不能取走新B chooser的completion。真实Red复现旧回调改写B路径/状态并消费B回调；token修复后8断言通过。冻结快照Debug CTest 172/172、runtime-off纯应用32/32、NED69/69、边界守卫3/3，当前Debug/Headless构建和AR-01.a/c/d源码绑定校验通过。证据与JUnit见 `build/reports/loops/RF0006/T05a-async-file-chooser-completion/`。这只覆盖AR-09.c的chooser路径，不表示AR-09.c或R2通过；真实桌面原生chooser及View/worker关闭生命周期仍待验。
+- T05b RunService 注册表生命周期 lease 已完成一个可验收子行为，AR-09.d 整体仍未通过：真实 Red 先因共享 owner 构造器缺失而编译失败；加入故意借用 owner 的接口后，受控 worker 在释放编辑器侧 owner 后观察到 registry 已过期，5 项断言中 1 项失败。修复将 shared owner 从 EditorComponent 传入 RunJob，再由 RunService 持有；同步引用构造保留给同步调用。worker 实测完成 Gain 渲染，join 后 weak registry 过期。测试需泵送真实 JUCE 消息循环，避免非消息线程离线图异步重建的等待。最终定向 Green 为39断言通过，并核对实际增益6.0dB、48kHz、双声道、513帧、127帧块，run identity/manifest/completion字段及 SHA-256。最终源码绑定的产物位于 `build/reports/loops/RF0006/T05b-run-service-registry-lease/artifacts/worker-run-final/`，Red、构建、Green与日志在同目录。首次完整 Debug CTest 为170/173，只有 AR-01.a/c/d 因环境快照、Headless legacy inventory 与当前源码 build records 未刷新而失败；刷新后 AR-01.a/c/d 为3/3，纯 application 32/32、边界守卫3/3、NED69/69、完整 Debug CTest 173/173，0 failed/skip。最终可重跑记录为 `build/reports/loops/RF0006/T05b-run-service-registry-lease/debug-full-final-current-source-3.json` 及同名 JUnit。首次失败记录保留。未覆盖 View 销毁后丢弃迟到回调及超过5秒的 pool teardown/reclaim。
+- T05c 生产完成投递生命周期切片已验收：首次 Green review 发现 JUCE `WeakReference` 明确不支持跨线程访问，故未保留 worker 跨线程复制 `SafePointer` 的设计；最终适配器使用共享失效状态，worker 仅传递弱令牌，组件指针只在消息线程读取，析构先原子失效。真实 JUCE 消息循环 Green 为7项断言通过，活组件在消息线程收到一次回调，销毁组件的排队回调被丢弃。Debug/Headless 全目标构建、runtime-off纯应用32/32、边界守卫3/3、NED自动用例69/69、AR-01.a/c/d 3/3及完整Debug CTest 174/174（0失败、0跳过）通过。首次AR-01.d因构建记录漏附二进制哈希失败，补齐真实产物哈希后独立复验通过；失败记录保留。源绑定报告与JUnit见 `build/reports/loops/RF0006/T05c-safe-completion-dispatch/`。这只覆盖迟到投递，不表示AR-09.d或R2通过。
+- T05d 异步池关闭/回收切片已验收：锁定版 JUCE 源码确认 `ThreadPool` 的5秒 remove timeout 后还会对线程做有限 stop，可能强制终止 job；在 message thread 等待也会挡住 RunService 所需的JUCE消息。真实 Red 因 `EditorWorkerPool` 生产适配器缺失而编译失败。15断言受控 Green 让活动 job 阻塞5200ms，在5000ms timeout之后继续等待期间投递并等待 message-thread 握手；并验证取消信号、队列 job 删除、completion target 失效、registry/job回收、pool销毁及UI线程完成回调。实现将 drain 移到独立 shutdown thread，排空后才退出应用；UI-00 smoke 已通过 `systemRequestedQuit` 验证同一入口。当前源码 Debug/Headless构建、纯应用32/32、边界3/3、NED69/69、AR-01.a/c/d 3/3、三个AR-09.d行为56断言及完整Debug CTest175/175（0失败/跳过）通过；JUnit与源/二进制hash在 `build/reports/loops/RF0006/T05d-worker-pool-shutdown/`。这只完成一个AR-09.d行为切片，整体manifest行仍未标passed。
+- T05e 生产 RunJob/关闭 View 切片已有真实 Green：首条编译 Red 确认没有可直接测试的生产 RunJob API。抽取后的 `EditorRunJob` 同时供 `Main.cpp` 和原生测试使用；测试让一个真实 Gain 任务先完成，再让第二个真实 RunService 任务在自定义 block processor 中暂停，关闭并销毁其 View，随后继续处理。验收核对 48kHz、双声道、513 帧、127帧块、RunIdentity、输入/输出 SHA、实际 WAV 样本和波形摘要；关闭 View 的运行仍产生有效产物，迟到投递未触达 View；存活 View 的结果在消息线程到达，registry 在 worker回收后释放。focused test 60断言通过，JUnit与六项 WAV/manifest/completion 产物、完整构型和累计验收命令记录保存在 `build/reports/loops/RF0006/T05e-production-runjob/`；`summary.json` 汇总该快照的实际源码/二进制哈希、inventory、退出码、失败和跳过数。若汇总缺失或源码哈希不匹配，不得把该切片视为累计验收完成。AR-09.d仍是部分完成，不标父项通过。
+- T05f chooser 关闭生命周期切片：先加受控回调回归，Debug 编译因生产 completion slot 缺少永久 `close()` 能力而以 C2039 失败；新增关闭状态后，关闭会撤销待处理 token 并拒绝新 chooser。`Main.cpp` 在异步 shutdown 开始和析构时立即 close；工程替换仍走可继续创建 chooser 的 `invalidate()`。取消、工程替换后的旧回调、关闭期间迟到回调及新 View 重开隔离由3个纯应用行为用例覆盖，共18断言；Debug/Headless 的定向 AR-09.c 各3/3，UI-00启动退出1/1，Debug/Headless/Release/runtime-off构建通过。累计冻结回归、二进制/JUnit哈希与记录索引见 `build/reports/loops/RF0006/T05f-chooser-shutdown/summary.json`。AR-09.c 父项仍未通过：manifest 保留尚未实现的延迟 service 通知与删除节点/View 快照用例。
+- T05g 删除节点后的迟到运行通知：当时的行为测试由真实 `EditorController::delete_node` 递增 revision、移除 Gain 并置 `results_stale`，再调用生产 `RunReception::accepts` 身份门禁；旧完成不改变选择、结果路径、波形、状态或播放资格。该纯状态测试1用例/10断言通过，源码路径核对确认 `Main.cpp::run_finished` 在任何展示更新前执行门禁。T05g时的 AR-09.c 快照与生产路由缺口由后续切片继续处理。证据见 `build/reports/loops/RF0006/T05g-delete-stale-service/`。
+- T08 / AR-09.e 异步文件工作切片：新增 UI worker job，完成投递只在 JUCE 消息线程发生；`EditorProjectDocuments` 保存/打开完成接口用 session identity 与 document generation 拒绝过期结果。Save/Open、演示包复制、源路径引用/重定位均已接入工作池；Run 不再在界面线程探测资源。AR-13.d真实 Red证明缺失资源诊断的node_id/port_id为空，修复后 file/path 定位断言通过（48断言）；runtime-off纯应用构建成功，独立AR-08/09/13与R2集合41/41。真实 Python 子进程运行10秒期间，20ms消息循环心跳采样487次，p95间隔21.31ms、最大22.15ms；原生 AR-09.e、PERF-01及异步路由四项均通过。修正旧同步路由断言后，Debug R2 累计集合56/56通过、0失败/跳过；NED全套自动用例69/69通过。随后为 AR-09.c 新增生产 `run_finished` 身份门禁/工程替换路由守卫（2/2），因此这组56项累计记录不含新守卫，需随下一次全量回归刷新。首次累计记录保留了3项过期静态守卫失败，修订后同集合通过；最终源文档更新后的二进制/JUnit/源码绑定记录待刷新。平台桌面/DPI/真实设备证据尚未验证，R2仍未宣布通过。详细命令与测量见 `build/reports/loops/RF0006/T08-message-thread-io/`。
+- T09 / AR-09.c 真实迟到运行通知：先以缺少可直接验证的生产身份门禁编译失败作为 Red；抽出 `apply_if_current_run` 并由 `Main.cpp::run_finished` 实际调用。真实 `EditorRunJob` 在 worker 中运行保存的 File → Gain → 阻塞节点 → Output 快照；消息线程收到 processor 已进入阻塞的握手后，通过 `EditorController` 删除 Gain，再放行原运行。controller 实际 revision 4→5、dirty/results_stale 均置位、Gain 消失且剩余3节点/2连接；旧运行仍生成48kHz、双声道、513帧的 WAV 和 run/complete 文件，SHA-256 为 `ccfba2aa949a2161579ab89833ad2ec22b092b6ae3a8e01fc65871643e9b6cbf`，三组样本与独立 +6dB oracle 相符。生产完成 handler 未调用、未查询已删节点，先前结果ID、WAV路径、状态、波形与播放资格逐项不变。定向JUnit 1/1、51断言；生产路由守卫3/3、110项manifest结构验证12/12；Debug原生测试与编辑器构建通过。持久产物及Red/Green记录见 `build/reports/loops/RF0006/T09-delayed-run-notification/`。
+- 基线跟进：AR-01.a的四个preset核对现已通过；AR-01.d递归查找任务子目录的源码hash/构建命令/产物校验也通过。完整Debug CTest发现AR-01.c的Headless映射来自较早的200项库存，而最近配置出的纯应用测试目标使实际库存成为205项；差异是5个已注册且实际构建的AR-08.e/AR-09.a/e测试，旧集合无丢失。映射已刷新并通过。第二轮完整Debug CTest为205/206通过，AR-01.a在完整回归末段被10秒CTest进程上限截断（日志耗时10.04秒），其独立执行约7.4秒且断言通过；第三轮仍为205/206，AR-01.d在完整回归中被10秒上限截断，其他行为及长时隔离测试通过。两项都需重新计算完整源码hash并检查多份真实证据，现将AR-01.a/d纯证据采集进程上限校准为20秒，不改断言、产品时限或验收阈值；失败记录保留，重采环境/build hash后再跑完整回归。
+- 当前下一步 Red：R3 / AR-10.b。验证两个同类型、不同 node_id 的实例时，改动必须仅写入当前选中 node_id+parameter_id；切换节点或重建面板不得触发旧控件回写或把旧节点值带入新节点。AR-05.b真实桌面数值与截图仍为`not_verified`；平台 DPI/真实设备证据不得由后台测试替代。新切片代码修改后按源码 hash 重采受影响构建和累计证据。
+- 各切片证据按具体源树 hash 关联；代码或源文档变更后，需按对应范围刷新环境、构建绑定和累计验收记录。
+
+## R2 首片（RF0006，2026-10-18）：无控件的参数命令
+
+- 新增真实 target `audio_editor_application`（`libs/audio_editor_application/EditorController.*`），
+  只依赖 `audio_project`/SDK，无 JUCE、无 View、无文件对话框；`EditorTopologyHistory` 迁入该层，
+  `apps/editor/EditorTopologyHistory.h` 降级为兼容转发头（注明移除切片）。
+- `EditorController::set_parameter` 成为唯一参数写入路径：走 `validate_parameter_value` 共享 schema，
+  经 `history_.apply` 应用 → 一次编辑恰好一个 revision，并维护 `dirty` / `results_stale`。
+- **AR-08.b 已实现**（76 断言）：合法修改一个 revision 且可追踪实际值；相同值 no-op；
+  越界/类型错/未声明 enum/未知参数/未知节点全部拒绝且不改变模型、历史、revision；
+  保存只清 dirty，过期标记保留到重新运行；`adopt_project` 清历史与两个状态位。
+  Red 形态为“接口不存在”的编译级失败（`EditorController.h` 原本不存在），未把运行期断言说成 Red。
+- 新增 `R2_editor_application_boundary_guard`（3 检查）：应用层不得 include JUCE/View/IO/Service，
+  controller 必须使用共享 schema 与 history，CMake target 不得链接 JUCE。
+  该守卫**不映射**到任何必需 ID，避免用部分证据宣称 AR-09.a 通过。
+- RF0006/T01 修复 `EditorTopologyHistory` 的参数恢复：Undo/Redo 只还原该历史项实际改变的参数键，保留其他参数，并精确保留键原先缺省/不存在的状态。正式 Red 中 Undo 后实际值仍为 6.0，期望 0.0；修复后固定事件表 reducer 检查完整工程、revision、dirty/stale 与历史栈。
+- T01 累积验证：Debug 最终记录 `final-snapshot-regression.json` / JUnit 13/13，0 failed、0 skipped，覆盖 AR-08.b、参数历史类型/缺省键/多实例以及 NED-11.a–g；NED-11.d 确认拓扑 Undo 继续保留后续参数与布局变化。当前二进制 SHA-256 `31d8189f7849bda83b6fd434090824efd8fd374f0812600a7569a2bfe3f80be4`。测试源树 hash 见对应 RF0006/T01 命令记录。
+- controller 参数历史和手势事务用例均通过；生产滑块尚未调用 controller API。AR-08.c manifest 暂保留 `unassigned/not_run`，避免把应用层部分覆盖记成完整通过。`GainInspector::apply_gain()` 仍直接写模型，后续需将 `EditorComponent` 工程所有权移交 controller；AR-08.a、AR-09、AR-10/11 未完成。
+- RF0006/T02 新增 `begin/update/commit/cancel_parameter_gesture`：更新只暂存并共享参数 schema 验证；commit 合并为一条参数差量历史，cancel 不写模型。有效手势期间拒绝普通参数命令、Undo/Redo 和嵌套手势；New/Open 接管工程时清理手势。
+- T02 行为 Red 观察到 3 次 update 将 revision 3→4→5→6、建立3条历史，并且 cancel 后状态仍变化；修复后最终冻结记录 `final-snapshot-regression.json` 15/15 Debug 回归通过（AR-08.b、当前 AR-08.c 部分行为、NED-11.a–g），0 failed/skip。源树/二进制/JUnit hash 见该命令记录。生产 `GainInspector::apply_gain()` 仍直接写模型，因此 AR-08.c 完整验收仍挂账；AR-08.a、AR-09、AR-10/11 未完成。
+
+
+## R1 续接（RF0005，2026-10-18 第三轮）：两轮 Review 的六项执行/隔离缺陷
+
+证据目录 `build/reports/loops/RF0005/`。上一轮 F1–F5 只是首轮 Review；本轮处理
+`build/reports/reviews/framework-20261018T040137637400Z/review.md` 与
+`build/reports/reviews/continuation-20261018T042655330487Z/review.md` 的剩余项。
+**每一项都先有独立失败断言，再修复，再回归**：
+
+| 缺陷 | 正式 Red | 修复 | Green |
+| --- | --- | --- | --- |
+| F1 快速块接口绕过非有限输出校验 | `AR-07.e block output must be finite and prepare must not throw` 在 NaN 断言处失败 | 块路径在接受结果前无分配扫描输出，NaN/±Inf/有限运算溢出全部拒绝，诊断带节点与输出端口并清空该块 | 138 断言通过 |
+| F2 固定帧节点收到短尾块 | `AR-06.e fixed-frame tails…` 在“257 帧必须被拒绝”处失败 | 原生区域执行前要求 `frames % fixed == 0`，无固定帧适配时明确拒绝 | 6 断言通过 |
+| F3 插件 prepare 异常逸出 | `AR-07.e a throwing prepare…` 两条断言失败（`prepareToPlay` 抛出） | prepare 包 try/catch → `node_prepare_exception`（带节点定位），并 reset 清理半准备状态 | 7 断言通过 |
+| F4 变异隔离目录可被并行构型互删 | `test_ar05d_isolation.py`：`AttributeError: create_isolation_root` | 改用 `tempfile.mkdtemp` 原子创建唯一短目录；`reserve_isolation_root` 对已存在目录直接报错，绝不删除他人目录 | 6 用例通过 |
+| N1 无块能力的节点仍进分配式回调 | `AR-07.d the prepared callback allocates nothing for generic nodes too` 在 owned-only 断言失败 | 原生回调**删除分配式回退**；无块能力的实例在 prepare 阶段以 `block_processing_unsupported` 拒绝，回调永不执行它 | 10 断言通过 |
+| N2 非音频端口被当作 PCM 执行 | `AR-07.e non-audio ports are refused by the native boundary` 失败 | wrapper 构造期与图编译期逐端口要求 `audio.pcm@1`，否则 `port_type_unsupported` | 8 断言通过 |
+
+- **通用节点零分配补测**：`AR-07.d` 现在同时覆盖 Gain 与一个**非 Gain** 的通用块节点
+  （两者回调均 0 次分配），并证明 owned-only 节点被拒绝时回调分配为 0；
+  不再用 Gain 单点结果代表整个 wrapper。
+- 因删除分配式回退，`AR-07.a` 的测试夹具 `OffsetNodeProcessor` 改为实现借用块路径——
+  这是被收紧的产品契约所要求，而不是放宽断言；`AR-07.a` 仍通过 1028 个断言。
+- 修复后 Debug 全量只余 `AR-01.a/c/d` 证据刷新项失败，无产品回归。
+
+
+- 续接 [架构重构交接](handoff_architecture_refactor_20261018.md)。证据目录 `build/reports/loops/RF0004/`
+  （`loop.md` 为完整 Red→Green 记录）。未提交、未推送；全部已修改与未跟踪文件均保留。
+- **首轮 Review F1–F5 修复（仅指 `refactor-20261018T021553919118Z`，不等于全部 Review 闭环；
+  另两轮的六项见上方 RF0005）**：
+  - F1 故障注入改为“源码副本 + 独立 build”。变异只写隔离目录；活动
+    `Gain.cpp` 与 `audio_algorithm_tests.exe`/`audioalgo_tests.exe`/`audio_cli.exe`
+    运行前后逐一哈希相同（`active_tree_unchanged: true`）。基线 3 oracle 通过 → 变异 3 oracle 全部以
+    退出码 42 捕获 → 还原后 3 oracle 通过。新增常驻用例 `AR-05.d_isolation_guard`。
+  - F2 桌面证据分支先用例执行状态再验证据，截图与可执行文件必须真实存在且哈希匹配。
+    pre-fix 快照把 `passed/skipped/failed` 全映射成 `passed`，当前为
+    `not_verified/skipped/failed`（`f2f3-adversaries.log`）。
+  - F3 新增 `acceptance_stage_map()`，按验收文档第 2 节表格逐条比对 ID→阶段与每阶段数量；
+    把 `AR-03.a` 移到 R6 会被拒绝。
+  - F4 `NodeSDK` 新增共享 `validate_parameter_value()`，描述默认值与工程实例共用同一 schema；
+    Review 的同一 `probe.cpp` 现在输出 `invalid_enum_accepted=false, diagnostic_count=1`。
+  - F5 主 Gate 逐用例解析状态、计数互斥；必需用例 skipped/not-run/timeout 直接失败；
+    `UI-01/02/04/07` 需 `--evidence` 提供哈希校验过的截图与可执行文件。
+    受控 skip fixture 修复前 `exit=0/status=passed`，修复后 `failed`。
+- **AR-06.d 证据闭环**：继承既有迁移，未重造 Red；全量回归通过并已绑定 manifest。
+- **R1 剩余契约已实现**：`AudioNodeProcessor` 增加 `prepare/reset/process_block` 与借用块视图
+  `AudioBlockView`；wrapper 在 prepare 一次分配通道指针表与输入暂存区，处理回调只做指针填充和
+  `copy_n`。新用例断言数：AR-05.e 1301、AR-06.e 14、AR-06.f 405、AR-07.b 16842、AR-07.c 15、
+  AR-07.d 4（**处理回调零动态分配**）、AR-07.e 138。
+- 修复既有回归：`NodeExecutionCapabilities` 的输入/输出上限由固定 1 改为 `std::optional`
+  （未设置按声明端口推导），`NED-02.d`、`NED-10.f`、`NED-10.g` 的多端口描述不再被默认上限拒绝。
+- **累计回归口径修正（对应 framework Review 的 F5）**：上一稿把“Release 146/146、0 failed”写成结论，
+  但当时的 `release-final-ctest.json` 实际是 exit 8、`release-junit.xml` 为 144/146，两项失败是
+  `AR-01.a`/`AR-01.d` 的证据不对应。失败记录与日志全部保留，未被覆盖。
+  现在的规则是**只引用最终完成记录并按其 JUnit 汇总**，不再写预期数量。
+- RF0005 当时的最终记录在 `build/reports/loops/RF0005/`：
+  Debug / headless / Release 各自的 `*-current-final-build.json`、`*-final-ctest.json`
+  与对应 `*-junit.xml`。该轮 inventory 为 Debug 151、headless 150、Release 151；
+  三者 CTest 记录均 `exit 0`、`0 skipped`，通过数以各自最终 JUnit 为准。
+  加入 R2 首片后 inventory 会再变，最终数字见 `build/reports/loops/RF0006/`。
+- **验证器结果以 RF0005 报告为准**：R0 与 R1 的阶段报告路径写在本文件末尾“Next Red”之前的最新
+  运行记录中；R1 仍为 19/20 自动通过，唯一 `not_verified` 是 AR-05.b 的实际 GUI 运行证据。
+- **GUI 证据尝试（诊断，不计验收）**：编辑器已能在后台启动（未抢占前台），UIA 树可读、
+  `Run` 可由 UIA 调用；但 GUI 运行被沙箱拒绝写入其产物目录，状态行显示
+  `run_directory_create_failed: Access is denied.`。截图与哈希记录在
+  `build/reports/loops/RF0004/ar05b_gui_attempt.json`（`scope: diagnostic_only_not_acceptance`）。
+  未修改产品代码，AR-05.b 保持 `not_verified`。
+- **环境前置条件（必须保留）**：本会话 `pwsh` 在默认 sandbox 下任何进程启动返回 `0xC0000142`，
+  按工具规程以单次 `danger-full-access` 升级执行；`%LOCALAPPDATA%\Temp` 下旧 sandbox 会话遗留的
+  `AudioAlgo *` 草稿目录会被当前文件沙箱拒绝写入，导致 11 个使用 `temp_directory_path()` 的用例报
+  `create_directories: Access is denied`。把 `TEMP`/`TMP` 指向工作区内 `build/tmp` 后全部通过；
+  属环境问题，未改测试、未放宽断言。GUI 运行的产物目录同样受该沙箱限制。
+- **R1 未宣布通过**：20 个 R1 子用例中 19 个自动通过，AR-05.b 的验收文本要求“实际 GUI 运行”证据，
+  仍为 `not_verified`。R0 已在本轮重新验证。平台 G0–G6 与 NED 桌面缺项保持不变。
+
+## Previous implementation record (2026-10-18; historical, before the handoff above)
+
+- Active sequence: R0–R6. **R0 passed** on source hash `424f758e09d993982a9ac673354dd2e2d9e98c755f529f98a01dcc379def08e0`. R1 is in progress; AR-05.d and AR-06.a–c have focused Red/Green evidence, and a generic-wrapper AR-07.a prototype passes its focused oracle. Production graph migration remains open. No platform Gate or full R1 pass is claimed. The checkout is based on Git commit `98fe518926cbca77c24b70245ed616bf9e9c7e16` with local changes. Refreshed toolchain and dependency details are in `build/reports/environment.json`.
+- Before behavior changes, the rebuilt Debug/headless baseline passed **88/88** and **87/87**. Current full Debug/headless suites passed **106/106** and **105/105**; Release built successfully and its complete inventory is **106** tests. Baseline and final logs/JUnit, current source manifests, and executable hashes are recorded in RF0000 and RF0002.
+- R0 frozen legacy fixture: `build/reports/loops/RF0000/legacy_fixture/` contains read-only copies of the existing Gain project and PCM16 input. Project SHA-256: `767b18ddd84911c68a04dbfee073a73212851f4812414078dbb2fde7b248b76d`; input SHA-256: `156b5229f494b119bc604d0736ae89149e5665bb96cd00da015efd2df1df4c3e`. A real CLI run produced 96,000 frames (`run_id=dcf8448e08934e158eccf475d161650d`); the independent float64 oracle passed 192,000 samples with maximum absolute error `2.3616929079040005e-08`.
+- AR-03.a produced the required Red: projects A and B both had revision 7, and the revision-only predicate allowed A to replace B. The stale-binary attempt is preserved as failed evidence. After rebuilding, AR-03.a–f and the real RunService/message-thread AR-03.g passed in the 102/101 cumulative suites. Implementation and first evidence are in RF0001.
+- `RunIdentity` carries project ID, session epoch, request ID and revision. The editor allocates identity before queueing, revokes reception on New/Open, and guards error/success mutations. `RunService` returns and records epoch/request ID and associates editor `run_id` with the request.
+- The versioned architecture manifest lists all **110** AR subcases. The strict R0 verifier passed **18/18**: AR-01.a–d, AR-02.a–g, AR-03.a–g; zero failed/skipped/timeout/not_run/not_verified. Its report is `build/reports/architecture_refactor/20261018T010443.593471Z/report.json`. AR-02.g used a real isolated assertion failure, observed the nonzero failure in G0 with all required IDs present, then removed the probe and passed a clean G0. AR-01 evidence includes exact old-to-current names for all **88/87** baseline Debug/headless cases, unchanged desktop-required NED entries, frozen fixture/oracle, current environment, and executable hashes. Red/Green logs are in RF0002.
+- R1 code/evidence: AR-04.a installed consumer passed at `build/reports/architecture_refactor/ar04_consumer/20261018T011110.475982Z/report.json`; AR-04.b/c/d have separate fresh-build, pure-test and borrowed-view evidence under `build/reports/architecture_refactor/ar04_b/`, `ar04_c/`, and `ar04_d/`. AR-05.d's controlled +0.25 dB mutation was independently caught by the float64 API oracle, Node/JUCE oracle, and RunService/CLI oracle. The exact Gain.cpp SHA-256 returned to its byte-for-byte original after the mutation; all three oracles passed again. Its successful report is `build/reports/architecture_refactor/ar05d_mutation/20261018T020541.613170Z/report.json`.
+- AR-06.a first failed on the current split descriptor/factory registration path: the empty factory was rejected but left a descriptor behind. `NodeRegistry::register_node` now validates before insertion and rolls back the descriptor if factory insertion fails; version conflicts, empty factories, and duplicate ports leave the existing catalog and factory usable. Focused Red/Green records are under `build/reports/loops/RF0003/ar06a-red-*.json` and `ar06a-green-*.json`.
+- AR-06.b Red proved that a floating parameter with an integer default was accepted and fully registered. Validation now rejects wrong default types, reversed/non-finite bounds, out-of-range defaults, duplicate parameters, invalid/unknown enum values, zero/duplicate formats, inconsistent port limits, and contradictory fixed/variable block declarations. Each rejection carries a field path and leaves the descriptor/factory maps empty; a valid enum/format/fixed-block descriptor registers successfully. Evidence is in `build/reports/loops/RF0003/ar06b-red-*.json` and `ar06b-green-*.json`.
+- AR-06.c Red proved that a throwing processor factory escaped `NodeRegistry::create_processor`. Creation now returns an error with the node ID; `create_plan` builds into a temporary and returns no partial plan if a later factory throws. Tests create two same-type stateful instances, verify independent processing counts, and verify an earlier instance is destroyed after a later failure. Evidence is in `build/reports/loops/RF0003/ar06c-red-*.json` and `ar06c-green-*.json`.
+- AR-07.a prototype Red confirmed that no generic SDK-to-JUCE wrapper existed. `NativeNodeAudioProcessor` now injects any SDK processor plus named input/output metadata, and Gain and an independent offset processor pass separate numerical oracles through that same wrapper. Evidence: `build/reports/loops/RF0003/ar07a-red-build.json` and `ar07a-green-build-retry.json`/`ar07a-green-ctest.json`. This proves the new wrapper seam; production `render_audio_graph` still uses the older Gain-specific JUCE factory, so AR-07.a is not yet accepted end-to-end.
+- Cumulative Debug regression after the wrapper prototype passed **20/20**, including AR-04.d, AR-05.a–d, AR-06.a–c, AR-07.a, GRAPH-02/03, and E2E-01: `build/reports/loops/RF0003/r1-cumulative-after-ar07a.json`, source hash `876f616cf7b54f3b45ded9774a8612b13c495cf2d14b340c098812f79e602357`. Full Debug/headless/Release inventories and legacy mappings have not yet been refreshed for the newly registered cases. AR-05.b/c actual GUI evidence also remains `not_verified`.
+- Next Red: AR-06.d, move builtin descriptor/adapter registration into the plugin package and route the production graph through injected SDK processors plus the generic wrapper; verify the app sees a read-only catalog and GUI/CLI compose identical builtins. R1 and platform Gates remain open.
+- R0 does not close platform G0/G1 or NED requirements. Desktop window interaction, DPI, device playback, missing/wrong-resource GUI diagnostics, and the previously recorded 60 NED desktop evidence rows remain `not_verified`.
+
+Refactor documentation history (2026-10-18): the architecture plans are the active R0-R6 entry points. The original documentation-only assessment remains under build/reports/architecture/20261018; implementation and acceptance evidence now live under RF0000/RF0001. The historical document review does not count as product acceptance.
+
+Architecture assessment (2026-10-18): see `build/reports/architecture/20261018/assessment.md`. This review changed no product code. A fresh headless CTest run passed 87/87; the subsequent headless build was up to date and succeeded after Windows SDK access was granted. Debug inventory remains 88 tests. G0/G1 gaps and the latest 69-case interaction report (9 passed, 60 not_verified) remain open. Findings include duplicated production/core Gain implementations, the missing editor application boundary, Gain-specific UI, incomplete SDK/runtime integration, and main-Gate quality/evidence coverage gaps. A proposed architecture regression is to complete an old run after opening another project with the same revision and verify that neither its success nor failure updates the new project; this is currently a static risk, not a newly executed failing test. Existing desktop acceptance work remains required.
+
+Last updated: 2026-10-19 (Asia/Shanghai)
 
 ## Current state
 
 - Current Gate: **G0 in progress**; prior G1 desktop evidence remains scoped to the old core loop. BLD-01/02/03, LOOP-01, full UI-01 and remaining UI-02 are still missing, so no platform Gate is claimed.
-- Current source tree hash: see the refreshed `build/reports/environment.json` and the latest timestamped node-interaction verification report. There is no Git metadata in this checkout.
+- Current source tree hash and Git revision: `build/reports/environment.json`; this checkout has Git metadata and is based on `98fe518926cbca77c24b70245ed616bf9e9c7e16` with local changes.
 - Environment: `build/reports/environment.json`; Computer Use found the running Debug AudioAlgo Editor window, but screenshot state capture timed out twice. No live pointer action or DPI change was made; current interaction evidence remains `not_verified`.
 - Editor launch convenience: `scripts/run_debug.ps1` and `scripts/run_release.ps1` call the shared `scripts/build_and_run_editor.ps1`. `Get-Command cmake` returned two executables; the script now selects the first PATH result. Escalated execution completed Debug and Release configure/build; Debug started and remains running as PID 42524. Release was built, but its process exited because this app disallows multiple instances while Debug remained open. A preflight now reports this case instead of claiming success. PowerShell parser checks pass; full results and the one-instance constraint are recorded in `build/reports/loops/NI0006/run-editor-scripts-20261018.md`. Environment inventory was refreshed at `build/reports/loops/NI0006/environment-run-editor-scripts-fix.log`. Desktop screenshot capture for GUI interaction still timed out.
 
@@ -79,6 +238,7 @@ Last updated: 2026-10-18 07:48 (Asia/Shanghai)
 
 ## Next Red
 
-- NI0007–NI0009 desktop evidence: with a targetable native editor window, verify the first-open size keeps the title bar, toolbar, and status row within the work area; then check pan, Delete/Backspace on a node and exact cable, direct library drag to blank canvas, and library insertion onto a wire. For insertion, capture the highlighted old edge/end pins and candidate pins before release, then confirm the preview becomes a committed node with two replacement connections after release. Record OS/DPI/window/source/executable hashes and screenshots, including 100/150/200% DPI where available. Keep these as `not_verified` until captured; component checks and launch smoke do not replace live GUI evidence.
-- Previous L0013 (File chooser/source/sink creation) and L0014 (GUI Save/reopen) remain required and are absorbed into NED-07/09/13/14. A headless model test cannot replace their required desktop evidence; lack of desktop remains not_verified.
-- Previous L0015 / G0: BLD-01/02/03 build-config checks and LOOP-01 still need registered evidence; retain the original Gate gaps while repairing interactions.
+- **当前接续：RF0006/M15 参数编辑里程碑累计验收；下一实现 Red 为 AR-10.e/f。** T11已核实，T12～T14已完成AR-10.c/d/g的行为Red、同目标Green和独立音频/报告oracle，详细证据和候选映射见本文顶部与对应loop。当前快照全套结果以 `build/reports/loops/RF0006/M15-parameter-milestone/summary.json` 实际生成结果为准；T10/T11累计数字保留为历史，不能替代本轮验证。桌面交互未经用户明确恢复不重试，AR-05.b及AR-10.h/AR-11桌面项继续not_verified。
+- **R2待补的外部证据**：AR-05.b要求编辑器实际运行输出满足独立数值oracle并提供run id、帧数、SHA截图。本轮启动编辑器成功但Computer Use窗口截图连续两次超时，不能据此判通过；原始尝试 `build/reports/loops/RF0006/T09-delayed-run-notification/desktop-capture-attempt.json`。恢复桌面截图能力后完成该证据并复跑R2验证器。
+- 平台 Gate 与 NED 桌面缺项不变：NI0007–NI0009 的平移/删除/插入/节点顺序、UI-01/UI-02/UI-04/UI-07、
+  DPI 100/150/200%、真实设备播放与 BLD-01/02/03 构型检查仍为 `not_verified`。
