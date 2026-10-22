@@ -1,6 +1,7 @@
 #include "audio_run_service/RunService.h"
 
 #include "audio_io/WavFile.h"
+#include "audio_runtime/NativePlan.h"
 
 #include <juce_core/juce_core.h>
 
@@ -11,6 +12,7 @@
 #include <cstdint>
 #include <fstream>
 #include <limits>
+#include <map>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -203,56 +205,134 @@ RunOutcome RunService::run(const RunRequest& request) const {
         return Diagnostic{graph_diagnostics.front().code, graph_diagnostics.front().message,
                           graph_diagnostics.front().node_id, graph_diagnostics.front().port_id};
 
-    const NodeInstance* source_node = nullptr;
+    // Only sources inside the selected output's reverse dependency closure are materialized;
+    // unselected branches create no processors and no resources.
+    const auto selection_outcome = evaluate_plan_selection(request.project, *nodes_);
+    if (const auto* selection_error = std::get_if<Diagnostic>(&selection_outcome))
+        return *selection_error;
+    const auto& selection = std::get<PlanSelection>(selection_outcome);
+    std::vector<const NodeInstance*> source_nodes;
     for (const auto& node : request.project.nodes) {
         const auto* descriptor = nodes_->find(node.type_id);
-        if (descriptor != nullptr && descriptor->execution_kind == NodeExecutionKind::source) {
-            if (source_node != nullptr)
-                return Diagnostic{"graph_shape_unsupported", "A G1 run requires exactly one audio source"};
-            source_node = &node;
-        }
+        if (descriptor != nullptr && descriptor->execution_kind == NodeExecutionKind::source &&
+            selection.closure.contains(node.id))
+            source_nodes.push_back(&node);
     }
-    if (source_node == nullptr)
+    if (source_nodes.empty())
         return Diagnostic{"source_node_missing", "Project has no registered audio source node"};
-    const auto path_parameter = source_node->parameters.find("path");
-    if (path_parameter == source_node->parameters.end() || !std::holds_alternative<std::string>(path_parameter->second))
-        return Diagnostic{"source_path_missing", "File source node requires a path parameter", source_node->id, "path"};
-    const auto utf8_path = std::get<std::string>(path_parameter->second);
-    if (utf8_path.empty())
-        return Diagnostic{"source_path_missing", "File source path must not be empty", source_node->id, "path"};
-
-    const auto resource_path = resources_->resolve(utf8_path, request.project_file);
-    if (const auto* error = std::get_if<Diagnostic>(&resource_path)) {
-        auto contextual = *error;
-        if (contextual.code == "source_resource_missing") {
-            contextual.node_id = source_node->id;
-            contextual.port_id = "path";
+    struct SourceInput {
+        const NodeInstance* node;
+        std::filesystem::path path;
+    };
+    std::vector<SourceInput> source_inputs;
+    for (const auto* node : source_nodes) {
+        const auto path_parameter = node->parameters.find("path");
+        if (path_parameter == node->parameters.end() || !std::holds_alternative<std::string>(path_parameter->second))
+            return Diagnostic{"source_path_missing", "File source node requires a path parameter", node->id, "path"};
+        const auto utf8_path = std::get<std::string>(path_parameter->second);
+        if (utf8_path.empty())
+            return Diagnostic{"source_path_missing", "File source path must not be empty", node->id, "path"};
+        const auto resource_path = resources_->resolve(utf8_path, request.project_file);
+        if (const auto* error = std::get_if<Diagnostic>(&resource_path)) {
+            auto contextual = *error;
+            if (contextual.code == "source_resource_missing") {
+                contextual.node_id = node->id;
+                contextual.port_id = "path";
+            }
+            return contextual;
         }
-        return contextual;
+        source_inputs.push_back({node, std::get<std::filesystem::path>(resource_path)});
     }
-    const auto& input_path = std::get<std::filesystem::path>(resource_path);
-    const auto input_hash_before = sha256_file(input_path);
-    if (const auto* error = std::get_if<Diagnostic>(&input_hash_before))
-        return *error;
-    const auto audio_result = read_wav_file(input_path);
-    if (const auto* error = std::get_if<Diagnostic>(&audio_result))
-        return *error;
+    std::error_code filesystem_error;
+    if (!std::filesystem::create_directory(request.output_directory, filesystem_error))
+        return Diagnostic{"run_directory_create_failed", filesystem_error ? filesystem_error.message() : "Could not reserve a new run directory"};
+    OutputDirectoryGuard output_guard(request.output_directory);
+
+    struct ResourceRecord {
+        std::string node_id, parameter_id;
+        std::filesystem::path path, snapshot_path;
+        std::string sha256;
+    };
+    std::vector<ResourceRecord> resource_records;
+    const auto capture_resource = [&](const std::filesystem::path& path, const std::string& node_id,
+                                      const std::string& parameter_id) -> std::variant<ResourceRecord, Diagnostic> {
+        const auto error = [&](std::string code, std::string message) {
+            return Diagnostic{std::move(code), std::move(message), node_id, parameter_id};
+        };
+        const auto before = sha256_file(path);
+        if (const auto* failure = std::get_if<Diagnostic>(&before))
+            return error(failure->code, failure->message);
+        const auto relative = std::filesystem::path("resources") /
+                              std::to_string(resource_records.size()) / path.filename();
+        const auto destination_path = request.output_directory / relative;
+        std::error_code directory_error;
+        if (!std::filesystem::create_directories(destination_path.parent_path(), directory_error))
+            return error("resource_snapshot_create_failed", directory_error ? directory_error.message() : "Could not reserve resource snapshot storage");
+        // Fresh files deliberately do not inherit read-only attributes from user inputs.
+        // Every stream is closed before a processor can observe the captured version.
+        {
+            std::ifstream source(path, std::ios::binary);
+            std::ofstream destination(destination_path, std::ios::binary);
+            if (!source || !destination)
+                return error("resource_snapshot_copy_failed", "Could not open resource snapshot streams");
+            std::array<char, 64 * 1024> bytes{};
+            while (source) {
+                source.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+                if (source.gcount() > 0)
+                    destination.write(bytes.data(), source.gcount());
+                if (!destination)
+                    return error("resource_snapshot_copy_failed", "Could not write complete resource snapshot");
+            }
+            destination.close();
+            if (!source.eof() || source.bad() || !destination)
+                return error("resource_snapshot_copy_failed", "Could not close complete resource snapshot");
+        }
+        const auto copied = sha256_file(destination_path);
+        if (!std::holds_alternative<std::string>(copied) ||
+            std::get<std::string>(copied) != std::get<std::string>(before))
+            return error("resource_modified_during_snapshot", "Resource capture did not match the fixed input version");
+        return ResourceRecord{node_id, parameter_id, path, relative, std::get<std::string>(copied)};
+    };
+    // Every source adapter receives a materialized, independently captured file, exactly like
+    // any explicitly declared native input resource; no later read uses the caller's mutable
+    // disk paths, and no buffer is ever shared between two sources.
+    for (const auto& input : source_inputs) {
+        auto captured = capture_resource(input.path, input.node->id, "path");
+        if (const auto* error = std::get_if<Diagnostic>(&captured))
+            return *error;
+        resource_records.push_back(std::move(std::get<ResourceRecord>(captured)));
+    }
+    const auto& input_path = source_inputs.front().path;
+    const auto input_hash = resource_records.front().sha256;
+    std::vector<AudioSourceBinding> source_bindings;
+    for (std::size_t index = 0; index < source_inputs.size(); ++index) {
+        const auto captured_input = request.output_directory / resource_records[index].snapshot_path;
+        const auto audio_result = read_wav_file(captured_input);
+        if (const auto* error = std::get_if<Diagnostic>(&audio_result))
+            return *error;
+        source_bindings.push_back({source_inputs[index].node->id, std::move(std::get<AudioBuffer>(audio_result))});
+    }
     auto executed_project = request.project;
     for (auto& node : executed_project.nodes)
         if (const auto* descriptor = nodes_->find(node.type_id))
             for (const auto& parameter : descriptor->parameters)
                 node.parameters.try_emplace(parameter.id, parameter.default_value);
     auto rendering_project = executed_project;
-    struct ResourceRecord {
-        std::string node_id, parameter_id;
-        std::filesystem::path path;
-        std::string sha256;
-    };
-    std::vector<ResourceRecord> resource_records;
+    std::map<std::string, std::filesystem::path, std::less<>> captured_source_copies;
+    for (std::size_t index = 0; index < source_inputs.size(); ++index)
+        captured_source_copies.emplace(source_inputs[index].node->id,
+                                       request.output_directory / resource_records[index].snapshot_path);
     for (auto& node : rendering_project.nodes) {
+        // Unselected branches are not rendered: their resources are never resolved or captured.
+        if (!selection.closure.contains(node.id))
+            continue;
         const auto* descriptor = nodes_->find(node.type_id);
+        const auto source_path = captured_source_copies.find(node.id);
+        if (source_path != captured_source_copies.end())
+            node.parameters["path"] = to_juce_file(source_path->second).getFullPathName().toStdString();
         for (const auto& parameter : descriptor->parameters) {
-            if (!parameter.input_resource)
+            if (!parameter.input_resource ||
+                (source_path != captured_source_copies.end() && parameter.id == "path"))
                 continue;
             const auto& reference = std::get<std::string>(node.parameters.at(parameter.id));
             if (reference.empty())
@@ -260,34 +340,31 @@ RunOutcome RunService::run(const RunRequest& request) const {
             const auto resolved = resources_->resolve(reference, request.project_file);
             if (const auto* error = std::get_if<Diagnostic>(&resolved))
                 return Diagnostic{"parameter_resource_missing", error->message, node.id, parameter.id};
-            const auto path = std::get<std::filesystem::path>(resolved);
-            const auto digest = sha256_file(path);
-            if (const auto* error = std::get_if<Diagnostic>(&digest))
-                return Diagnostic{error->code, error->message, node.id, parameter.id};
-            resource_records.push_back({node.id, parameter.id, path, std::get<std::string>(digest)});
-            node.parameters[parameter.id] = to_juce_file(path).getFullPathName().toStdString();
+            auto captured = capture_resource(std::get<std::filesystem::path>(resolved), node.id, parameter.id);
+            if (const auto* error = std::get_if<Diagnostic>(&captured))
+                return *error;
+            resource_records.push_back(std::move(std::get<ResourceRecord>(captured)));
+            node.parameters[parameter.id] = to_juce_file(request.output_directory /
+                resource_records.back().snapshot_path).getFullPathName().toStdString();
         }
     }
-    const auto rendered_result = render_audio_graph(rendering_project, *nodes_, std::get<AudioBuffer>(audio_result), request.block_size);
-    if (const auto* error = std::get_if<Diagnostic>(&rendered_result))
-        return *error;
-    const auto input_hash_after = sha256_file(input_path);
-    if (const auto* error = std::get_if<Diagnostic>(&input_hash_after))
-        return *error;
-    const auto input_hash = std::get<std::string>(input_hash_before);
-    if (input_hash != std::get<std::string>(input_hash_after))
-        return Diagnostic{"source_modified_during_run", "Input audio changed while the run was executing"};
+    // Reject changes while capture is in progress. Once this boundary is crossed,
+    // original paths may change or disappear; execution and publication use copies.
     for (const auto& resource : resource_records) {
         const auto digest = sha256_file(resource.path);
         if (!std::holds_alternative<std::string>(digest) || std::get<std::string>(digest) != resource.sha256)
-            return Diagnostic{"resource_modified_during_run", "Input resource changed while the run was executing",
+            return Diagnostic{"resource_modified_during_snapshot", "Input resource changed before capture completed",
                               resource.node_id, resource.parameter_id};
     }
-
-    std::error_code filesystem_error;
-    if (!std::filesystem::create_directory(request.output_directory, filesystem_error))
-        return Diagnostic{"run_directory_create_failed", filesystem_error ? filesystem_error.message() : "Could not reserve a new run directory"};
-    OutputDirectoryGuard output_guard(request.output_directory);
+    const auto rendered_result = render_audio_graph(rendering_project, *nodes_, std::move(source_bindings), request.block_size);
+    if (const auto* error = std::get_if<Diagnostic>(&rendered_result))
+        return *error;
+    for (const auto& resource : resource_records) {
+        const auto digest = sha256_file(request.output_directory / resource.snapshot_path);
+        if (!std::holds_alternative<std::string>(digest) || std::get<std::string>(digest) != resource.sha256)
+            return Diagnostic{"resource_snapshot_modified", "Captured resource changed while the run was executing",
+                              resource.node_id, resource.parameter_id};
+    }
 
     const auto run_id = identity.request_id;
     const auto output_file = request.output_directory / "output.wav";
@@ -308,6 +385,23 @@ RunOutcome RunService::run(const RunRequest& request) const {
     if (const auto* error = std::get_if<Diagnostic>(&snapshot_hash))
         return *error;
 
+    auto replay_project = executed_project;
+    const auto relative_utf8 = [](const std::filesystem::path& path) {
+        const auto bytes = path.generic_u8string();
+        return std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+    };
+    for (auto& node : replay_project.nodes)
+        for (const auto& resource : resource_records)
+            if (node.id == resource.node_id)
+                node.parameters[resource.parameter_id] = relative_utf8(resource.snapshot_path);
+    const auto replay_file = request.output_directory / "replay.aaproj";
+    const auto replay_saved = save_project_file(replay_file, replay_project);
+    if (const auto* error = std::get_if<Diagnostic>(&replay_saved))
+        return *error;
+    const auto replay_hash = sha256_file(replay_file);
+    if (const auto* error = std::get_if<Diagnostic>(&replay_hash))
+        return *error;
+
     juce::DynamicObject::Ptr manifest = new juce::DynamicObject();
     manifest->setProperty("schema_version", 1);
     manifest->setProperty("run_id", json_string(run_id));
@@ -315,6 +409,8 @@ RunOutcome RunService::run(const RunRequest& request) const {
     manifest->setProperty("project_revision", static_cast<juce::int64>(request.project.revision));
     manifest->setProperty("project_snapshot", "project.aaproj");
     manifest->setProperty("project_snapshot_sha256", json_string(std::get<std::string>(snapshot_hash)));
+    manifest->setProperty("replay_project", "replay.aaproj");
+    manifest->setProperty("replay_project_sha256", json_string(std::get<std::string>(replay_hash)));
     juce::Array<juce::var> resource_manifest;
     for (const auto& resource : resource_records) {
         juce::DynamicObject::Ptr item = new juce::DynamicObject();
@@ -322,6 +418,8 @@ RunOutcome RunService::run(const RunRequest& request) const {
         item->setProperty("parameter_id", json_string(resource.parameter_id));
         item->setProperty("path", to_juce_file(resource.path).getFullPathName());
         item->setProperty("sha256", json_string(resource.sha256));
+        item->setProperty("snapshot_path", json_string(relative_utf8(resource.snapshot_path)));
+        item->setProperty("snapshot_sha256", json_string(resource.sha256));
         resource_manifest.add(juce::var(item.get()));
     }
     manifest->setProperty("resources", resource_manifest);
