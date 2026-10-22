@@ -5,6 +5,7 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -60,7 +61,7 @@ def validate_manifest(manifest: dict[str, Any], document: str) -> list[str]:
     if list(stages) != [f"R{i}" for i in range(7)]:
         errors.append("manifest stages must list R0..R6 in order")
     stage_set = set(stages)
-    seen_test_names: list[str] = []
+    test_owners: dict[str, set[str]] = {}
     for item in requirements:
         if not isinstance(item, dict):
             errors.append("malformed requirement entry")
@@ -75,9 +76,36 @@ def validate_manifest(manifest: dict[str, Any], document: str) -> list[str]:
             errors.append(f"test/evidence arrays missing for {item.get('id')}")
         if not item.get("layer") or not item.get("runner"):
             errors.append(f"layer/runner missing for {item.get('id')}")
-        seen_test_names.extend(item.get("test_names", []))
-    if len(seen_test_names) != len(set(seen_test_names)):
-        errors.append("test name is mapped more than once")
+        names = item.get("test_names", [])
+        if isinstance(names, list):
+            valid_names = [name for name in names if isinstance(name, str) and name.strip()]
+            if len(valid_names) != len(names) or len(valid_names) != len(set(valid_names)):
+                errors.append(f"invalid or repeated test name within {item.get('id')}")
+            for name in valid_names:
+                test_owners.setdefault(name, set()).add(item.get("id"))
+    # Acceptance permits sharing an executed fact, while every AR row keeps its own
+    # pass/desktop/evidence decision. Require exact owners and an explicit rationale.
+    shared = manifest.get("shared_test_facts", [])
+    declared: set[str] = set()
+    if not isinstance(shared, list):
+        errors.append("shared_test_facts must be an array")
+        shared = []
+    for fact in shared:
+        if not isinstance(fact, dict):
+            errors.append("malformed shared test fact")
+            continue
+        name, owners, reason = fact.get("test_name"), fact.get("requirement_ids"), fact.get("fact")
+        if not isinstance(name, str) or not name.strip() or name in declared:
+            errors.append("invalid or repeated shared test declaration")
+            continue
+        declared.add(name)
+        if (not isinstance(owners, list) or not all(isinstance(owner, str) for owner in owners)
+                or len(owners) < 2 or len(set(owners)) != len(owners)
+                or set(owners) != test_owners.get(name, set())
+                or not isinstance(reason, str) or not reason.strip()):
+            errors.append(f"shared fact must identify all exact owners and a reason: {name}")
+    if declared != {name for name, owners in test_owners.items() if len(owners) > 1}:
+        errors.append("shared test declarations do not match repeated mappings")
     documented_counts = {stage: sum(1 for value in stage_by_id.values() if value == stage) for stage in stages}
     manifest_counts = {stage: sum(1 for item in requirements if isinstance(item, dict) and item.get("stage") == stage)
                        for stage in stages}
@@ -246,7 +274,11 @@ def validate_run_records(ctest_record_path: Path | None, build_record_path: Path
 def source_manifest() -> dict[str, str]:
     excluded = {"build", ".git", ".venv", "__pycache__", ".pytest_cache", ".audioalgo-test-tmp"}
     output = {}
-    for path in sorted(ROOT.rglob("*")):
+    paths = []
+    for folder, directories, names in os.walk(ROOT, followlinks=False):
+        directories[:] = [name for name in directories if name not in excluded]
+        paths.extend(Path(folder) / name for name in names if name not in excluded)
+    for path in sorted(paths):
         relative = path.relative_to(ROOT)
         if path.is_file() and not excluded.intersection(relative.parts):
             output[relative.as_posix()] = sha(path)

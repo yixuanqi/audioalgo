@@ -7,6 +7,7 @@ import datetime as dt
 import hashlib
 import importlib.util
 import json
+import os
 import re
 import subprocess
 import sys
@@ -126,20 +127,13 @@ def inventory_names(build_dir: Path, config: str) -> tuple[list[str], list[str]]
 
 
 def source_tree_hash() -> str:
-    manifest = {}
-    for path in sorted(ROOT.rglob("*")):
-        relative_parts = path.relative_to(ROOT).parts
-        if (
-            not path.is_file()
-            or "build" in relative_parts
-            or ".git" in relative_parts
-            or "__pycache__" in relative_parts
-            or ".venv" in relative_parts
-            or ".pytest_cache" in relative_parts
-            or ".audioalgo-test-tmp" in relative_parts
-        ):
-            continue
-        manifest[path.relative_to(ROOT).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+    excluded = {"build", ".git", ".venv", "__pycache__", ".pytest_cache", ".audioalgo-test-tmp"}
+    paths = []
+    for folder, directories, names in os.walk(ROOT, followlinks=False):
+        directories[:] = [name for name in directories if name not in excluded]
+        paths.extend(Path(folder) / name for name in names if name not in excluded)
+    manifest = {path.relative_to(ROOT).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+                for path in sorted(paths) if path.is_file()}
     return hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
 
 

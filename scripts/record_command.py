@@ -5,6 +5,7 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -18,8 +19,11 @@ def sha256(path: Path) -> str:
 
 def source_manifest() -> dict[str, str]:
     ignored = {".git", "build", ".venv", "__pycache__", ".pytest_cache", ".audioalgo-test-tmp"}
-    return {p.relative_to(ROOT).as_posix(): sha256(p) for p in sorted(ROOT.rglob("*"))
-            if p.is_file() and not ignored.intersection(p.relative_to(ROOT).parts)}
+    paths = []
+    for folder, directories, names in os.walk(ROOT, followlinks=False):
+        directories[:] = [name for name in directories if name not in ignored]
+        paths.extend(Path(folder) / name for name in names if name not in ignored)
+    return {p.relative_to(ROOT).as_posix(): sha256(p) for p in sorted(paths) if p.is_file()}
 
 
 def main() -> int:

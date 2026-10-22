@@ -66,7 +66,12 @@ def _sha256_file(path: Path) -> str:
 
 def source_tree_hash() -> str:
     digest = hashlib.sha256()
-    for path in sorted(ROOT.rglob("*")):
+    excluded = {"build", ".git", "__pycache__", ".venv", ".audioalgo-test-tmp"}
+    paths = []
+    for folder, directories, names in os.walk(ROOT, followlinks=False):
+        directories[:] = [name for name in directories if name not in excluded]
+        paths.extend(Path(folder) / name for name in names if name not in excluded)
+    for path in sorted(paths):
         parts = path.relative_to(ROOT).parts
         if not path.is_file() or any(part in {"build", ".git", "__pycache__", ".venv", ".audioalgo-test-tmp"} for part in parts):
             continue
