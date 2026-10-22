@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "acceptance_source": "doc/testing_architecture_refactor.md",
-  "acceptance_document_sha256": "f6b296b60bb1640325fa632f3ae2b2e74ce33dbb5069b7c9ea274d73eb46a8d5",
+  "acceptance_document_sha256": "b24d0b90fdfd3dff3f188d04064ed72d319c3b40661498a9073c5ca3dcbb7ffe",
   "test_name_pattern": "{requirement_id}.{subcase_id}",
   "stages": [
     "R0",
@@ -740,9 +740,12 @@
       "runner": "ctest",
       "test_names": [
         "AR-07.e",
+        "AR-07.e node failures carry node and port context and never fail silently",
         "AR-07.e block output must be finite and prepare must not throw",
+        "AR-07.e multi-output non-finite failures identify the poisoned output port",
         "AR-07.e a throwing prepare becomes a node-located diagnostic",
-        "AR-07.e non-audio ports are refused by the native boundary"
+        "AR-07.e non-audio ports are refused by the native boundary",
+        "AR-07.e structured failures preserve host identity parameter ports and recovery"
       ],
       "test_methods": [],
       "evidence_requirements": [
@@ -1095,7 +1098,8 @@
       "runner": "ctest",
       "test_names": [
         "AR-10.c numeric text rejects malformed and out of range input then recovers",
-        "AR-10.c backend bypass rejects invalid types enums and missing resources with context"
+        "AR-10.c backend bypass rejects invalid types enums and missing resources with context",
+        "AR-10.c runtime parameter failures locate the instance and recover through rendering"
       ],
       "test_methods": [],
       "evidence_requirements": [
@@ -1355,7 +1359,7 @@
       "stage": "R4",
       "required": true,
       "layer": "native_integration/build_consumer",
-      "runner": "ctest",
+      "runner": "unassigned",
       "test_names": [
         "AR-12.e",
         "AR-04.a",
@@ -1368,7 +1372,8 @@
       "legacy_requirements": [
         "EXT-01、旧 Gain 闭环完整回归；原 G0/G1 和 NED 缺项需继续收口"
       ],
-      "desktop_required": false
+      "desktop_required": false,
+      "implementation_notes": "Partial evidence: AR-12.e verifies shipped audio output and independent peak/RMS analysis, AR-04.a verifies installed consumer. Registered metric output remains unimplemented; do not mark the full requirement passed."
     },
     {
       "id": "AR-13.a",
@@ -1480,9 +1485,14 @@
       "id": "AR-14.a",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
+      "layer": "pure/native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-14.a unsupported native plans are rejected before constructing processors",
+        "AR-14.a pure native plan freezes task boundaries named routes and defaults",
+        "AR-14.a pure plan refuses unsupported payloads and invalid model bindings",
+        "AR-14.a pure plan preserves explicit fixed frame and tail admission"
+      ],
       "test_methods": [],
       "evidence_requirements": [
         "编译器按能力/端口类型形成明确任务与原生区域，不按算法type_id分支；不支持数据类型在执行前定位拒绝。"
@@ -1490,15 +1500,23 @@
       "legacy_requirements": [
         "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
       ],
-      "desktop_required": false
+      "desktop_required": false,
+      "implementation_notes": "Pure native PCM plan compiler and production task/route projection. Source/sink boundaries retain current G1 single-WAV/sink assumptions; registered typed IO/multisource/multiport execution are AR14.b/c/d, not claimed by this row."
     },
     {
       "id": "AR-14.b",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
+      "layer": "pure/native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-14.b named split and combine ports preserve roles channels and state",
+        "AR-14.b named borrowed callbacks allocate nothing and preserve staged inputs",
+        "AR-14.b named port plans render real WAV artifacts through RunService",
+        "AR-14.b independent WAV sources preserve named roles and replay both versions",
+        "AR-14.b mismatched independent sources are rejected before factories",
+        "AR-14.b pure plan keeps separate channel bases for named PCM groups"
+      ],
       "test_methods": [],
       "evidence_requirements": [
         "两个独立音频源、多输入/多输出、菱形/Mixer及有状态共享分支按完整 GRAPH-04 验证，AEC形状两路角色不串道。"
@@ -1506,15 +1524,22 @@
       "legacy_requirements": [
         "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
       ],
-      "desktop_required": false
+      "desktop_required": false,
+      "implementation_notes": "T24 verified named PCM split/combine buses, state, readonly, zero allocation and a real RunService WAV oracle. T25 completed two independent WAV sources with preserved primary/reference roles, per-source snapshots and replay, plus format/frame/channel/region mismatch rejection before factories. The production builtin mixer with diamond/shared-branch single execution per block is verified by the GRAPH-04 tests and the dual-source CLI/component oracle (max_abs_error 2.9e-08); see RF0006/T24-named-native-ports/summary.json, RF0006/T25-independent-native-sources/ and RF0006/A2-production-mixer/."
     },
     {
       "id": "AR-14.c",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
+      "layer": "pure/native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-14.c selected output port selection round-trips and rejects invalid ports",
+        "AR-14.c pure plan prunes to the selected output closure",
+        "AR-14.c selected output port renders any port and prunes unselected branches",
+        "AR-14.c run service materializes only closure sources for a port selection",
+        "AR-14.c SetSelectedOutputPort applies one undoable revision and validates the port"
+      ],
       "test_methods": [],
       "evidence_requirements": [
         "每音频端口保存可逆bus/channel映射；选定输出为(node_id,port_id)，按依赖反裁剪，观察不额外调用有状态处理器。"
@@ -1522,7 +1547,8 @@
       "legacy_requirements": [
         "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
       ],
-      "desktop_required": false
+      "desktop_required": false,
+      "implementation_notes": "A3 completed port-level output selection: schema-1 compatible selected_output_port_id with structured rejection of missing/direction-wrong/type-wrong ports; one shared evaluate_plan_selection builds the reverse closure consumed by plan compile, graph render, RunService source materialization and resource rewrite; pruned branches create no processors, execute nothing (probe counters zero) and materialize no resources (missing pruned source still runs); shared closure nodes execute once per block; structural damage outside the closure is still reported; the controller applies one undoable revision. CLI composition-root oracle verified output=2a with max_abs_error 1.48e-08; see RF0006/A3-selected-port-pruning/loop.md."
     },
     {
       "id": "AR-14.d",
@@ -1656,9 +1682,11 @@
       "id": "AR-16.a",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-16.a native resource versions remain fixed when originals change before prepare"
+      ],
       "test_methods": [],
       "evidence_requirements": [
         "冻结后修改工程或磁盘输入，执行仍使用已固定资源版本；manifest hash与实际执行内容一致，不能只做前后hash检查。"
@@ -1666,7 +1694,8 @@
       "legacy_requirements": [
         "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
       ],
-      "desktop_required": false
+      "desktop_required": false,
+      "implementation_notes": "Native declared resource materialization before processor preparation, replaced/deleted originals, real run and persisted replay. Python code/environment and complete R5 plans/queues remain separate requirements."
     },
     {
       "id": "AR-16.b",
@@ -2051,6 +2080,33 @@
         "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
       ],
       "desktop_required": false
+    }
+  ],
+  "shared_test_facts": [
+    {
+      "test_name": "AR-04.a",
+      "requirement_ids": [
+        "AR-04.a",
+        "AR-04.e",
+        "AR-12.e"
+      ],
+      "fact": "Installed consumer builds and runs both public algorithms without source-tree targets."
+    },
+    {
+      "test_name": "AR-12.a ChannelSwap joins the shared catalog through plugin composition",
+      "requirement_ids": [
+        "AR-12.a",
+        "AR-12.e"
+      ],
+      "fact": "One catalog exposes the registered plugin metadata."
+    },
+    {
+      "test_name": "AR-12.d ChannelSwap library controls native rendering and CLI follow the stereo oracle",
+      "requirement_ids": [
+        "AR-12.c",
+        "AR-12.d"
+      ],
+      "fact": "Native/CLI samples and format/parameter refusals share an oracle; AR-12.d still separately requires desktop evidence."
     }
   ]
 }

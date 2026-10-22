@@ -13,6 +13,8 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
+#include "../fixtures/ParameterProbeNode.h"
 #include <juce_core/juce_core.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -898,6 +900,165 @@ TEST_CASE("E2E-01 RunService and CLI share a project snapshot and gain oracle", 
         REQUIRE(std::equal(rendered.channel(channel).begin(), rendered.channel(channel).end(), cli_rendered.channel(channel).begin()));
 }
 
+// AR-14.c: only sources inside the selected output's reverse closure are materialized. The
+// unselected branch's source file never exists on disk, proving it is never read or captured.
+TEST_CASE("AR-14.c run service materializes only closure sources for a port selection", "[R5][AR-14.c]") {
+    juce::ScopedJuceInitialiser_GUI juce_message_environment;
+    TemporaryDirectory temporary;
+    AudioBuffer a(48000, {"left", "right"}, 300);
+    for (std::size_t frame = 0; frame < 300; ++frame) {
+        a.mutable_channel(0)[frame] = static_cast<float>(0.3 * std::sin(frame * 0.05));
+        a.mutable_channel(1)[frame] = static_cast<float>(-0.2 * std::cos(frame * 0.04));
+    }
+    REQUIRE(std::holds_alternative<audioalgo::WavWriteSummary>(write_wav_file(temporary.path / "a.wav", a, WavEncoding::float32)));
+    const auto project_path = temporary.path / "pruned sources.aaproj";
+    ProjectModel project;
+    project.project_id = "ar14c-pruned-sources";
+    project.selected_output_node_id = "mix";
+    project.selected_output_port_id = "sum";
+    project.nodes = {{"a", "builtin.file_source", {{"path", std::string("a.wav")}}},
+                     // "pruned.wav" is deliberately never created: the unselected branch's source
+                     // must not be resolved or captured at all.
+                     {"pruned", "builtin.file_source", {{"path", std::string("pruned.wav")}}},
+                     {"mix", "builtin.mixer", {}},
+                     {"gain", "builtin.gain", {}},
+                     {"out2", "builtin.output", {}}};
+    project.connections = {{"a", "audio", "mix", "primary"},
+                           {"a", "audio", "mix", "secondary"},
+                           {"pruned", "audio", "gain", "audio_in"},
+                           {"gain", "audio_out", "out2", "audio"}};
+    REQUIRE(std::holds_alternative<std::monostate>(save_project_file(project_path, project)));
+
+    NodeRegistry descriptors;
+    register_builtin_nodes(descriptors);
+    RunService service(descriptors);
+    const auto run = service.run({project, project_path, temporary.path / "run", 64});
+    const auto* error = std::get_if<audioalgo::Diagnostic>(&run);
+    INFO("run error: " << (error != nullptr ? error->code + ": " + error->message : std::string("none")));
+    REQUIRE(error == nullptr);
+    const auto& result = std::get<RunSuccess>(run);
+    REQUIRE(result.frames == 300);
+
+    // Exactly one captured resource: the closure's source. The unselected source is absent.
+    const auto manifest = juce::File(path_to_utf8(temporary.path / "run" / "run.json"));
+    REQUIRE(manifest.existsAsFile());
+    const auto document = juce::JSON::parse(manifest.loadFileAsString());
+    const auto* resources = document.getProperty("resources", {}).getArray();
+    REQUIRE(resources != nullptr);
+    REQUIRE(resources->size() == 1);
+    CHECK(resources->getFirst().getProperty("node_id", {}).toString() == "a");
+
+    const auto audio = read_wav_file(result.output_file);
+    REQUIRE(std::holds_alternative<AudioBuffer>(audio));
+    const auto& rendered = std::get<AudioBuffer>(audio);
+    for (std::size_t channel = 0; channel < 2; ++channel)
+        for (std::size_t frame = 0; frame < 300; ++frame)
+            // Default mixer gains are 0 dB: primary and secondary both carry a, so sum = 2a.
+            REQUIRE(rendered.channel(channel)[frame] == Catch::Approx(2.0 * a.channel(channel)[frame]).margin(1.0e-6));
+}
+
+TEST_CASE("GRAPH-04 default CLI composition runs and replays a real dual-source mixer project", "[G2][GRAPH-04]") {
+    juce::ScopedJuceInitialiser_GUI juce_message_environment;
+    TemporaryDirectory temporary;
+    const auto project_path = temporary.path / "dual source mixer.aaproj";
+    AudioBuffer a(48000, {"left", "right"}, 513), b(48000, {"left", "right"}, 513);
+    for (std::size_t frame = 0; frame < 513; ++frame) {
+        a.mutable_channel(0)[frame] = static_cast<float>(0.35 * std::sin(frame * 0.021));
+        a.mutable_channel(1)[frame] = static_cast<float>(0.15 * std::cos(frame * 0.017));
+        b.mutable_channel(0)[frame] = static_cast<float>(-0.25 * std::cos(frame * 0.013));
+        b.mutable_channel(1)[frame] = static_cast<float>(0.45 * std::sin(frame * 0.029));
+    }
+    REQUIRE(std::holds_alternative<audioalgo::WavWriteSummary>(write_wav_file(temporary.path / "a.wav", a, WavEncoding::float32)));
+    REQUIRE(std::holds_alternative<audioalgo::WavWriteSummary>(write_wav_file(temporary.path / "b.wav", b, WavEncoding::float32)));
+    ProjectModel project;
+    project.project_id = "graph04-cli-mixer";
+    project.selected_output_node_id = "output";
+    project.nodes = {{"a", "builtin.file_source", {{"path", std::string("a.wav")}}},
+                     {"b", "builtin.file_source", {{"path", std::string("b.wav")}}},
+                     {"mix", "builtin.mixer", {{"primary_gain_db", -6.0}, {"secondary_gain_db", 6.0}}},
+                     {"output", "builtin.output", {}}};
+    project.connections = {{"a", "audio", "mix", "primary"}, {"b", "audio", "mix", "secondary"},
+                           {"mix", "sum", "output", "audio"}};
+    REQUIRE(std::holds_alternative<std::monostate>(save_project_file(project_path, project)));
+
+    NodeRegistry descriptors;
+    register_builtin_nodes(descriptors);
+    RunService service(descriptors);
+    const auto service_output_dir = temporary.path / "service-run";
+    const auto service_run = service.run({project, project_path, service_output_dir, 127});
+    const auto* service_error = std::get_if<audioalgo::Diagnostic>(&service_run);
+    INFO("service error: " << (service_error != nullptr ? service_error->code + ": " + service_error->message : std::string("none")));
+    REQUIRE(service_error == nullptr);
+    const auto& service_result = std::get<RunSuccess>(service_run);
+    REQUIRE(service_result.frames == 513);
+
+    const double primary_weight = std::pow(10.0, -6.0 / 20.0), secondary_weight = std::pow(10.0, 6.0 / 20.0);
+    const auto service_audio = read_wav_file(service_result.output_file);
+    REQUIRE(std::holds_alternative<AudioBuffer>(service_audio));
+    const auto& rendered = std::get<AudioBuffer>(service_audio);
+    for (std::size_t channel = 0; channel < 2; ++channel)
+        for (std::size_t frame = 0; frame < 513; ++frame)
+            REQUIRE(rendered.channel(channel)[frame] == Catch::Approx(
+                primary_weight * a.channel(channel)[frame] + secondary_weight * b.channel(channel)[frame]).margin(1.0e-6));
+
+    // The default composition root (CLI) must load and run the very same project.
+    const auto cli_output_dir = temporary.path / "cli-run";
+    const auto cli_executable = juce::File::getSpecialLocation(juce::File::currentExecutableFile).getSiblingFile("audio_cli.exe");
+    juce::StringArray arguments;
+    arguments.add(cli_executable.getFullPathName());
+    arguments.add("run");
+    arguments.add(juce::String::fromUTF8(path_to_utf8(project_path).c_str()));
+    arguments.add(juce::String::fromUTF8(path_to_utf8(cli_output_dir).c_str()));
+    arguments.add("127");
+    juce::ChildProcess child;
+    REQUIRE(child.start(arguments));
+    REQUIRE(child.waitForProcessToFinish(30000));
+    const auto cli_stdout = child.readAllProcessOutput();
+    INFO(cli_stdout.toStdString());
+    REQUIRE(child.getExitCode() == 0);
+    REQUIRE(std::filesystem::exists(cli_output_dir / "complete.json"));
+    const auto cli_audio = read_wav_file(cli_output_dir / "output.wav");
+    REQUIRE(std::holds_alternative<AudioBuffer>(cli_audio));
+    const auto& cli_rendered = std::get<AudioBuffer>(cli_audio);
+    for (std::size_t channel = 0; channel < 2; ++channel)
+        REQUIRE(std::equal(rendered.channel(channel).begin(), rendered.channel(channel).end(), cli_rendered.channel(channel).begin()));
+
+    // Persist artifacts for the independent Python oracle when requested. The originals must be
+    // exported before the replay step deletes them.
+    std::filesystem::path oracle_root;
+    if (const auto* location = std::getenv("AUDIOALGO_MIXER_ARTIFACT_OUTPUT"); location && *location) {
+        oracle_root = std::filesystem::u8path(location);
+        REQUIRE_FALSE(std::filesystem::exists(oracle_root));
+        std::filesystem::create_directories(oracle_root);
+        for (const auto* file : {"a.wav", "b.wav"})
+            REQUIRE(std::filesystem::copy_file(temporary.path / file, oracle_root / file));
+        REQUIRE(std::filesystem::copy_file(project_path, oracle_root / "project.aaproj"));
+        std::filesystem::copy(service_output_dir, oracle_root / "service-run",
+                              std::filesystem::copy_options::recursive);
+        std::filesystem::copy(cli_output_dir, oracle_root / "cli-run",
+                              std::filesystem::copy_options::recursive);
+    }
+
+    // Replay from the CLI snapshot works after the caller's originals are gone.
+    for (const auto* file : {"a.wav", "b.wav"})
+        REQUIRE(std::filesystem::remove(temporary.path / file));
+    const auto replay_project = load_project_file(cli_output_dir / "replay.aaproj");
+    REQUIRE(std::holds_alternative<ProjectModel>(replay_project));
+    const auto replay_run = service.run({std::get<ProjectModel>(replay_project), cli_output_dir / "replay.aaproj",
+                                         temporary.path / "replay-run", 127});
+    const auto* replay_error = std::get_if<audioalgo::Diagnostic>(&replay_run);
+    INFO("replay error: " << (replay_error != nullptr ? replay_error->code + ": " + replay_error->message : std::string("none")));
+    REQUIRE(replay_error == nullptr);
+    const auto replay_audio = read_wav_file(std::get<RunSuccess>(replay_run).output_file);
+    REQUIRE(std::holds_alternative<AudioBuffer>(replay_audio));
+    const auto& replay_rendered = std::get<AudioBuffer>(replay_audio);
+    for (std::size_t channel = 0; channel < 2; ++channel)
+        REQUIRE(std::equal(rendered.channel(channel).begin(), rendered.channel(channel).end(), replay_rendered.channel(channel).begin()));
+    if (!oracle_root.empty())
+        std::filesystem::copy(temporary.path / "replay-run", oracle_root / "replay-run",
+                              std::filesystem::copy_options::recursive);
+}
+
 TEST_CASE("NED-04.c", "[node_interaction][NED-04]") {
     juce::ScopedJuceInitialiser_GUI juce_message_environment;
     TemporaryDirectory temporary;
@@ -1742,11 +1903,12 @@ TEST_CASE("AR-05.e a saved Gain project replays through one registered implement
     REQUIRE(std::holds_alternative<audioalgo::WavWriteSummary>(write_wav_file(input_path, input, WavEncoding::float32)));
 
     // Exactly one built-in catalog, and the composition root refuses to register twice.
+    // The catalog grew to 5 descriptors when A2 added the production builtin.mixer.
     NodeRegistry descriptors;
     REQUIRE(register_builtin_nodes(descriptors));
-    CHECK(descriptors.descriptors().size() == 4);
+    CHECK(descriptors.descriptors().size() == 5);
     CHECK_FALSE(register_builtin_nodes(descriptors));
-    CHECK(descriptors.descriptors().size() == 4);
+    CHECK(descriptors.descriptors().size() == 5);
     CHECK(descriptors.find("builtin.gain") != nullptr);
     CHECK(descriptors.find("builtin.gain")->version == "1.0.0");
     CHECK(descriptors.create_processor("builtin.gain", "gain-probe").processor != nullptr);
@@ -1783,4 +1945,169 @@ TEST_CASE("AR-05.e a saved Gain project replays through one registered implement
             REQUIRE(std::abs(static_cast<double>(playback.channel(channel)[frame]) - expected) <= tolerance);
         }
     }
+}
+
+namespace {
+class SnapshotMutationProbe final : public audioalgo::AudioNodeProcessor {
+public:
+    explicit SnapshotMutationProbe(std::function<void()> mutate) : mutate_(std::move(mutate)) {}
+    bool supports_block_processing() const noexcept override { return true; }
+    audioalgo::NodeProcessOutcome process(const audioalgo::NodeProcessRequest& request) override { return probe_.process(request); }
+    std::optional<audioalgo::Diagnostic> prepare(const audioalgo::NodePrepareContext& context) override {
+        mutate_();
+        return probe_.prepare(context);
+    }
+    audioalgo::AudioBlockOutcome process_block(const audioalgo::AudioBlockView& block) override { return probe_.process_block(block); }
+private:
+    std::function<void()> mutate_;
+    audioalgo::tests::ParameterProbeNode probe_;
+};
+}
+
+TEST_CASE("AR-16.a native resource versions remain fixed when originals change before prepare", "[AR-16.a][R5][native_integration]") {
+    juce::ScopedJuceInitialiser_GUI messages;
+    TemporaryDirectory temporary;
+    const auto input_path = temporary.path / "input.wav";
+    const auto coefficient_path = temporary.path / "coefficient.txt";
+    AudioBuffer input(48000, {"left", "right"}, 513);
+    for (std::size_t frame = 0; frame < input.frame_count(); ++frame) {
+        input.mutable_channel(0)[frame] = static_cast<float>(static_cast<int>(frame % 17) - 8) / 64.0f;
+        input.mutable_channel(1)[frame] = static_cast<float>(static_cast<int>(frame % 31) - 15) / 128.0f;
+    }
+    REQUIRE(std::holds_alternative<audioalgo::WavWriteSummary>(write_wav_file(input_path,input,WavEncoding::float32)));
+    { std::ofstream stream(coefficient_path); stream << "0.25\n"; }
+    const auto original_input = read_file_bytes(input_path);
+    const auto original_coefficient = read_file_bytes(coefficient_path);
+    auto project = make_project();
+    project.project_id="native-resource-snapshot";
+    project.name="Native immutable resource experiment";
+    project.nodes[1].type_id = "test.parameter_probe";
+    project.nodes[1].parameters = {{"enabled", true}, {"coefficient", std::string("coefficient.txt")}};
+    project.connections = {{"file","audio","gain","in"},{"gain","out","output","audio"}};
+    const auto project_file = temporary.path / "snapshot.aaproj";
+    REQUIRE(std::holds_alternative<std::monostate>(save_project_file(project_file,project)));
+    bool did_mutate = false;
+    const bool remove_originals = GENERATE(false,true);
+    NodeRegistry nodes;
+    REQUIRE(register_builtin_nodes(nodes));
+    REQUIRE(nodes.register_node(audioalgo::tests::parameter_probe_descriptor(),[&] {
+        return std::make_unique<SnapshotMutationProbe>([&] {
+            did_mutate=true;
+            project.revision=99;
+            project.nodes[1].parameters["enabled"]=false;
+            if (remove_originals) {
+                std::filesystem::remove(input_path);
+                std::filesystem::remove(coefficient_path);
+                std::filesystem::remove(project_file);
+            } else {
+                AudioBuffer changed(48000,{"left","right"},513);
+                const auto replacement = temporary.path /
+                    ("replacement-" + juce::Uuid().toString().toStdString() + ".wav");
+                if (!std::holds_alternative<audioalgo::WavWriteSummary>(
+                        write_wav_file(replacement,changed,WavEncoding::float32)) ||
+                    !std::filesystem::copy_file(replacement,input_path,std::filesystem::copy_options::overwrite_existing))
+                    throw std::runtime_error("Fixture replacement WAV failed");
+                std::ofstream stream(coefficient_path); stream << "9\n";
+            }
+        });
+    }).registered);
+    RunService service(nodes);
+    const auto result = service.run({project,project_file,temporary.path/"frozen-run",127});
+    CHECK(did_mutate);
+    if (remove_originals) {
+        CHECK_FALSE(std::filesystem::exists(input_path));
+        CHECK_FALSE(std::filesystem::exists(coefficient_path));
+        CHECK_FALSE(std::filesystem::exists(project_file));
+    } else {
+        CHECK((read_file_bytes(input_path)!=original_input));
+        CHECK((read_file_bytes(coefficient_path)!=original_coefficient));
+    }
+    INFO((std::holds_alternative<RunSuccess>(result) ? "success" : std::get<audioalgo::Diagnostic>(result).code + ": " + std::get<audioalgo::Diagnostic>(result).message));
+    const auto* success=std::get_if<RunSuccess>(&result);
+    REQUIRE(success!=nullptr);
+    const auto read=read_wav_file(success->output_file);
+    REQUIRE(std::holds_alternative<AudioBuffer>(read));
+    const auto& output=std::get<AudioBuffer>(read);
+    CHECK(output.frame_count()==513);
+    for (std::size_t channel=0;channel<2;++channel)
+        for (std::size_t frame=0;frame<513;++frame)
+            CHECK(output.channel(channel)[frame]==Catch::Approx(input.channel(channel)[frame]*-0.375).margin(2e-6));
+    CHECK(project.revision==99);
+    const auto manifest=juce::JSON::parse(juce::File(juce::String::fromUTF8(path_to_utf8(success->manifest_file).c_str())).loadFileAsString());
+    CHECK(static_cast<int>(manifest["project_revision"])==4);
+    REQUIRE(manifest["resources"].isArray());
+    CHECK(manifest["resources"].getArray()->size()==2);
+    for (const auto& resource:*manifest["resources"].getArray()) {
+        const auto copy=temporary.path/"frozen-run"/std::filesystem::u8path(resource["snapshot_path"].toString().toStdString());
+        const auto bytes=read_file_bytes(copy);
+        CHECK(bytes==(resource["node_id"].toString()=="file"?original_input:original_coefficient));
+        CHECK(resource["snapshot_sha256"].toString()==resource["sha256"].toString());
+    }
+    const auto replay_file=temporary.path/"frozen-run/replay.aaproj";
+    const auto replay_project=load_project_file(replay_file);
+    REQUIRE(std::holds_alternative<ProjectModel>(replay_project));
+    const auto repeated=service.run({std::get<ProjectModel>(replay_project),replay_file,temporary.path/"replayed-run",127});
+    REQUIRE(std::holds_alternative<RunSuccess>(repeated));
+    const auto repeated_audio=read_wav_file(std::get<RunSuccess>(repeated).output_file);
+    REQUIRE(std::holds_alternative<AudioBuffer>(repeated_audio));
+    for (std::size_t channel=0;channel<2;++channel)
+        for (std::size_t frame=0;frame<513;++frame)
+            CHECK(std::get<AudioBuffer>(repeated_audio).channel(channel)[frame]==Catch::Approx(input.channel(channel)[frame]*-0.375).margin(2e-6));
+    CHECK(std::get<RunSuccess>(repeated).run_id!=success->run_id);
+    if (const auto* location=std::getenv("AUDIOALGO_SNAPSHOT_ARTIFACT_OUTPUT"); location && *location) {
+        const auto target=std::filesystem::u8path(location)/(remove_originals?"remove":"replace");
+        REQUIRE_FALSE(std::filesystem::exists(target));
+        std::filesystem::create_directories(target);
+        std::filesystem::copy(temporary.path/"frozen-run",target/"run",std::filesystem::copy_options::recursive);
+        std::filesystem::copy(temporary.path/"replayed-run",target/"replay",std::filesystem::copy_options::recursive);
+        { std::ofstream stream(target/"original.wav",std::ios::binary); stream.write(original_input.data(),static_cast<std::streamsize>(original_input.size())); }
+        { std::ofstream stream(target/"original-coefficient.txt",std::ios::binary); stream.write(original_coefficient.data(),static_cast<std::streamsize>(original_coefficient.size())); }
+    }
+}
+
+TEST_CASE("AR-10.c runtime parameter failures locate the instance and recover through rendering", "[AR-10.c][R3][native_integration]") {
+    juce::ScopedJuceInitialiser_GUI messages;
+    TemporaryDirectory temporary;
+    AudioBuffer input(48000,{"left","right"},129);
+    for (std::size_t frame=0;frame<129;++frame) {
+        input.mutable_channel(0)[frame]=0.25f;
+        input.mutable_channel(1)[frame]=-0.125f;
+    }
+    REQUIRE(std::holds_alternative<audioalgo::WavWriteSummary>(write_wav_file(temporary.path/"input.wav",input,WavEncoding::float32)));
+    const auto coefficient=temporary.path/"coefficient.txt";
+    { std::ofstream stream(coefficient);stream << "invalid-coefficient\n"; }
+    const auto invalid_bytes=read_file_bytes(coefficient);
+    NodeRegistry nodes;
+    REQUIRE(register_builtin_nodes(nodes));
+    REQUIRE(nodes.register_node(audioalgo::tests::parameter_probe_descriptor(),[] {
+        return std::make_unique<audioalgo::tests::ParameterProbeNode>();
+    }).registered);
+    auto project=make_project();
+    project.nodes[1].type_id="test.parameter_probe";
+    project.nodes[1].parameters={{"enabled",true},{"coefficient",std::string("coefficient.txt")}};
+    project.connections={{"file","audio","gain","in"},{"gain","out","output","audio"}};
+    const auto file=temporary.path/"parameter-recovery.aaproj";
+    REQUIRE(std::holds_alternative<std::monostate>(save_project_file(file,project)));
+    audioalgo::editor::EditorController controller(nodes);
+    controller.adopt_project(project);
+    RunService service(nodes);
+    const auto failed=service.run({controller.project(),file,temporary.path/"failed",127});
+    const auto* diagnostic=std::get_if<audioalgo::Diagnostic>(&failed);
+    REQUIRE(diagnostic!=nullptr);
+    CHECK(diagnostic->code=="coefficient_invalid");
+    CHECK(diagnostic->node_id=="gain");
+    CHECK(diagnostic->port_id=="coefficient");
+    CHECK(diagnostic->message.find("gain")!=std::string::npos);
+    CHECK((read_file_bytes(coefficient)==invalid_bytes));
+    CHECK_FALSE(std::filesystem::exists(temporary.path/"failed/complete.json"));
+    { std::ofstream stream(coefficient);stream << "0.25\n"; }
+    const auto recovered=service.run({controller.project(),file,temporary.path/"recovered",127});
+    REQUIRE(std::holds_alternative<RunSuccess>(recovered));
+    const auto output=read_wav_file(std::get<RunSuccess>(recovered).output_file);
+    REQUIRE(std::holds_alternative<AudioBuffer>(output));
+    CHECK(std::get<AudioBuffer>(output).frame_count()==129);
+    for (std::size_t channel=0;channel<2;++channel)
+        for (std::size_t frame=0;frame<129;++frame)
+            CHECK(std::get<AudioBuffer>(output).channel(channel)[frame]==Catch::Approx(input.channel(channel)[frame]*-0.375).margin(2e-6));
+    CHECK(controller.project().revision==project.revision);
 }

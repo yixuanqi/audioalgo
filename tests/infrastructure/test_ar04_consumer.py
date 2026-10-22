@@ -17,6 +17,15 @@ def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def source_manifest(root: Path) -> dict[str, str]:
+    excluded = {"build", ".git", ".venv", "__pycache__", ".pytest_cache", ".audioalgo-test-tmp"}
+    paths = []
+    for folder, directories, names in os.walk(root, followlinks=False):
+        directories[:] = [name for name in directories if name not in excluded]
+        paths.extend(Path(folder) / name for name in names if name not in excluded)
+    return {path.relative_to(root).as_posix(): sha(path) for path in sorted(paths) if path.is_file()}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cmake", required=True)
@@ -112,10 +121,7 @@ def main() -> int:
                         and "independent ChannelSwap consumer passed" in run_output) else (run_code or 1)
 
     report = {"schema_version": 1, "status": "passed" if overall == 0 else "failed",
-              "source_tree_hash": hashlib.sha256(json.dumps({
-                  path.relative_to(root).as_posix(): sha(path) for path in sorted(root.rglob("*"))
-                  if path.is_file() and not {"build", ".git", ".venv", "__pycache__", ".pytest_cache", ".audioalgo-test-tmp"}
-                  .intersection(path.relative_to(root).parts)}, sort_keys=True).encode()).hexdigest(),
+              "source_tree_hash": hashlib.sha256(json.dumps(source_manifest(root), sort_keys=True).encode()).hexdigest(),
               "commands": commands, "consumer_binary": str(executable) if executable.is_file() else None,
               "consumer_binary_sha256": sha(executable) if executable.is_file() else None,
               "result": overall}

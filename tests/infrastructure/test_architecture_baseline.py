@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import unittest
@@ -23,8 +24,11 @@ def sha(path: Path) -> str:
 
 def current_source_manifest() -> dict[str, str]:
     ignored = {".git", "build", ".venv", "__pycache__", ".pytest_cache", ".audioalgo-test-tmp"}
-    return {path.relative_to(ROOT).as_posix(): sha(path) for path in sorted(ROOT.rglob("*"))
-            if path.is_file() and not ignored.intersection(path.relative_to(ROOT).parts)}
+    paths = []
+    for folder, directories, names in os.walk(ROOT, followlinks=False):
+        directories[:] = [name for name in directories if name not in ignored]
+        paths.extend(Path(folder) / name for name in names if name not in ignored)
+    return {path.relative_to(ROOT).as_posix(): sha(path) for path in sorted(paths) if path.is_file()}
 
 
 def junit(path: Path) -> tuple[set[str], int]:

@@ -81,7 +81,8 @@ audioalgo::NodeRegistry probe_catalog() {
 bool same_project_state(const audioalgo::ProjectModel& left, const audioalgo::ProjectModel& right) {
     if (left.schema_version != right.schema_version || left.project_id != right.project_id ||
         left.name != right.name || left.revision != right.revision ||
-        left.selected_output_node_id != right.selected_output_node_id || left.nodes.size() != right.nodes.size() ||
+        left.selected_output_node_id != right.selected_output_node_id ||
+        left.selected_output_port_id != right.selected_output_port_id || left.nodes.size() != right.nodes.size() ||
         left.connections.size() != right.connections.size())
         return false;
     for (std::size_t i = 0; i < left.nodes.size(); ++i) {
@@ -773,6 +774,61 @@ TEST_CASE("AR-08.a Deleting the selected output clears it and undo restores it",
     expected = initial;
     expected.revision = 5;
     CHECK(same_project_state(controller.project(), expected));
+}
+
+TEST_CASE("AR-14.c SetSelectedOutputPort applies one undoable revision and validates the port",
+          "[R5][AR-14.c]") {
+    const auto registry = probe_catalog();
+    audioalgo::editor::EditorController controller(registry);
+    const auto initial = probe_project();
+    controller.adopt_project(initial);
+    REQUIRE(controller.revision() == 3);
+
+    SECTION("a legal port selection is one undoable revision") {
+        const auto applied = controller.set_selected_output_port("gain", "audio_out");
+        REQUIRE(applied.status == audioalgo::editor::ProjectEditStatus::applied);
+        CHECK(applied.diagnostics.empty());
+        auto expected = initial;
+        expected.selected_output_node_id = "gain";
+        expected.selected_output_port_id = "audio_out";
+        expected.revision = 4;
+        CHECK(same_project_state(controller.project(), expected));
+        CHECK(controller.dirty());
+
+        REQUIRE(controller.undo());
+        expected = initial;
+        expected.revision = 5;
+        CHECK(same_project_state(controller.project(), expected));
+        REQUIRE(controller.redo());
+        expected.selected_output_node_id = "gain";
+        expected.selected_output_port_id = "audio_out";
+        expected.revision = 6;
+        CHECK(same_project_state(controller.project(), expected));
+
+        // Re-selecting the same port is a no-op.
+        const auto unchanged = controller.set_selected_output_port("gain", "audio_out");
+        CHECK(unchanged.status == audioalgo::editor::ProjectEditStatus::unchanged);
+        CHECK(controller.revision() == 6);
+    }
+
+    SECTION("invalid selections are rejected with located diagnostics") {
+        const auto revision_before = controller.revision();
+        const auto undo_before = controller.history().undo_size();
+        const std::tuple<std::string, std::string, std::string> rejects[] = {
+            {"nope", "audio_out", "selected_output_missing"},
+            {"gain", "nope", "selected_output_port_missing"},
+            {"gain", "audio_in", "selected_output_port_direction"},
+        };
+        for (const auto& [node_id, port_id, code] : rejects) {
+            const auto outcome = controller.set_selected_output_port(node_id, port_id);
+            CHECK(outcome.status == audioalgo::editor::ProjectEditStatus::rejected);
+            REQUIRE(outcome.diagnostics.size() == 1);
+            CHECK(outcome.diagnostics.front().code == code);
+        }
+        CHECK(controller.revision() == revision_before);
+        CHECK(controller.history().undo_size() == undo_before);
+        CHECK(same_project_state(controller.project(), initial));
+    }
 }
 
 TEST_CASE("AR-08.b SetParameter applies one validated revision and never bypasses schema",

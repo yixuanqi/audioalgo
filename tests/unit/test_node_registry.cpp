@@ -300,8 +300,9 @@ TEST_CASE("AR-06.d plugin composition uses one catalog and exposes metadata read
 
     const audioalgo::NodeCatalog& editor_catalog = editor_registry;
     const audioalgo::NodeCatalog& cli_catalog = cli_registry;
-    REQUIRE(editor_catalog.descriptors().size() == 4);
-    REQUIRE(cli_catalog.descriptors().size() == 4);
+    // 5 descriptors since A2 added the production builtin.mixer to the builtin catalog.
+    REQUIRE(editor_catalog.descriptors().size() == 5);
+    REQUIRE(cli_catalog.descriptors().size() == 5);
     CHECK(editor_catalog.descriptors().size() == cli_catalog.descriptors().size());
 
     auto editor_descriptor = editor_catalog.descriptors().begin();
@@ -315,6 +316,7 @@ TEST_CASE("AR-06.d plugin composition uses one catalog and exposes metadata read
     }
     CHECK(editor_catalog.find("builtin.file_source") != nullptr);
     CHECK(editor_catalog.find("builtin.gain") != nullptr);
+    CHECK(editor_catalog.find("builtin.mixer") != nullptr);
     CHECK(editor_catalog.find("builtin.output") != nullptr);
     CHECK(editor_catalog.find("example.cpp_channel_swap") != nullptr);
     CHECK(cli_catalog.find("example.cpp_channel_swap") != nullptr);

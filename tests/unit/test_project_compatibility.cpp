@@ -467,3 +467,150 @@ TEST_CASE("AR-13.e Schema v1 layout saves without changing compute revision or c
     CHECK(read_bytes(fixture_project) == frozen_project_bytes);
     CHECK(read_bytes(fixture_input) == frozen_input_bytes);
 }
+
+namespace {
+
+audioalgo::ProjectModel mixer_port_selection_project() {
+    audioalgo::ProjectModel project;
+    project.project_id = "port-selection-1";
+    project.name = "Selected output port demo";
+    project.revision = 3;
+    project.nodes = {
+        {"a", "builtin.file_source", {{"path", std::string("a.wav")}}, 15.0, 20.0},
+        {"b", "builtin.file_source", {{"path", std::string("b.wav")}}, 15.0, 140.0},
+        {"mix", "builtin.mixer", {}, 240.0, 80.0},
+        {"out", "builtin.output", {}, 480.0, 80.0},
+    };
+    project.connections = {
+        {"a", "audio", "mix", "primary"},
+        {"b", "audio", "mix", "secondary"},
+        {"mix", "sum", "out", "audio"},
+    };
+    project.selected_output_node_id = "mix";
+    project.selected_output_port_id = "sum";
+    return project;
+}
+
+} // namespace
+
+TEST_CASE("AR-14.c selected output port selection round-trips and rejects invalid ports",
+          "[R5][AR-14.c]") {
+    juce::ScopedJuceInitialiser_GUI juce_message_environment;
+    TemporaryDirectory temporary;
+    audioalgo::NodeRegistry registry;
+    REQUIRE(audioalgo::register_builtin_nodes(registry));
+    REQUIRE(registry.find("builtin.mixer") != nullptr);
+
+    // A node with a non-PCM output port exercises the port-type rejection.
+    const auto scalar_registered = registry.register_node(
+        audioalgo::NodeDescriptor{"test.metrics_probe", "1.0.0", "Metrics probe",
+                                  {{"audio_in", "audio.pcm@1", audioalgo::PortDirection::input, true},
+                                   {"metrics", "metrics.scalar@1", audioalgo::PortDirection::output, false}},
+                                  {}, audioalgo::NodeExecutionKind::block},
+        [] { return nullptr; });
+    REQUIRE(scalar_registered.registered);
+
+    const auto project_path = temporary.path / "port-selection.aaproj";
+    auto project = mixer_port_selection_project();
+
+    SECTION("port-level selection round-trips through save and reopen") {
+        REQUIRE(std::holds_alternative<std::monostate>(audioalgo::save_project_file(project_path, project)));
+        const auto reopened = audioalgo::load_project_file(project_path);
+        REQUIRE(std::holds_alternative<audioalgo::ProjectModel>(reopened));
+        const auto& model = std::get<audioalgo::ProjectModel>(reopened);
+        CHECK(model.selected_output_node_id == "mix");
+        CHECK(model.selected_output_port_id == "sum");
+        const auto text = juce::File(project_path.string()).loadFileAsString();
+        CHECK(text.contains("selected_output_port_id"));
+        CHECK(audioalgo::validate_project(model, registry).empty());
+    }
+
+    SECTION("legacy node-level selection stays compatible without a port field") {
+        project.selected_output_node_id = "out";
+        project.selected_output_port_id.clear();
+        REQUIRE(std::holds_alternative<std::monostate>(audioalgo::save_project_file(project_path, project)));
+        const auto reopened = audioalgo::load_project_file(project_path);
+        REQUIRE(std::holds_alternative<audioalgo::ProjectModel>(reopened));
+        const auto& model = std::get<audioalgo::ProjectModel>(reopened);
+        CHECK(model.selected_output_port_id.empty());
+        const auto text = juce::File(project_path.string()).loadFileAsString();
+        CHECK_FALSE(text.contains("selected_output_port_id"));
+        CHECK(audioalgo::validate_project(model, registry).empty());
+    }
+
+    SECTION("unknown root fields still round-trip beside the port selection") {
+        const std::string fixture = R"json({
+  "schema_version": 1,
+  "project_id": "port-selection-unknown",
+  "name": "Unknown fields beside port selection",
+  "revision": 2,
+  "selected_output_node_id": "mix",
+  "selected_output_port_id": "sum",
+  "vendor_selection": {"watch": true},
+  "nodes": [
+    {"id": "a", "type_id": "builtin.file_source", "x": 10.0, "y": 25.0, "parameters": {"path": "a.wav"}},
+    {"id": "b", "type_id": "builtin.file_source", "x": 10.0, "y": 140.0, "parameters": {"path": "b.wav"}},
+    {"id": "mix", "type_id": "builtin.mixer", "x": 220.0, "y": 80.0, "parameters": {}},
+    {"id": "out", "type_id": "builtin.output", "x": 430.0, "y": 80.0, "parameters": {}}
+  ],
+  "connections": [
+    {"from_node": "a", "from_port": "audio", "to_node": "mix", "to_port": "primary"},
+    {"from_node": "b", "from_port": "audio", "to_node": "mix", "to_port": "secondary"},
+    {"from_node": "mix", "from_port": "sum", "to_node": "out", "to_port": "audio"}
+  ]
+})json";
+        {
+            std::ofstream stream(project_path, std::ios::binary);
+            REQUIRE(stream.good());
+            stream << fixture;
+        }
+        const auto loaded = audioalgo::load_project_file(project_path);
+        REQUIRE(std::holds_alternative<audioalgo::ProjectModel>(loaded));
+        const auto model = std::get<audioalgo::ProjectModel>(loaded);
+        CHECK(model.selected_output_port_id == "sum");
+        REQUIRE(model.serialized_extensions.size() == 1);
+        CHECK(model.serialized_extensions[0].name == "vendor_selection");
+        REQUIRE(std::holds_alternative<std::monostate>(audioalgo::save_project_file(project_path, model)));
+        const auto reopened = audioalgo::load_project_file(project_path);
+        REQUIRE(std::holds_alternative<audioalgo::ProjectModel>(reopened));
+        const auto& round_tripped = std::get<audioalgo::ProjectModel>(reopened);
+        CHECK(round_tripped.selected_output_port_id == "sum");
+        CHECK(round_tripped.serialized_extensions.size() == 1);
+    }
+
+    SECTION("missing port id is rejected with a structured diagnostic") {
+        project.selected_output_port_id = "nope";
+        const auto diagnostics = audioalgo::validate_project(project, registry);
+        REQUIRE(diagnostics.size() == 1);
+        CHECK(diagnostics[0].code == "selected_output_port_missing");
+        CHECK(diagnostics[0].node_id == "mix");
+        CHECK(diagnostics[0].port_id == "nope");
+    }
+
+    SECTION("input-direction port is rejected with a structured diagnostic") {
+        project.selected_output_port_id = "primary";
+        const auto diagnostics = audioalgo::validate_project(project, registry);
+        REQUIRE(diagnostics.size() == 1);
+        CHECK(diagnostics[0].code == "selected_output_port_direction");
+        CHECK(diagnostics[0].node_id == "mix");
+        CHECK(diagnostics[0].port_id == "primary");
+    }
+
+    SECTION("non-pcm output port is rejected with a structured diagnostic") {
+        audioalgo::ProjectModel scalar_project;
+        scalar_project.project_id = "port-selection-type";
+        scalar_project.name = "Non-PCM selected output";
+        scalar_project.nodes = {
+            {"a", "builtin.file_source", {{"path", std::string("a.wav")}}, 15.0, 20.0},
+            {"probe", "test.metrics_probe", {}, 240.0, 20.0},
+        };
+        scalar_project.connections = {{"a", "audio", "probe", "audio_in"}};
+        scalar_project.selected_output_node_id = "probe";
+        scalar_project.selected_output_port_id = "metrics";
+        const auto diagnostics = audioalgo::validate_project(scalar_project, registry);
+        REQUIRE(diagnostics.size() == 1);
+        CHECK(diagnostics[0].code == "selected_output_port_type");
+        CHECK(diagnostics[0].node_id == "probe");
+        CHECK(diagnostics[0].port_id == "metrics");
+    }
+}

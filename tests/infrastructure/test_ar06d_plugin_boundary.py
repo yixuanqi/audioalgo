@@ -24,6 +24,8 @@ class PluginBoundaryTests(unittest.TestCase):
             "libs/audio_juce_backend/JuceGraph.cpp",
             "libs/audio_juce_backend/NativeNodeAudioProcessor.h",
             "libs/audio_juce_backend/NativeNodeAudioProcessor.cpp",
+            "libs/audio_runtime/NativePlan.h",
+            "libs/audio_runtime/NativePlan.cpp",
         ))
         for forbidden in ("JuceProcessorRegistry", "register_builtin_juce_processors", "GainAudioProcessor",
                           "GainProcessor", "GainNodeAdapter", "audio_algorithms/Gain.h", '"builtin.gain"'):
@@ -38,6 +40,18 @@ class PluginBoundaryTests(unittest.TestCase):
         plugin_links = cmake.split("target_link_libraries(audio_nodes_builtin", 1)[1].split(")", 1)[0]
         self.assertIn("audio_algorithms", plugin_links)
         self.assertIn("audio_node_sdk", plugin_links)
+
+    def test_plan_compiler_cannot_reach_gui_io_or_plugin_instances(self) -> None:
+        source = self.read("libs/audio_runtime/NativePlan.h") + self.read("libs/audio_runtime/NativePlan.cpp")
+        for forbidden in ("juce_", "AudioProcessor", "create_processor(", "create_plan(",
+                          "audio_algorithms/", "plugins/", "audio_io/", "audio_project_file_io/"):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, source)
+        cmake = self.read("CMakeLists.txt")
+        links = cmake.split("target_link_libraries(audio_runtime", 1)[1].split(")", 1)[0]
+        self.assertIn("audio_project", links)
+        for forbidden in ("juce::", "audio_io", "audio_run_service", "audio_nodes_builtin", "audio_algorithms"):
+            self.assertNotIn(forbidden, links)
 
     def test_cli_and_editor_share_plugin_composition(self) -> None:
         plugin = self.read("plugins/builtin/registration.h") + self.read("plugins/builtin/registration.cpp")

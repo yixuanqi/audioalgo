@@ -4,6 +4,7 @@ import copy
 import importlib.util
 import json
 import hashlib
+import os
 import sys
 import xml.etree.ElementTree as ET
 import tempfile
@@ -46,6 +47,59 @@ class ArchitectureVerifierTests(unittest.TestCase):
                 with self.subTest(module=module.__name__), patch.object(module, "ROOT", root):
                     self.assertEqual(set(module.source_manifest()), {"src/input.cpp"})
 
+    def test_source_scan_prunes_ignored_trees_and_preserves_digest_contracts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            kept = {"src/input.cpp": "source", "doc/nested/readme.md": "document", ".pytest_cache/probe": "cache"}
+            ignored = {"build", ".git", ".venv", "__pycache__", ".pytest_cache", ".audioalgo-test-tmp"}
+            for name, text in kept.items():
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(text, encoding="utf-8")
+            for name in ignored - {".pytest_cache"}:
+                path = root / "src" / name / "deep/ignored.cpp"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("excluded", encoding="utf-8")
+            expected = {name: hashlib.sha256(text.encode()).hexdigest()
+                        for name, text in kept.items() if not ignored.intersection(Path(name).parts)}
+            real_scandir = os.scandir
+            def guarded_scandir(path):
+                relative = Path(path).relative_to(root)
+                self.assertFalse(ignored.intersection(relative.parts), f"walked excluded tree: {relative}")
+                return real_scandir(path)
+            modules = [(RECORD, "manifest"), (VERIFY, "manifest"), (GATE, "json_hash")]
+            for relative, mode in (("scripts/verify_editor_interaction.py", "editor_hash"),
+                                   ("tests/infrastructure/test_architecture_baseline.py", "baseline"),
+                                   ("tests/infrastructure/test_ar04_consumer.py", "consumer")):
+                spec = importlib.util.spec_from_file_location("scan_" + mode, ROOT / relative)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                modules.append((module, mode))
+            for module, mode in modules:
+                exclusions = ignored - {".pytest_cache"} if mode == "editor_hash" else ignored
+                def guarded(path):
+                    relative = Path(path).relative_to(root)
+                    self.assertFalse(exclusions.intersection(relative.parts), f"walked excluded tree: {relative}")
+                    return real_scandir(path)
+                with self.subTest(module=module.__name__), patch.object(module, "ROOT", root), patch("os.scandir", guarded), patch("glob._StringGlobber.scandir", staticmethod(guarded)):
+                    if mode == "json_hash":
+                        digest = hashlib.sha256(json.dumps(expected, sort_keys=True).encode()).hexdigest()
+                        self.assertEqual(module.source_tree_hash(), digest)
+                    elif mode == "editor_hash":
+                        digest = hashlib.sha256()
+                        for name in sorted(kept):
+                            encoded = name.encode("utf-8")
+                            digest.update(len(encoded).to_bytes(4, "big"))
+                            digest.update(encoded)
+                            digest.update(hashlib.sha256(kept[name].encode()).digest())
+                        self.assertEqual(module.source_tree_hash(), digest.hexdigest())
+                    elif mode == "baseline":
+                        self.assertEqual(module.current_source_manifest(), expected)
+                    elif mode == "consumer":
+                        self.assertEqual(module.source_manifest(root), expected)
+                    else:
+                        self.assertEqual(module.source_manifest(), expected)
+
     def test_missing_duplicate_and_document_hash_fail_closed(self):
         for mutation in ("missing", "duplicate", "hash"):
             manifest = copy.deepcopy(self.manifest)
@@ -57,6 +111,37 @@ class ArchitectureVerifierTests(unittest.TestCase):
                 manifest["acceptance_document_sha256"] = "0" * 64
             with self.subTest(mutation=mutation):
                 self.assertTrue(VERIFY.validate_manifest(manifest, self.document))
+
+    def test_shared_facts_require_exact_owners_and_preserve_each_case_evidence(self):
+        self.assertEqual(VERIFY.validate_manifest(self.manifest, self.document), [])
+        self.assertTrue(self.manifest["shared_test_facts"])
+        for mutation in ("undeclared", "owner", "reason", "stale", "duplicate", "within_row", "malformed"):
+            broken = copy.deepcopy(self.manifest)
+            if mutation == "undeclared":
+                broken.pop("shared_test_facts")
+            elif mutation == "owner":
+                broken["shared_test_facts"][0]["requirement_ids"].pop()
+            elif mutation == "reason":
+                broken["shared_test_facts"][0]["fact"] = ""
+            elif mutation == "stale":
+                broken["shared_test_facts"][0]["test_name"] = "not-a-mapped-test"
+            elif mutation == "duplicate":
+                broken["shared_test_facts"].append(copy.deepcopy(broken["shared_test_facts"][0]))
+            elif mutation == "within_row":
+                broken["requirements"][0]["test_names"] *= 2
+            else:
+                broken["shared_test_facts"] = {}
+            with self.subTest(mutation=mutation):
+                self.assertTrue(VERIFY.validate_manifest(broken, self.document))
+        rows = [{"id": case_id, "stage": "R0", "required": True, "runner": "ctest",
+                 "test_names": ["shared-render"], "desktop_required": desktop}
+                for case_id, desktop in (("AR-03.a", False), ("AR-03.b", True))]
+        manifest = {"stages": [f"R{i}" for i in range(7)], "requirements": rows}
+        result = VERIFY.evaluate_cases(manifest, {"shared-render"}, {"shared-render": "passed"}, "R0")
+        self.assertEqual([row["status"] for row in result], ["passed", "not_verified"])
+        for state in ("failed", "skipped", "timeout"):
+            result = VERIFY.evaluate_cases(manifest, {"shared-render"}, {"shared-render": state}, "R0")
+            self.assertEqual([row["status"] for row in result], [state, state])
 
     def test_zero_tests_missing_registration_and_unexecuted_are_not_passed(self):
         case = {"id": "AR-03.a", "stage": "R0", "required": True, "layer": "pure", "runner": "ctest",
@@ -203,7 +288,9 @@ class ArchitectureVerifierTests(unittest.TestCase):
 
 
 CASE_METHODS = {
-    "a": ("test_manifest_exact_110_case_coverage_and_hash", "test_missing_duplicate_and_document_hash_fail_closed"),
+    "a": ("test_manifest_exact_110_case_coverage_and_hash", "test_missing_duplicate_and_document_hash_fail_closed",
+          "test_shared_facts_require_exact_owners_and_preserve_each_case_evidence",
+          "test_source_scan_prunes_ignored_trees_and_preserves_digest_contracts"),
     "b": ("test_zero_tests_missing_registration_and_unexecuted_are_not_passed", "test_wrong_configuration_binary_and_crashed_process_are_rejected",
           "test_later_stage_does_not_pass_when_required_case_is_missing"),
     "c": ("test_failure_and_skip_are_not_passed", "test_timeout_failure_is_distinct_and_not_passed"),
