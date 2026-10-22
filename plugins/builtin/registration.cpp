@@ -1,6 +1,7 @@
 #include "plugins/builtin/registration.h"
 
 #include "plugins/builtin/GainNodeAdapter.h"
+#include "plugins/builtin/MixerNodeAdapter.h"
 #include "plugins/examples/ChannelSwapNode.h"
 
 #include <memory>
@@ -31,6 +32,25 @@ bool register_builtin_nodes(NodeRegistry& registry) {
         {std::move(gain_parameter)}, NodeExecutionKind::block},
         [] { return std::make_unique<GainNodeAdapter>(); });
     if (!gain.registered)
+        return false;
+
+    ParameterDescriptor mixer_primary{"primary_gain_db", ParameterKind::floating, 0.0, -60.0, 12.0, "dB"};
+    mixer_primary.step = 0.1;
+    mixer_primary.display_name = "Primary gain";
+    mixer_primary.help = "Gain applied to the primary input before summing, in decibels.";
+    ParameterDescriptor mixer_secondary{"secondary_gain_db", ParameterKind::floating, 0.0, -60.0, 12.0, "dB"};
+    mixer_secondary.step = 0.1;
+    mixer_secondary.display_name = "Secondary gain";
+    mixer_secondary.help = "Gain applied to the secondary input before summing, in decibels.";
+    NodeDescriptor mixer{"builtin.mixer", "1.0.0", "Mixer",
+        {{"primary", pcm, PortDirection::input, true},
+         {"secondary", pcm, PortDirection::input, true},
+         {"sum", pcm, PortDirection::output, false}},
+        {std::move(mixer_primary), std::move(mixer_secondary)}, NodeExecutionKind::block};
+    mixer.capabilities.supports_named_audio_ports = true;
+    const auto mixer_registered = registry.register_node(std::move(mixer),
+                                                         [] { return std::make_unique<MixerNodeAdapter>(); });
+    if (!mixer_registered.registered)
         return false;
 
     if (!registry.register_descriptor(NodeDescriptor{
