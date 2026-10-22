@@ -8,7 +8,9 @@
 #include <memory>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
+#include <string_view>
 #include <variant>
 #include <vector>
 
@@ -70,6 +72,7 @@ struct NodeExecutionCapabilities {
     std::optional<std::size_t> maximum_audio_outputs;
     bool supports_variable_block_size = true;
     std::size_t fixed_block_frames = 0;
+    bool supports_named_audio_ports = false;
 };
 
 struct NodeDescriptor {
@@ -139,6 +142,26 @@ struct AudioBlockResult {
 
 using AudioBlockOutcome = std::variant<AudioBlockResult, Diagnostic>;
 
+struct AudioInputPortBlock {
+    std::string_view id;
+    std::span<const float* const> channels;
+};
+
+struct AudioOutputPortBlock {
+    std::string_view id;
+    std::span<float* const> channels;
+};
+
+// Every group has frame_count samples per channel at the common sample rate.
+// Names, channel-pointer spans and samples are borrowed only for this call.
+// A full-block result covers every declared output group. No views may escape.
+struct NamedAudioBlockView {
+    std::uint32_t sample_rate_hz = 0;
+    std::size_t frame_count = 0;
+    std::span<const AudioInputPortBlock> inputs;
+    std::span<const AudioOutputPortBlock> outputs;
+};
+
 class AudioNodeProcessor {
 public:
     virtual ~AudioNodeProcessor() = default;
@@ -155,6 +178,9 @@ public:
     // Allocation-free block path used by the native wrapper. The default reports the capability as
     // unsupported so the wrapper can fall back to process() instead of silently passing audio through.
     [[nodiscard]] virtual AudioBlockOutcome process_block(const AudioBlockView& block);
+
+    [[nodiscard]] virtual bool supports_named_block_processing() const noexcept { return false; }
+    [[nodiscard]] virtual AudioBlockOutcome process_named_block(const NamedAudioBlockView& block);
 
     // Plan-time preparation. Allocation is allowed here and never inside process_block().
     // Called once per prepared run with the validated format and the run's maximum block length.

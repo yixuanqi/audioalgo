@@ -245,6 +245,12 @@ AudioBlockOutcome AudioNodeProcessor::process_block(const AudioBlockView& block)
                       "This node does not implement the allocation-free block interface"};
 }
 
+AudioBlockOutcome AudioNodeProcessor::process_named_block(const NamedAudioBlockView& block) {
+    (void)block;
+    return Diagnostic{"named_block_processing_unsupported",
+                      "This node does not implement the borrowed named audio port interface"};
+}
+
 std::optional<Diagnostic> AudioNodeProcessor::prepare(const NodePrepareContext& context) {
     (void)context;
     return std::nullopt;
