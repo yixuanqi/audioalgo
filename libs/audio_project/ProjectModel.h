@@ -42,6 +42,9 @@ struct ProjectModel {
     std::vector<NodeInstance> nodes;
     std::vector<Connection> connections;
     std::string selected_output_node_id;
+    // Optional port-level selection: when set, the selected output is this output port of the
+    // selected node (any node kind); when empty, legacy node-level selection applies (sink node).
+    std::string selected_output_port_id;
     std::vector<OpaqueJsonField> serialized_extensions;
 };
 

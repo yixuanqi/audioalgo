@@ -117,8 +117,12 @@ ProjectLoadOutcome load_project_file(const std::filesystem::path& path) {
     project.revision = static_cast<std::uint64_t>(static_cast<juce::int64>(root->getProperty("revision")));
     if (!get_string(*root, "selected_output_node_id", project.selected_output_node_id))
         return bad_project("selected_output_node_id must be a string");
+    if (root->hasProperty("selected_output_port_id") &&
+        !get_string(*root, "selected_output_port_id", project.selected_output_port_id))
+        return bad_project("selected_output_port_id must be a string");
     retain_unknown_properties(*root, {"schema_version", "project_id", "name", "revision",
-                                      "selected_output_node_id", "nodes", "connections"},
+                                      "selected_output_node_id", "selected_output_port_id",
+                                      "nodes", "connections"},
                               project.serialized_extensions);
 
     const auto node_array_var = root->getProperty("nodes");
@@ -182,6 +186,9 @@ ProjectSaveOutcome save_project_file(const std::filesystem::path& path, const Pr
     root->setProperty("name", juce::String::fromUTF8(project.name.c_str()));
     root->setProperty("revision", static_cast<juce::int64>(project.revision));
     root->setProperty("selected_output_node_id", juce::String::fromUTF8(project.selected_output_node_id.c_str()));
+    if (!project.selected_output_port_id.empty())
+        root->setProperty("selected_output_port_id",
+                          juce::String::fromUTF8(project.selected_output_port_id.c_str()));
 
     juce::Array<juce::var> nodes;
     for (const auto& node : project.nodes) {

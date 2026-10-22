@@ -160,6 +160,25 @@ static std::vector<GraphDiagnostic> validate_project_impl(const ProjectModel& pr
 
     if (!project.selected_output_node_id.empty() && !nodes.contains(project.selected_output_node_id))
         diagnostics.push_back({"selected_output_missing", "Selected output node does not exist", project.selected_output_node_id, {}});
+    if (!project.selected_output_port_id.empty() && nodes.contains(project.selected_output_node_id) &&
+        descriptors.contains(project.selected_output_node_id)) {
+        const auto& descriptor = *descriptors.find(project.selected_output_node_id)->second;
+        const auto& port_id = project.selected_output_port_id;
+        const auto* port = find_port(descriptor, port_id, PortDirection::output);
+        if (port == nullptr) {
+            const auto* input_port = find_port(descriptor, port_id, PortDirection::input);
+            diagnostics.push_back({input_port != nullptr ? "selected_output_port_direction"
+                                                          : "selected_output_port_missing",
+                                   input_port != nullptr
+                                       ? "Selected output port must be an output port"
+                                       : "Selected output port does not exist",
+                                   project.selected_output_node_id, port_id});
+        } else if (port->type_id != "audio.pcm@1") {
+            diagnostics.push_back({"selected_output_port_type",
+                                   "Selected output port must be an audio.pcm@1 port",
+                                   project.selected_output_node_id, port_id});
+        }
+    }
     return diagnostics;
 }
 
