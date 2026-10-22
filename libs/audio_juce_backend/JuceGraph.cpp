@@ -1,5 +1,6 @@
 #include "audio_juce_backend/JuceGraph.h"
 #include "audio_juce_backend/NativeNodeAudioProcessor.h"
+#include "audio_runtime/NativePlan.h"
 
 #include <algorithm>
 #include <map>
@@ -9,111 +10,138 @@
 namespace audioalgo {
 namespace {
 
-const NodeInstance* find_node(const ProjectModel& project, const std::string& node_id) {
-    const auto found = std::find_if(project.nodes.begin(), project.nodes.end(), [&](const NodeInstance& node) {
-        return node.id == node_id;
-    });
-    return found == project.nodes.end() ? nullptr : &*found;
-}
-
-std::string first_port_id(const NodeDescriptor& descriptor, PortDirection direction) {
-    const auto found = std::find_if(descriptor.ports.begin(), descriptor.ports.end(), [&](const PortDescriptor& port) {
-        return port.direction == direction;
-    });
-    return found == descriptor.ports.end() ? std::string{} : found->id;
-}
-
 Diagnostic graph_error(std::string code, std::string message, std::string node_id = {}, std::string port_id = {}) {
     return {std::move(code), std::move(message), std::move(node_id), std::move(port_id)};
+}
+
+// Feeds one already decoded, immutable source version into the graph. The adapter performs no
+// file IO and allocates nothing while processing: it only replays staged sample pointers.
+class SourceBufferAdapter final : public juce::AudioProcessor {
+public:
+    SourceBufferAdapter(const AudioBuffer& source, int channel_count)
+        : AudioProcessor(juce::AudioProcessor::BusesProperties()
+                             .withOutput("audio", juce::AudioChannelSet::discreteChannels(std::max(1, channel_count)), true)),
+          frames_(source.frame_count()) {
+        channel_data_.reserve(source.channel_count());
+        for (std::size_t channel = 0; channel < source.channel_count(); ++channel)
+            channel_data_.push_back(source.channel(channel).data());
+    }
+
+    const juce::String getName() const override { return "AudioAlgo Source Adapter"; }
+    void prepareToPlay(double, int) override { cursor_ = 0; }
+    void releaseResources() override {}
+    bool acceptsMidi() const override { return false; }
+    bool producesMidi() const override { return false; }
+    double getTailLengthSeconds() const override { return 0.0; }
+    bool hasEditor() const override { return false; }
+    juce::AudioProcessorEditor* createEditor() override { return nullptr; }
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram(int) override {}
+    const juce::String getProgramName(int) override { return {}; }
+    void changeProgramName(int, const juce::String&) override {}
+    void getStateInformation(juce::MemoryBlock&) override {}
+    void setStateInformation(const void*, int) override {}
+    using AudioProcessor::processBlock;
+
+    void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&) override {
+        auto output = getBusBuffer(buffer, false, 0);
+        const auto frames = static_cast<std::size_t>(output.getNumSamples());
+        const auto count = std::min(frames, frames_ - cursor_);
+        const auto channels = std::min(channel_data_.size(), static_cast<std::size_t>(output.getNumChannels()));
+        for (std::size_t channel = 0; channel < channels; ++channel) {
+            if (count > 0)
+                output.copyFrom(static_cast<int>(channel), 0, channel_data_[channel] + cursor_, static_cast<int>(count));
+            if (count < frames)
+                output.clear(static_cast<int>(channel), static_cast<int>(count), static_cast<int>(frames - count));
+        }
+        cursor_ += count;
+    }
+
+private:
+    std::vector<const float*> channel_data_;
+    std::size_t frames_ = 0;
+    std::size_t cursor_ = 0;
+};
+
+std::vector<std::string> source_node_ids(const ProjectModel& project, const NodeCatalog& catalog) {
+    std::vector<std::string> ids;
+    for (const auto& node : project.nodes) {
+        const auto* descriptor = catalog.find(node.type_id);
+        if (descriptor != nullptr && descriptor->execution_kind == NodeExecutionKind::source)
+            ids.push_back(node.id);
+    }
+    return ids;
 }
 
 } // namespace
 
 AudioGraphOutcome render_audio_graph(const ProjectModel& project,
                                     const NodeRegistry& node_registry,
-                                    const AudioBuffer& source_audio,
+                                    std::vector<AudioSourceBinding> sources,
                                     int block_size) {
-    if (const auto error = source_audio.format_error(); !error.empty())
+    if (sources.empty())
+        return graph_error("source_binding_missing", "The native render path needs at least one bound audio source");
+    const auto& reference = sources.front();
+    if (const auto error = reference.audio.format_error(); !error.empty())
         return graph_error("invalid_audio_format", error);
-    if (block_size <= 0)
-        return graph_error("invalid_block_size", "JUCE graph block size must be positive");
-
-    const auto validation = validate_project(project, node_registry);
-    if (!validation.empty())
-        return graph_error(validation.front().code, validation.front().message,
-                           validation.front().node_id, validation.front().port_id);
-
-    std::vector<const NodeInstance*> sources;
-    std::vector<const NodeInstance*> sinks;
+    // Every source must be an independently decoded version of the same stream shape; the
+    // backend has no resampling, padding or alignment, so any disagreement is rejected here,
+    // before the plan compiles and before any block factory or prepare can run.
+    for (std::size_t index = 1; index < sources.size(); ++index) {
+        const auto& candidate = sources[index];
+        if (const auto error = candidate.audio.format_error(); !error.empty())
+            return graph_error("invalid_audio_format", error, candidate.node_id, "audio");
+        if (candidate.audio.sample_rate_hz() != reference.audio.sample_rate_hz())
+            return graph_error("source_format_mismatch",
+                               "Source " + candidate.node_id + " runs at " +
+                                   std::to_string(candidate.audio.sample_rate_hz()) + " Hz while source " +
+                                   reference.node_id + " runs at " + std::to_string(reference.audio.sample_rate_hz()) + " Hz",
+                               candidate.node_id, "audio");
+        if (candidate.audio.channel_ids() != reference.audio.channel_ids())
+            return graph_error("source_channel_mismatch",
+                               "Source " + candidate.node_id + " disagrees with source " + reference.node_id +
+                                   " on channel identity or layout",
+                               candidate.node_id, "audio");
+        if (candidate.audio.frame_count() != reference.audio.frame_count())
+            return graph_error("source_frame_count_mismatch",
+                               "Source " + candidate.node_id + " has " + std::to_string(candidate.audio.frame_count()) +
+                                   " frames while source " + reference.node_id + " has " +
+                                   std::to_string(reference.audio.frame_count()),
+                               candidate.node_id, "audio");
+        if (candidate.audio.valid_interval() != reference.audio.valid_interval())
+            return graph_error("source_interval_mismatch",
+                               "Source " + candidate.node_id + " disagrees with source " + reference.node_id +
+                                   " on the valid interval",
+                               candidate.node_id, "audio");
+    }
+    auto compiled = compile_native_plan(project, node_registry, reference.audio.format(),
+                                        reference.audio.frame_count(), block_size);
+    if (const auto* error = std::get_if<Diagnostic>(&compiled))
+        return *error;
+    auto execution_plan = std::move(std::get<NativePlan>(compiled));
+    block_size = execution_plan.maximum_block_frames;
+    const int channel_count = static_cast<int>(execution_plan.format.channel_count);
+    const auto sample_rate = static_cast<double>(execution_plan.format.sample_rate_hz);
+    std::map<std::string, const NativePlanNode*, std::less<>> plan_nodes;
+    for (const auto& node : execution_plan.nodes)
+        plan_nodes.emplace(node.node_id, &node);
+    std::map<std::string, const AudioSourceBinding*, std::less<>> bindings;
+    for (const auto& binding : sources)
+        bindings.emplace(binding.node_id, &binding);
     std::vector<NodeProcessorRequest> requests;
-    for (const auto& node : project.nodes) {
-        const auto* descriptor = node_registry.find(node.type_id);
-        if (descriptor == nullptr)
-            return graph_error("node_type_missing", "Node descriptor disappeared during graph compilation: " + node.type_id);
-        if (descriptor->execution_kind == NodeExecutionKind::source)
-            sources.push_back(&node);
-        else if (descriptor->execution_kind == NodeExecutionKind::sink)
-            sinks.push_back(&node);
-        else
-            requests.push_back({node.id, node.type_id, node.parameters});
-    }
-    if (sources.size() != 1 || sinks.size() != 1)
-        return graph_error("graph_shape_unsupported", "This render path requires exactly one audio source and one output sink");
-    if (project.selected_output_node_id != sinks.front()->id)
-        return graph_error("selected_output_mismatch", "The selected output must be the graph's single output sink");
-
-    auto plan_outcome = node_registry.create_plan(requests);
-    if (const auto* error = std::get_if<NodeFactoryDiagnostic>(&plan_outcome))
+    for (const auto& task : execution_plan.tasks)
+        if (task.kind == PlanTaskKind::native_region)
+            for (const auto& node_id : task.node_ids) {
+                const auto& node = *plan_nodes.at(node_id);
+                requests.push_back({node_id, node.descriptor.type_id, node.parameters});
+            }
+    auto instances = node_registry.create_plan(requests);
+    if (const auto* error = std::get_if<NodeFactoryDiagnostic>(&instances))
         return graph_error(error->code, error->message, error->node_id);
-    auto plan = std::move(std::get<NodeProcessorPlan>(plan_outcome));
     std::map<std::string, PlannedNodeProcessor, std::less<>> planned_processors;
-    for (auto& processor : plan.processors)
+    for (auto& processor : std::get<NodeProcessorPlan>(instances).processors)
         planned_processors.emplace(processor.node_id, std::move(processor));
-
-    const int channel_count = static_cast<int>(source_audio.channel_count());
-    const auto sample_rate = static_cast<double>(source_audio.sample_rate_hz());
-    // Capability agreement is decided before execution: an unavailable format or frame contract must
-    // fail loudly instead of being silently adapted.
-    for (const auto& node : project.nodes) {
-        const auto* descriptor = node_registry.find(node.type_id);
-        if (descriptor == nullptr)
-            continue;
-        const auto& audio_format = descriptor->audio_format;
-        if (!audio_format.sample_rates_hz.empty() &&
-            std::find(audio_format.sample_rates_hz.begin(), audio_format.sample_rates_hz.end(),
-                      source_audio.sample_rate_hz()) == audio_format.sample_rates_hz.end())
-            return graph_error("capability_unsupported",
-                               "Node " + node.id + " does not support sample rate " +
-                                   std::to_string(source_audio.sample_rate_hz()) + " Hz", node.id);
-        if (!audio_format.channel_counts.empty() &&
-            std::find(audio_format.channel_counts.begin(), audio_format.channel_counts.end(),
-                      source_audio.channel_count()) == audio_format.channel_counts.end())
-            return graph_error("capability_unsupported",
-                               "Node " + node.id + " does not support " +
-                                   std::to_string(source_audio.channel_count()) + " channels", node.id);
-        // The native region only carries PCM audio. A geometry/metric port must not be flattened into
-        // JUCE channels; it needs a typed task, which R1 does not provide.
-        for (const auto& port : descriptor->ports) {
-            if (port.type_id != "audio.pcm@1")
-                return graph_error("port_type_unsupported",
-                                   "Node " + node.id + " port " + port.id + " is typed " + port.type_id +
-                                       "; the native audio region only accepts audio.pcm@1", node.id, port.id);
-        }
-        if (!descriptor->capabilities.supports_variable_block_size) {
-            const auto fixed = descriptor->capabilities.fixed_block_frames;
-            if (fixed == 0 || static_cast<std::size_t>(block_size) != fixed)
-                return graph_error("capability_unsupported",
-                                   "Node " + node.id + " requires " + std::to_string(fixed) +
-                                       " frame blocks but the run requested " + std::to_string(block_size), node.id);
-            // There is no fixed-frame adapter or FIFO yet, so a short tail cannot be honoured.
-            if (source_audio.frame_count() % fixed != 0)
-                return graph_error("capability_unsupported",
-                                   "Node " + node.id + " requires whole " + std::to_string(fixed) +
-                                       " frame blocks but the source has " +
-                                       std::to_string(source_audio.frame_count()) +
-                                       " frames; fixed-frame tails are unsupported", node.id);
-        }
-    }
 
     juce::AudioProcessorGraph graph;
     graph.setPlayConfigDetails(channel_count, channel_count, sample_rate, block_size);
@@ -121,51 +149,87 @@ AudioGraphOutcome render_audio_graph(const ProjectModel& project,
 
     std::map<std::string, juce::AudioProcessorGraph::NodeID, std::less<>> graph_nodes;
     std::vector<std::pair<std::string, NativeNodeAudioProcessor*>> diagnostic_sources;
-    for (const auto& node : project.nodes) {
+    for (const auto& node : execution_plan.nodes) {
         std::unique_ptr<juce::AudioProcessor> processor;
-        const auto* descriptor = node_registry.find(node.type_id);
+        const auto* descriptor = &node.descriptor;
         if (descriptor->execution_kind == NodeExecutionKind::source) {
-            processor = std::make_unique<juce::AudioProcessorGraph::AudioGraphIOProcessor>(
-                juce::AudioProcessorGraph::AudioGraphIOProcessor::audioInputNode);
+            const auto bound = bindings.find(node.node_id);
+            if (bound == bindings.end() || bound->second == nullptr)
+                return graph_error("source_binding_missing", "No decoded audio version is bound to source " + node.node_id,
+                                   node.node_id, "audio");
+            processor = std::make_unique<SourceBufferAdapter>(bound->second->audio, channel_count);
         } else if (descriptor->execution_kind == NodeExecutionKind::sink) {
             processor = std::make_unique<juce::AudioProcessorGraph::AudioGraphIOProcessor>(
                 juce::AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode);
         } else {
-            auto planned = planned_processors.find(node.id);
+            auto planned = planned_processors.find(node.node_id);
             if (planned == planned_processors.end() || !planned->second.processor)
-                return graph_error("node_plan_incomplete", "No prepared SDK processor exists for node " + node.id);
+                return graph_error("node_plan_incomplete", "No prepared SDK processor exists for node " + node.node_id);
             auto wrapper = std::make_unique<NativeNodeAudioProcessor>(
-                std::move(planned->second.processor), node.id, *descriptor,
+                std::move(planned->second.processor), node.node_id, *descriptor,
                 std::move(planned->second.parameters), NodeExecutionContext{}, channel_count);
             auto* wrapper_view = wrapper.get();
             processor = std::move(wrapper);
-            diagnostic_sources.emplace_back(node.id, wrapper_view);
+            diagnostic_sources.emplace_back(node.node_id, wrapper_view);
         }
 
         const auto added = graph.addNode(std::move(processor), std::nullopt, juce::AudioProcessorGraph::UpdateKind::none);
         if (added == nullptr)
-            return graph_error("juce_node_rejected", "JUCE rejected node " + node.id);
-        graph_nodes.emplace(node.id, added->nodeID);
+            return graph_error("juce_node_rejected", "JUCE rejected node " + node.node_id);
+        graph_nodes.emplace(node.node_id, added->nodeID);
     }
 
-    for (const auto& connection : project.connections) {
-        const auto* from = find_node(project, connection.from_node);
-        const auto* to = find_node(project, connection.to_node);
-        const auto* from_descriptor = from == nullptr ? nullptr : node_registry.find(from->type_id);
-        const auto* to_descriptor = to == nullptr ? nullptr : node_registry.find(to->type_id);
-        if (from == nullptr || to == nullptr || from_descriptor == nullptr || to_descriptor == nullptr)
-            return graph_error("graph_endpoint_invalid", "Validated graph endpoint disappeared during JUCE compilation");
-        const auto output_port = first_port_id(*from_descriptor, PortDirection::output);
-        const auto input_port = first_port_id(*to_descriptor, PortDirection::input);
-        if (output_port != connection.from_port || input_port != connection.to_port)
-            return graph_error("port_mapping_unsupported", "The G1 JUCE adapter currently supports one audio input and output port per node");
-
-        for (int channel = 0; channel < channel_count; ++channel) {
+    for (const auto& route : execution_plan.routes) {
+        for (std::size_t channel = 0; channel < route.channel_count; ++channel) {
             const juce::AudioProcessorGraph::Connection edge{
-                {graph_nodes.at(connection.from_node), channel},
-                {graph_nodes.at(connection.to_node), channel}};
+                {graph_nodes.at(route.from.node_id), static_cast<int>(route.from_channel_base + channel)},
+                {graph_nodes.at(route.to.node_id), static_cast<int>(route.to_channel_base + channel)}};
             if (!graph.addConnection(edge, juce::AudioProcessorGraph::UpdateKind::none))
-                return graph_error("juce_connection_rejected", "JUCE rejected a typed connection at channel " + std::to_string(channel));
+                return graph_error("juce_connection_rejected", "JUCE rejected a typed connection at channel " + std::to_string(channel),
+                                   route.to.node_id, route.to.port_id);
+        }
+    }
+
+    // Port-level selection has no sink node in the closure: route the selected output port of
+    // the selected node through an implicit IO output node so the signal reaches the render.
+    if (execution_plan.selected_output.has_value()) {
+        const auto& selection = *execution_plan.selected_output;
+        const auto selected = graph_nodes.find(selection.node_id);
+        const NativePlanNode* selected_node = nullptr;
+        for (const auto& node : execution_plan.nodes)
+            if (node.node_id == selection.node_id)
+                selected_node = &node;
+        if (selected == graph_nodes.end() || selected_node == nullptr)
+            return graph_error("selected_output_missing", "The selected output node is not part of the compiled plan",
+                               selection.node_id, selection.port_id);
+        std::size_t base = 0;
+        bool port_found = false;
+        for (const auto& port : selected_node->descriptor.ports) {
+            if (port.direction != PortDirection::output)
+                continue;
+            if (port.id == selection.port_id) {
+                port_found = true;
+                break;
+            }
+            base += channel_count;
+        }
+        if (!port_found)
+            return graph_error("selected_output_port_missing", "The selected output port is not part of the compiled plan",
+                               selection.node_id, selection.port_id);
+        const auto io = graph.addNode(std::make_unique<juce::AudioProcessorGraph::AudioGraphIOProcessor>(
+                                          juce::AudioProcessorGraph::AudioGraphIOProcessor::audioOutputNode),
+                                      std::nullopt, juce::AudioProcessorGraph::UpdateKind::none);
+        if (io == nullptr)
+            return graph_error("juce_node_rejected", "JUCE rejected the implicit output node for the port selection",
+                               selection.node_id, selection.port_id);
+        for (std::size_t channel = 0; channel < channel_count; ++channel) {
+            const juce::AudioProcessorGraph::Connection edge{
+                {selected->second, static_cast<int>(base + channel)},
+                {io->nodeID, static_cast<int>(channel)}};
+            if (!graph.addConnection(edge, juce::AudioProcessorGraph::UpdateKind::none))
+                return graph_error("juce_connection_rejected",
+                                   "JUCE rejected the selected output port connection at channel " + std::to_string(channel),
+                                   selection.node_id, selection.port_id);
         }
     }
 
@@ -182,19 +246,17 @@ AudioGraphOutcome render_audio_graph(const ProjectModel& project,
         return *error;
     }
 
-    AudioBuffer output(source_audio.sample_rate_hz(), source_audio.channel_ids(), source_audio.frame_count(),
-                       source_audio.valid_interval());
+    AudioBuffer output(reference.audio.sample_rate_hz(), reference.audio.channel_ids(), execution_plan.source_frames,
+                       reference.audio.valid_interval());
     juce::MidiBuffer midi;
     std::vector<float*> channels(static_cast<std::size_t>(channel_count));
     std::size_t offset = 0;
-    while (offset < source_audio.frame_count()) {
-        const auto count = std::min<std::size_t>(static_cast<std::size_t>(block_size), source_audio.frame_count() - offset);
+    while (offset < execution_plan.source_frames) {
+        const auto count = std::min<std::size_t>(static_cast<std::size_t>(block_size), execution_plan.source_frames - offset);
         juce::AudioBuffer<float> block(channel_count, static_cast<int>(count));
-        for (int channel = 0; channel < channel_count; ++channel) {
-            block.copyFrom(channel, 0, source_audio.channel(static_cast<std::size_t>(channel)).data() + offset,
-                           static_cast<int>(count));
+        block.clear();
+        for (int channel = 0; channel < channel_count; ++channel)
             channels[static_cast<std::size_t>(channel)] = output.mutable_channel(static_cast<std::size_t>(channel)).data() + offset;
-        }
         graph.processBlock(block, midi);
         if (const auto error = find_processing_error()) {
             return *error;
@@ -207,7 +269,21 @@ AudioGraphOutcome render_audio_graph(const ProjectModel& project,
     return output;
 }
 
+AudioGraphOutcome render_audio_graph(const ProjectModel& project,
+                                    const NodeRegistry& node_registry,
+                                    const AudioBuffer& source_audio,
+                                    int block_size) {
+    if (const auto error = source_audio.format_error(); !error.empty())
+        return graph_error("invalid_audio_format", error);
+    const auto sources = source_node_ids(project, node_registry);
+    if (sources.size() > 1)
+        return graph_error("source_binding_ambiguous",
+                           "The single-buffer render entry cannot bind a project with " + std::to_string(sources.size()) +
+                               " audio source nodes; pass one AudioSourceBinding per source instead of duplicating a buffer");
+    if (sources.empty())
+        return graph_error("graph_shape_unsupported", "This render path requires at least one audio source and one output sink");
+    return render_audio_graph(project, node_registry,
+                              std::vector<AudioSourceBinding>{{sources.front(), source_audio}}, block_size);
+}
+
 } // namespace audioalgo
-
-
-

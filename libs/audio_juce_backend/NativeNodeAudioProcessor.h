@@ -47,7 +47,7 @@ protected:
     bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
 
 private:
-    [[nodiscard]] static BusesProperties buses_for(int channel_count);
+    [[nodiscard]] static BusesProperties buses_for(const NodeDescriptor& descriptor, int channel_count);
 
     std::unique_ptr<AudioNodeProcessor> processor_;
     std::string node_id_;
@@ -59,10 +59,15 @@ private:
     int maximum_block_frames_ = 0;
     std::uint32_t sample_rate_hz_ = 0;
     bool structurally_invalid_ = false;
+    bool named_processing_ = false;
+    std::vector<std::string> input_port_ids_;
+    std::vector<std::string> output_port_ids_;
     // Preallocated in prepareToPlay(); processBlock only assigns into these, never resizes them.
     std::vector<float> input_scratch_;
     std::vector<const float*> input_channels_;
     std::vector<float*> output_channels_;
+    std::vector<AudioInputPortBlock> named_inputs_;
+    std::vector<AudioOutputPortBlock> named_outputs_;
     std::optional<Diagnostic> diagnostic_;
 };
 
