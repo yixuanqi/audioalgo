@@ -117,8 +117,10 @@ struct NodeInsertionResult {
             candidate = std::move(bypassed);
     }
 
-    if (candidate.selected_output_node_id == node_id)
+    if (candidate.selected_output_node_id == node_id) {
         candidate.selected_output_node_id.clear();
+        candidate.selected_output_port_id.clear();
+    }
     candidate.revision = project.revision + 1;
     project = std::move(candidate);
     return true;

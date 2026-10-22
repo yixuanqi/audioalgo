@@ -81,6 +81,10 @@ public:
                                                           std::optional<InsertionPortChoice> port_choice = std::nullopt);
     [[nodiscard]] ProjectEditOutcome delete_node(const std::string& node_id);
     [[nodiscard]] ProjectEditOutcome move_node_layout(const std::string& node_id, double x, double y);
+    // Port-level output selection (AR-14.c): one undoable revision that revalidates the
+    // selected (node_id, port_id) against the descriptor schema before applying.
+    [[nodiscard]] ProjectEditOutcome set_selected_output_port(const std::string& node_id,
+                                                              const std::string& port_id);
 
     void mark_saved() noexcept { dirty_ = false; }
     [[nodiscard]] ProjectEditOutcome set_project_name(std::string name);

@@ -153,6 +153,35 @@ ProjectEditOutcome EditorController::add_node(const std::string& type_id, const 
     return {ProjectEditStatus::applied, {}};
 }
 
+ProjectEditOutcome EditorController::set_selected_output_port(const std::string& node_id,
+                                                               const std::string& port_id) {
+    if (parameter_gesture_.has_value())
+        return project_edit_rejected("parameter_gesture_active", "Finish or cancel the active parameter gesture",
+                                     node_id);
+    if (project_.revision == std::numeric_limits<std::uint64_t>::max())
+        return project_edit_rejected("revision_exhausted", "The project revision cannot be advanced", node_id);
+    if (project_.selected_output_node_id == node_id && project_.selected_output_port_id == port_id)
+        return {ProjectEditStatus::unchanged, {}};
+
+    auto candidate = project_;
+    candidate.selected_output_node_id = node_id;
+    candidate.selected_output_port_id = port_id;
+    auto diagnostics = validate_project_structure(candidate, catalog_);
+    if (!diagnostics.empty())
+        return {ProjectEditStatus::rejected, std::move(diagnostics)};
+
+    const auto applied = history_.apply(project_, [&](ProjectModel& edited) {
+        edited.selected_output_node_id = node_id;
+        edited.selected_output_port_id = port_id;
+        return true;
+    });
+    if (!applied)
+        return {ProjectEditStatus::unchanged, {}};
+
+    mark_edited();
+    return {ProjectEditStatus::applied, {}};
+}
+
 ProjectEditOutcome EditorController::add_source_node(const std::string& type_id, const std::string& node_id,
                                                       const std::string& resource_path, double x, double y) {
     if (parameter_gesture_.has_value())

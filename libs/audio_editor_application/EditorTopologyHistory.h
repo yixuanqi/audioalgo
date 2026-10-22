@@ -100,6 +100,7 @@ private:
     [[nodiscard]] static bool same_non_layout_content(const ProjectModel& left, const ProjectModel& right) {
         if (left.schema_version != right.schema_version || left.project_id != right.project_id ||
             left.name != right.name || left.selected_output_node_id != right.selected_output_node_id ||
+            left.selected_output_port_id != right.selected_output_port_id ||
             left.nodes.size() != right.nodes.size() || left.connections.size() != right.connections.size())
             return false;
 
@@ -132,6 +133,7 @@ private:
     [[nodiscard]] static bool same_topology(const ProjectModel& left, const ProjectModel& right) {
         if (left.schema_version != right.schema_version || left.project_id != right.project_id ||
             left.selected_output_node_id != right.selected_output_node_id ||
+            left.selected_output_port_id != right.selected_output_port_id ||
             left.nodes.size() != right.nodes.size() || left.connections.size() != right.connections.size())
             return false;
 
