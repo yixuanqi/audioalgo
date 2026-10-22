@@ -45,7 +45,7 @@ target_include_directories(audio_core PUBLIC
 )
 target_compile_features(audio_core PUBLIC cxx_std_20)
 
-add_library(audio_algorithms STATIC libs/audio_algorithms/Gain.cpp libs/audio_algorithms/ChannelSwap.cpp)
+add_library(audio_algorithms STATIC libs/audio_algorithms/Gain.cpp libs/audio_algorithms/ChannelSwap.cpp libs/audio_algorithms/Mixer.cpp)
 add_library(AudioAlgo::algorithms ALIAS audio_algorithms)
 set_target_properties(audio_algorithms PROPERTIES EXPORT_NAME algorithms)
 target_include_directories(audio_algorithms PUBLIC
@@ -113,6 +113,12 @@ target_include_directories(audio_editor_application PUBLIC "${CMAKE_CURRENT_SOUR
 target_link_libraries(audio_editor_application PUBLIC audio_project)
 target_compile_features(audio_editor_application PUBLIC cxx_std_20)
 
+# Pure execution metadata compiler is available with the JUCE runtime disabled.
+add_library(audio_runtime STATIC libs/audio_runtime/NativePlan.cpp)
+target_include_directories(audio_runtime PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libs")
+target_link_libraries(audio_runtime PUBLIC audio_project)
+target_compile_features(audio_runtime PUBLIC cxx_std_20)
+
 if(AUDIO_BUILD_RUNTIME)
 add_library(audio_io STATIC libs/audio_io/WavFile.cpp)
 target_include_directories(audio_io PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libs")
@@ -126,10 +132,10 @@ target_compile_features(audio_project_file_io PUBLIC cxx_std_20)
 
 add_library(audio_juce_backend STATIC libs/audio_juce_backend/JuceGraph.cpp libs/audio_juce_backend/NativeNodeAudioProcessor.cpp)
 target_include_directories(audio_juce_backend PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libs")
-target_link_libraries(audio_juce_backend PUBLIC audio_project audio_io juce::juce_audio_processors)
+target_link_libraries(audio_juce_backend PUBLIC audio_runtime audio_project audio_io juce::juce_audio_processors)
 target_compile_features(audio_juce_backend PUBLIC cxx_std_20)
 
-add_library(audio_nodes_builtin STATIC plugins/builtin/GainNodeAdapter.cpp plugins/builtin/registration.cpp plugins/examples/ChannelSwapNode.cpp)
+add_library(audio_nodes_builtin STATIC plugins/builtin/GainNodeAdapter.cpp plugins/builtin/MixerNodeAdapter.cpp plugins/builtin/registration.cpp plugins/examples/ChannelSwapNode.cpp)
 target_include_directories(audio_nodes_builtin PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(audio_nodes_builtin PUBLIC audio_node_sdk audio_algorithms)
 target_compile_features(audio_nodes_builtin PUBLIC cxx_std_20)
@@ -162,9 +168,9 @@ if(AUDIO_BUILD_TESTS)
   )
   set_tests_properties(AR-05.a PROPERTIES LABELS "R1;pure;DSP-01" TIMEOUT 60)
 
-  add_executable(audio_application_tests tests/unit/test_run_reception.cpp)
+  add_executable(audio_application_tests tests/unit/test_run_reception.cpp tests/unit/test_native_plan.cpp)
   target_include_directories(audio_application_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/libs")
-  target_link_libraries(audio_application_tests PRIVATE Catch2::Catch2WithMain)
+  target_link_libraries(audio_application_tests PRIVATE Catch2::Catch2WithMain audio_runtime)
   catch_discover_tests(audio_application_tests PROPERTIES LABELS "pure;architecture" TIMEOUT 10)
 
   add_executable(audio_editor_application_tests
