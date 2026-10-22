@@ -1,10 +1,12 @@
 ---
 title: Agent 的 TDD 与 Loop Engineering 开发规程
 status: ready-for-implementation
-updated: 2026-10-16
+updated: 2026-10-22
 ---
 
 # Agent 的 TDD 与 Loop Engineering 开发规程
+
+2026-10-22执行更新：[交付收口与必要验证约束](plan_delivery_convergence.md)是当前恢复、排程、证据复用与测试范围规则，覆盖本文较早的每次恢复重建基线表述。恢复先核对直接有效证据；日常只跑目标行为与直接回归，构建矩阵集中稳定出口和最终Release，文档变更不编译产品。用户独立原生节点UPN作为新增必需范围，不要求运行中热卸载。当前从R5/M21接续，不重做旧首条Red；历史启动提示词不作为当前入口。
 
 ## 1. 任务与边界
 
@@ -175,6 +177,8 @@ perform final Release, package and real-device/data acceptance
 report completion only when definition of done is satisfied
 ```
 
-## 9. 可直接交给开发 Agent 的启动提示词
+## 9. 历史启动提示词（当前使用收口入口）
+
+2026-10-22起，当前恢复使用[交付收口入口第6节](plan_delivery_convergence.md#6-接续提示词)。以下原始启动词仅说明从零实施的历史范围，不要求当前Agent重建R0、重做Gain或重复已有效测试。
 
 > 在当前 audioalgo 仓库直接开发 JUCE+C++20 音频算法可视化编辑平台。先读取根 AGENTS.md、doc/plan_audio_pipeline_editor_juce.md、doc/testing_audio_pipeline_editor.md 和本规程，检查实际源码、用户改动和工具链，然后从第一项未完成 Gate 持续推进到 G6。第一阶段就交付可连线、调参、运行、看波形及保存的 File→Gain→Output 可视化闭环，随后完成 C++/Python Node 扩展、独立 runner、Speex 降噪/AEC、Python 波束形成、试听/A-B、声谱与打包。每个行为严格执行契约→Red→最小实现→Green→重构→相关回归→独立产物/GUI 验收→证据记录，按测试文档的数值与行为准则判定；不放宽阈值、不跳过必需测试、不伪造 golden 或完成结果。同一根因连续三轮无进展就缩小重现、查上游接口并调整诊断，继续自迭代。维护 doc/development_status.md 和 build/reports/，常规技术选择自主记录并执行，中间无需确认；遵守实际权限，不自动提交/推送/发布/购买。无法取得的设备、真实数据或授权如实标注未验证并继续其他工作；只有全部必需 Gate 通过才能声明首版完成。最后交付可运行应用、演示工程、重跑命令、测试证据和真实限制。

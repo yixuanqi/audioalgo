@@ -1,10 +1,12 @@
 ---
 title: 算法库、节点适配、运行服务与编辑界面分离重构方案
 status: ready-for-implementation
-updated: 2026-10-18
+updated: 2026-10-22
 ---
 
 # 算法与编辑器分离重构方案
+
+2026-10-22执行修订：[交付收口补充约束](plan_delivery_convergence.md)调整当前顺序与验证节奏，并把用户C++节点独立编译/启动加载转为首版必需。内置静态节点与算法库导出继续保留，不能替代新增UPN验收。原R0～R6/110个AR及G/NED要求不删除；下文旧阶段表为需求归属，实际交付顺序按补充约束P0～P4。
 
 ## 1. 定位与完成定义
 
@@ -93,11 +95,11 @@ CLI/backend 为 JUCE AudioProcessorGraph 初始化消息环境仍可保留；它
 - 提供 namespaced CMake target，例如 `AudioAlgo::algorithms`，公开 include 接口和 core 依赖。
 - 将 JUCE FetchContent 放到真正需要 JUCE 的构建分支；纯算法消费者不应因根工程无条件 FetchContent 而下载 GUI 依赖。
 - 以一个独立示例工程链接构建/安装导出的库并处理固定输入，验证算法库可独立消费。
-- 第一版使用静态库和源码构建；本方案不引入动态插件 ABI 或热卸载承诺。
+- 纯算法库和内置节点可继续静态构建；用户节点使用安装的Node SDK在独立工程编译DLL，经版本化C ABI桥接至现有SDK执行契约，宿主无需重新编译/链接。2026-10-22新增要求与验收见[补充约束第5节](plan_delivery_convergence.md#5-c用户节点独立编译与加载新增必需范围)。运行中热替换/热卸载及任意C++编译器ABI兼容继续后置。
 
 ## 4. 新算法适配规则
 
-一个 C++ 节点包提供三项内容：NodeDescriptor、原生节点 adapter、一次成对注册。它们放在 `plugins/<package>/`，算法放在 `libs/audio_algorithms/` 或独立第三方算法 target。
+一个C++节点包提供NodeDescriptor、原生节点adapter及成对注册。内置包可放在`plugins/<package>/`；用户包必须支持仓库外独立工程、发布SDK、manifest和DLL，无需拷回宿主源码树。纯算法可放在`libs/audio_algorithms/`或独立算法target。
 
 ### 4.1 描述
 
@@ -124,7 +126,7 @@ SDK 的原生处理接口统一，但不要求所有纯算法实现同一继承�
 
 读取描述使用 INodeCatalog 一类只读接口；实例工厂仅供执行器使用。Python 扫描先产生同一描述模型，执行能力由 runner backend 满足，不强制 Python 工厂返回原生 C++ block 实例。
 
-`register_builtin_node_descriptors` 从通用 SDK 实现移入 nodes_builtin 包。editor 与 CLI 共享一个插件装配函数或组合模块，防止两边注册集合不一致。具体插件在组合根被静态链接，runtime/backend 通过注入工厂使用。
+`register_builtin_node_descriptors`从通用SDK移入nodes_builtin包。editor与CLI共享插件装配入口；内置包可静态链接，外部用户包由同一发现/加载服务通过C ABI桥接后成对注册，runtime/backend仍通过注入工厂使用。模块生命周期由宿主装配层管理至实例/worker回收完成，View不承担DLL加载。
 
 ### 4.4 新增算法允许修改的范围
 

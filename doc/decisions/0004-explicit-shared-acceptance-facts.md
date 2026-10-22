@@ -1,0 +1,11 @@
+# Explicit shared acceptance facts
+
+The acceptance document permits one executed test to support multiple AR subcases when the manifest states the shared fact and each subcase is evaluated separately. The original verifier unconditionally rejected all repeated test names; R4 consumer and component mappings produced two real infrastructure failures in the M20 cumulative run.
+
+Use shared_test_facts entries with exact test name, complete unique requirement_ids and a nonempty fact explanation. The declared set must exactly equal actual cross-requirement duplicates. Repetition within one requirement, undeclared sharing, stale/incomplete/duplicate declarations and missing rationale still fail closed. Case evaluation remains independent: a passing shared component test cannot satisfy another row's desktop evidence, and failed/skipped/timeout results propagate to every owner. No acceptance threshold or required ID changes.
+
+T20 preserves the real Red, same-target Green and 8/8 affected infrastructure regression. Original M20 execution is not relabeled as current evidence. Corrected candidates get new source/build/JUnit records.
+
+## Evidence scan cost
+
+The collector enumerated every ignored build file before filtering it. The earlier cold-scan estimate combined process/build time; only the approximately eight-second recorded command and 0.02-second pruned scan are supported by direct measurement (see T20/performance-observation-correction.json). Preserve each tool's existing exclusion set, path ordering and hash serialization, but prune excluded directories before descent. A real guarded directory scan first failed for record/architecture/Gate collectors; the same check then passed, and covers six collectors including the editor verifier's deliberately different pytest-cache/digest contract. Exact current-tree rglob comparison and the prior actually frozen 183-file manifest agree. Existing source hashes remain historical; no old record is rewritten. The prematurely named pruning-red.log was an instrumentation precheck that passed because glob caches scandir; pruning-red-record.json is the actual failing observation after instrumenting that path. New cumulative records bind the optimized collector sources.
