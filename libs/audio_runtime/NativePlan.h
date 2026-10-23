@@ -20,6 +20,7 @@ struct NativePlanNode {
     std::size_t input_latency_frames = 0, output_latency_frames = 0, output_tail_frames = 0;
     struct InputEnd { std::string port_id; std::size_t frame = 0; };
     std::vector<InputEnd> input_ends;
+    std::map<std::string, std::size_t, std::less<>> output_tails;
 };
 
 struct NativePlanTask {
@@ -68,6 +69,10 @@ using PlanSelectionOutcome = std::variant<PlanSelection, Diagnostic>;
                                                            const NodeCatalog& catalog);
 
 using NativePlanOutcome = std::variant<NativePlan, Diagnostic>;
+
+// Shared metadata admission for native regions, also used before mixed-task execution.
+[[nodiscard]] std::optional<Diagnostic> validate_native_plan_node(const NodeDescriptor&,
+    const std::string& node_id,AudioFormat,std::size_t source_frames,int maximum_block_frames);
 
 [[nodiscard]] NativePlanOutcome compile_native_plan(const ProjectModel& project,
     const NodeCatalog& catalog, AudioFormat format, std::size_t source_frames,

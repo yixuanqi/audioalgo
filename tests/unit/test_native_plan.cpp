@@ -74,6 +74,27 @@ TEST_CASE("AR-14.a pure native plan freezes task boundaries named routes and def
     }
 }
 
+TEST_CASE("AR-15.e pure plan propagates selected port tails and exact downstream input ends","[R5][AR-15.e][pure][port-tail-plan]") {
+    using namespace audioalgo;
+    for(const std::string port:{"output-b","alternate"})for(const bool direct:{false,true})for(const bool stream:{false,true}) {
+        PlanFixture fixture(false,480,true);auto d=*fixture.catalog.find("custom.kernel");d.type_id="custom.port_tails";
+        d.capabilities.fixed_frame_end_policy=NodeExecutionCapabilities::FixedFrameEndPolicy::zero_pad;
+        d.capabilities.tail_frames=5;d.capabilities.tail_processing=NodeExecutionCapabilities::TailProcessing::zero_padding;
+        d.capabilities.maximum_zero_padding_frames=484;d.capabilities.output_tail_frames={{"output-b",2},{"alternate",5}};
+        d.capabilities.uses_streaming_frame_api=stream;
+        REQUIRE(fixture.catalog.register_descriptor(d));fixture.project.nodes[1].type_id=d.type_id;
+        fixture.project.connections.push_back({"source","signal","process","secondary"});fixture.project.connections[1].from_port=port;
+        if(direct){fixture.project.selected_output_node_id="process";fixture.project.selected_output_port_id=port;}
+        const auto outcome=compile_native_plan(fixture.project,fixture.catalog,{48000,2},1025,127);
+        REQUIRE(std::holds_alternative<NativePlan>(outcome));const auto& plan=std::get<NativePlan>(outcome);
+        CHECK(plan.latency_frames==479);CHECK(plan.retained_tail_frames==(port=="output-b"?2:5));
+        const auto& process=plan.nodes[1];CHECK(process.node_id=="process");CHECK(process.output_tail_frames==5);
+        CHECK(process.output_tails.at("output-b")==2);CHECK(process.output_tails.at("alternate")==5);
+        REQUIRE(process.input_ends.size()==2);CHECK(process.input_ends[0].frame==1025);CHECK(process.input_ends[1].frame==1025);
+        if(!direct){REQUIRE(plan.nodes[2].input_ends.size()==1);CHECK(plan.nodes[2].input_ends[0].frame==(port=="output-b"?1506:1509));}
+    }
+}
+
 TEST_CASE("AR-14.a pure plan refuses unsupported payloads and invalid model bindings", "[R5][AR-14.a][pure]") {
     {
         PlanFixture fixture(true);
