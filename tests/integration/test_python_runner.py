@@ -131,6 +131,26 @@ class PythonRunnerTests(unittest.TestCase):
             message=self.request(node,'stateful');self.check_result(message,self.client.execute(message),reference)
             audit=json.loads((self.root/(node+'-audit.json')).read_text())
             self.assertEqual(audit,{'prepares':1,'calls':3,'position':513,'reason':'run_complete'})
+    def test_deep_run_paths_preserve_payload_code_and_failure_recovery(self):
+        self.root=self.root/'deep'
+        while len(str(self.root))<210:self.root=self.root/'nested_1234567890'
+        self.root.mkdir(parents=True)
+        np.save(self.root/'input.npy',self.samples,allow_pickle=False)
+        self.start();message=self.request();response=self.client.execute(message)
+        self.assertEqual(response['message_type'],'result',response)
+        def physical(path):
+            name=str(path.resolve())
+            return Path('\\\\?\\'+name) if os.name=='nt' and not name.startswith('\\\\?\\') else path
+        result=response['result'];output=self.root/result['outputs']['audio_out']['path'];data=physical(output).read_bytes()
+        self.assertGreater(len(str(output)),260)
+        actual=np.load(physical(output),allow_pickle=False);np.testing.assert_allclose(actual,2*self.samples.astype(np.float64),atol=1e-6,rtol=1e-5)
+        self.assertEqual(hashlib.sha256(data).hexdigest(),result['outputs']['audio_out']['sha256'])
+        for name,digest in result['code_files'].items():
+            self.assertEqual(hashlib.sha256(physical(self.root/result['code_snapshot']/name).read_bytes()).hexdigest(),digest)
+        failed=self.client.execute(self.request(mode='exception'));self.assertEqual(failed['code'],'python_exception')
+        self.assertFalse(list(self.root.glob('python-work-*')))
+        recovered=self.client.execute(self.request());self.assertEqual(recovered['message_type'],'result',recovered)
+        self.assertEqual(physical(output).read_bytes(),data)
     def test_wrong_dtype_shape_nan_exception_and_payload_failures_recover(self):
         self.start()
         for mode,code in [('dtype','python_output_dtype_invalid'),('shape','python_output_shape_invalid'),('nan','python_output_non_finite'),('exception','python_exception')]:

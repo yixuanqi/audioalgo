@@ -68,6 +68,8 @@ class MutationIsolationTests(unittest.TestCase):
             self.assertEqual(digest(copied_gain), before)
             self.assertTrue((Path(copied) / "CMakeLists.txt").is_file())
             self.assertTrue((Path(copied) / "plugins" / "builtin" / "registration.cpp").is_file())
+            self.assertEqual(digest(Path(copied) / "sdk/include/audioalgo/node_abi_v1.h"),
+                             digest(ROOT / "sdk/include/audioalgo/node_abi_v1.h"))
             self.assertFalse((Path(copied) / "build").exists())
         self.assertEqual(digest(self.module.ACTIVE_GAIN), before)
 

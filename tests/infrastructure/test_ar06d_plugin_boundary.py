@@ -56,10 +56,13 @@ class PluginBoundaryTests(unittest.TestCase):
     def test_cli_and_editor_share_plugin_composition(self) -> None:
         plugin = self.read("plugins/builtin/registration.h") + self.read("plugins/builtin/registration.cpp")
         self.assertIn("register_builtin_nodes", plugin)
+        host = self.read("plugins/host/registration.h") + self.read("plugins/host/registration.cpp")
+        self.assertIn("register_host_nodes", host)
+        self.assertIn("register_builtin_nodes", host)
         for app in ("apps/cli/main.cpp", "apps/editor/Main.cpp"):
             source = self.read(app)
-            self.assertIn("plugins/builtin/registration.h", source)
-            self.assertIn("register_builtin_nodes", source)
+            self.assertIn("plugins/host/registration.h", source)
+            self.assertIn("register_host_nodes", source)
             self.assertNotIn("register_builtin_node_descriptors", source)
             self.assertNotIn("register_builtin_juce_processors", source)
 

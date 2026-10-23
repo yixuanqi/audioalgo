@@ -1,0 +1,45 @@
+{
+  "base": {
+    "schema_version": 1, "runtime": "python", "plugin_id": "contract.python", "plugin_version": "1.0.0",
+    "nodes": [{
+      "type_id": "contract.node", "version": "1.0.0", "display_name": "Python 参数",
+      "entrypoint": "local.node:Node", "execution": {"kind": "block", "stateful": true, "realtime_verified": false},
+      "inputs": [{"id": "input", "type": "audio.pcm@1", "required": true}],
+      "outputs": [{"id": "output", "type": "audio.pcm@1"}],
+      "format": {"sample_rates_hz": [16000, 48000], "channels": [1, 2, 4]},
+      "parameters": [
+        {"id": "enabled", "type": "bool", "default": true},
+        {"id": "repeat", "type": "int", "default": 2, "minimum": 1, "maximum": 4, "step": 1},
+        {"id": "scale", "type": "float", "default": 0.5, "minimum": 0, "maximum": 1},
+        {"id": "mode", "type": "enum", "default": "positive", "choices": [{"value": "positive", "label": "正"}, {"value": "negative", "label": "负"}]},
+        {"id": "tag", "type": "string", "default": "中文 tag"},
+        {"id": "resource", "type": "path", "default": "coeff.txt", "input_resource": true}
+      ]
+    }]
+  },
+  "cases": [
+    {"name": "all_parameter_kinds", "valid": true, "edits": []},
+    {"name": "clip", "valid": true, "edits": [{"path": ["nodes",0,"execution","kind"], "value": "clip"}]},
+    {"name": "schema", "valid": false, "edits": [{"path": ["schema_version"], "value": 2}]},
+    {"name": "plugin_identifier", "valid": false, "edits": [{"path": ["plugin_id"], "value": "bad plugin"}]},
+    {"name": "type_identifier", "valid": false, "edits": [{"path": ["nodes",0,"type_id"], "value": "bad node"}]},
+    {"name": "port_identifier", "valid": false, "edits": [{"path": ["nodes",0,"inputs",0,"id"], "value": "bad port"}]},
+    {"name": "entrypoint", "valid": false, "edits": [{"path": ["nodes",0,"entrypoint"], "value": "../outside:Node"}]},
+    {"name": "realtime", "valid": false, "edits": [{"path": ["nodes",0,"execution","realtime_verified"], "value": true}]},
+    {"name": "stateful_type", "valid": false, "edits": [{"path": ["nodes",0,"execution","stateful"], "value": 1}]},
+    {"name": "empty_rates", "valid": false, "edits": [{"path": ["nodes",0,"format","sample_rates_hz"], "value": []}]},
+    {"name": "boolean_rate", "valid": false, "edits": [{"path": ["nodes",0,"format","sample_rates_hz"], "value": [true]}]},
+    {"name": "duplicate_rate", "valid": false, "edits": [{"path": ["nodes",0,"format","sample_rates_hz"], "value": [48000,48000]}]},
+    {"name": "missing_default", "valid": false, "edits": [{"path": ["nodes",0,"parameters",0,"default"], "remove": true}]},
+    {"name": "bad_default", "valid": false, "edits": [{"path": ["nodes",0,"parameters",1,"default"], "value": 1.5}]},
+    {"name": "bad_range", "valid": false, "edits": [{"path": ["nodes",0,"parameters",2,"default"], "value": 5}]},
+    {"name": "bad_enum", "valid": false, "edits": [{"path": ["nodes",0,"parameters",3,"default"], "value": "missing"}]},
+    {"name": "duplicate_parameter", "valid": false, "edits": [{"path": ["nodes",0,"parameters",1,"id"], "value": "enabled"}]},
+    {"name": "duplicate_port", "valid": false, "edits": [{"path": ["nodes",0,"outputs",0,"id"], "value": "input"}]},
+    {"name": "empty_version", "valid": false, "edits": [{"path": ["nodes",0,"version"], "value": ""}]},
+    {"name": "dynamic_update", "valid": false, "edits": [{"path": ["nodes",0,"parameters",0,"update_policy"], "value": "Realtime"}]},
+    {"name": "integer_fractional_bound", "valid": false, "edits": [{"path": ["nodes",0,"parameters",1,"minimum"], "value": 0.5}]},
+    {"name": "string_numeric_bound", "valid": false, "edits": [{"path": ["nodes",0,"parameters",4,"minimum"], "value": 0}]},
+    {"name": "wrong_resource_kind", "valid": false, "edits": [{"path": ["nodes",0,"parameters",4,"input_resource"], "value": true}]}
+  ]
+}

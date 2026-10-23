@@ -17,6 +17,7 @@
 #include <memory>
 #include <random>
 #include <limits>
+#include <future>
 
 namespace {
 // Independent original-library oracle. No AudioAlgo algorithm/adapter helpers.
@@ -185,3 +186,35 @@ TEST_CASE("ALG-01 real Speex denoise matches original library through graph run 
         }
     }
 }
+
+#if AUDIOALGO_TEST_PYTHON_ENABLED
+TEST_CASE("P3 timeline real Speex Python native Output preserves known delay and original-library oracle","[P3-timeline][mixed-speex]") {
+    using namespace audioalgo;const auto source=std::filesystem::path(AUDIOALGO_SOURCE_DIR),plugin=source/"examples/python_stateful_demo/plugin";
+    NodeRegistry registry;REQUIRE(register_host_nodes(registry,{plugin}).diagnostics.empty());
+    auto project=std::get<ProjectModel>(load_project_file(source/"examples/speex_python_demo/speex_python.aaproj"));
+    const auto root=source/"build/runs"/("mixed-speex-"+juce::Uuid().toString().toStdString());REQUIRE(std::filesystem::create_directories(root));
+    REQUIRE(std::filesystem::copy_file(source/"examples/speex_denoise_demo/input.wav",root/"input.wav"));project.nodes[0].parameters["path"]=std::string("input.wav");
+    REQUIRE(std::holds_alternative<std::monostate>(save_project_file(root/"mixed.aaproj",project)));
+    const auto input=std::get<AudioBuffer>(read_wav_file(root/"input.wav")),oracle=original_speex(input,-25);
+    REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root/"original.wav",oracle,WavEncoding::float32)));
+    RunService service(registry);
+    for(const int host:{1,127,256,480,512,1024}) {
+        juce::ScopedJuceInitialiser_GUI messages;const auto run=root/("component-"+std::to_string(host));
+        auto future=std::async(std::launch::async,[&]{auto result=service.run({project,root/"mixed.aaproj",run,host});juce::MessageManager::callAsync([]{juce::MessageManager::getInstance()->stopDispatchLoop();});return result;});
+        juce::MessageManager::getInstance()->runDispatchLoop();const auto result=future.get();
+        const auto* e=std::get_if<Diagnostic>(&result);INFO(host);INFO((e?e->code:"success"));INFO((e?e->message:""));REQUIRE(std::holds_alternative<RunSuccess>(result));
+        const auto component=std::get<AudioBuffer>(read_wav_file(std::get<RunSuccess>(result).output_file));
+        REQUIRE(component.frame_count()==input.frame_count());REQUIRE(component.channel_count()==input.channel_count());
+        for(std::size_t c=0;c<input.channel_count();++c)for(std::size_t i=0;i<input.frame_count();++i) {
+            const float expected=static_cast<float>(oracle.channel(c)[i]*.75f)+static_cast<float>(static_cast<float>(i)*.00001f);
+            REQUIRE(std::abs(component.channel(c)[i]-expected)<=2e-6+1e-5*std::abs(expected));
+        }
+        const auto report=juce::JSON::parse(juce::File((run/"run.json").string()));const auto a=report["tasks"][1]["alignment"];
+        CHECK(static_cast<int>(a["offset_frames"])==959);CHECK(static_cast<int>(a["raw_frames"])==static_cast<int>(input.frame_count()+959));CHECK(static_cast<int>(a["aligned_frames"])==static_cast<int>(input.frame_count()));
+        juce::ChildProcess cli;REQUIRE(cli.start(juce::StringArray{AUDIOALGO_CLI_EXECUTABLE,"--plugin-dir",plugin.string(),"run",(root/"mixed.aaproj").string(),(root/("cli-"+std::to_string(host))).string(),std::to_string(host)}));
+        const auto log=cli.readAllProcessOutput();INFO(log.toStdString());REQUIRE(cli.waitForProcessToFinish(15000));REQUIRE(cli.getExitCode()==0);
+        const auto actual=std::get<AudioBuffer>(read_wav_file(root/("cli-"+std::to_string(host))/"output.wav"));
+        REQUIRE(actual.frame_count()==input.frame_count());for(std::size_t c=0;c<input.channel_count();++c)CHECK(std::equal(actual.channel(c).begin(),actual.channel(c).end(),component.channel(c).begin()));
+    }
+}
+#endif

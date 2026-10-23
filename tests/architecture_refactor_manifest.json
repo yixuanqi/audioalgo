@@ -1491,7 +1491,9 @@
         "AR-14.a unsupported native plans are rejected before constructing processors",
         "AR-14.a pure native plan freezes task boundaries named routes and defaults",
         "AR-14.a pure plan refuses unsupported payloads and invalid model bindings",
-        "AR-14.a pure plan preserves explicit fixed frame and tail admission"
+        "AR-14.a pure plan preserves explicit fixed frame and tail admission",
+        "P3-02 mixed plan partitions capabilities and freezes named routes without factories",
+        "P3-02 cross boundary bypass preserves DAG and shared native execution"
       ],
       "test_methods": [],
       "evidence_requirements": [
@@ -1501,7 +1503,7 @@
         "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
       ],
       "desktop_required": false,
-      "implementation_notes": "Pure native PCM plan compiler and production task/route projection. Source/sink boundaries retain current G1 single-WAV/sink assumptions; registered typed IO/multisource/multiport execution are AR14.b/c/d, not claimed by this row."
+      "implementation_notes": "Native PCM admission is shared with PreparedPlan. P3-02 value-only task compiler partitions source/native/offline/sink by capabilities, preserves a DAG across bypass and merge, freezes defaults and named routes. Debug and Runtime OFF targeted checks and native consumers passed; typed registered IO is still AR-14.d."
     },
     {
       "id": "AR-14.b",
@@ -1538,7 +1540,8 @@
         "AR-14.c pure plan prunes to the selected output closure",
         "AR-14.c selected output port renders any port and prunes unselected branches",
         "AR-14.c run service materializes only closure sources for a port selection",
-        "AR-14.c SetSelectedOutputPort applies one undoable revision and validates the port"
+        "AR-14.c SetSelectedOutputPort applies one undoable revision and validates the port",
+        "P3-02 selection prunes offline tasks but retains global structural checks and format admission"
       ],
       "test_methods": [],
       "evidence_requirements": [
@@ -1570,9 +1573,14 @@
       "id": "AR-14.e",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
+      "layer": "native/python_integration",
+      "runner": "ctest",
+      "test_names": [
+        "P3 timeline fixed480 Python fixed512 aligns each owned boundary exactly once",
+        "P3 timeline real Speex Python native Output preserves known delay and original-library oracle",
+        "P3 timeline finite FIR tail crosses Python and native output with exact extended valid interval",
+        "P3 timeline unknown latency tail flush and independent tail outputs reject before factories"
+      ],
       "test_methods": [],
       "evidence_requirements": [
         "GUI/CLI同计划的分支、多输出、端口与时序满足 E2E-02；计划、资源、实际参数和格式诊断可关联。"
@@ -1580,7 +1588,10 @@
       "legacy_requirements": [
         "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
       ],
-      "desktop_required": false
+      "desktop_required": false,
+      "remaining_contracts": [
+        "Mixed fixed/known-delay/single-output finite-tail component and CLI subset verified. Complete E2E-02 GUI/CLI branching, independent per-output timeline composition and real desktop evidence remain incomplete."
+      ]
     },
     {
       "id": "AR-15.a",
@@ -1606,7 +1617,10 @@
       "runner": "ctest",
       "test_names": [
         "AR-15.b fixed 480 and 512 frames preserve samples in the real JUCE graph",
-        "AR-15.b fixed FIFO is bounded under seeded random host partitions"
+        "AR-15.b fixed FIFO is bounded under seeded random host partitions",
+        "P3 timeline fixed480 Python fixed512 aligns each owned boundary exactly once",
+        "P3 timeline seeded mixed host partitions reach native callbacks and replay finite tails exactly",
+        "P3 timeline invalid mixed partitions reject before native or offline factories"
       ],
       "test_methods": [
         "FixedIdentity; analytic channel-distinct sine oracle; deterministic 20261022 host partitions; bounded FIFO capacity/peak and reprepare impulse"
@@ -1631,11 +1645,13 @@
         "AR-15.c partial stream callbacks allocate no memory after prepare",
         "AR-15.c EOS follows each compensated input and independently finishes every output",
         "AR-15.c empty streams acknowledge EOS without inventing a padded algorithm frame",
-        "AR-15.c premature invalid and missing output EOS cannot publish success"
+        "AR-15.c premature invalid and missing output EOS cannot publish success",
+        "AR-15.c independent output EOS drains the longer stream when selecting the shorter port",
+        "P3 timeline missing long output EOS cannot publish short success and clean retry recovers"
       ],
       "test_methods": [],
       "remaining_contracts": [
-        "General cross-frame asynchronous streams and unequal per-output tail/valid-interval declarations are outside the current bounded PCM frame profile."
+        "Internal named padded fixed-frame streaming supports distinct per-output tails/EOS and bounded extra drain for short selection, with independent native/mixed/recovery WAV/NPY proof. General asynchronous cross-frame buffering, complete CORE-02 borrowed-view/channel-identity compositions, broader interval/budget combinations, C ABI independent tails and real desktop requirements remain incomplete."
       ],
       "evidence_requirements": [
         "NeedMoreInput携带每端口consumed/produced；部分消费、部分输出、EOS和无进展预算符合 GRAPH-07，不按一次调用丢弃全部输入。"
@@ -1652,7 +1668,10 @@
       "layer": "native_integration",
       "runner": "ctest",
       "test_names": [
-        "AR-15.d known algorithm delay aligns a real JUCE branch and unknown delay is refused"
+        "AR-15.d known algorithm delay aligns a real JUCE branch and unknown delay is refused",
+        "AR-15.d worker waits for message-thread graph preparation before reading latency",
+        "P3 timeline fixed480 Python fixed512 aligns each owned boundary exactly once",
+        "P3 timeline real Speex Python native Output preserves known delay and original-library oracle"
       ],
       "test_methods": [
         "KnownDelay37 impulse branch merge; raw550/aligned513 WAV artifacts with offset37; unknown delay zero factories"
@@ -1675,11 +1694,20 @@
         "AR-15.e finite FIR tails survive fixed frames chain and compensated branch with bounded padding",
         "AR-15.e unknown tails flush-only algorithms and insufficient padding budgets fail before factory",
         "AR-15.e completed shorter branch stays silent while another branch drains",
-        "AR-15.e finite tail never invents valid samples from an empty or truncated valid interval"
+        "AR-15.e finite tail never invents valid samples from an empty or truncated valid interval",
+        "P3 timeline finite FIR tail crosses Python and native output with exact extended valid interval",
+        "P3 timeline unknown latency tail flush and independent tail outputs reject before factories",
+        "P3 timeline finite tail preserves leading trailing and empty intervals on both Python outputs",
+        "P3 timeline independent native output tails reach Python with exact selected lengths",
+        "P3 timeline two native tail ports materialize once before incompatible join rejects",
+        "AR-15.e pure plan propagates selected port tails and exact downstream input ends",
+        "P3 timeline invalid per-output tail contracts reject before factories",
+        "AR-15.c independent output EOS drains the longer stream when selecting the shorter port",
+        "P3 timeline independent stream EOS survives Python while short output stays short"
       ],
       "test_methods": [],
       "remaining_contracts": [
-        "Unequal per-output tail/valid-interval declarations and nonzero-tail variable-block profiles remain unsupported; bounded fixed-frame zero-padding tails and stream EOS are the verified subset."
+        "Internal named padded fixed-frame streaming supports distinct per-output tails/EOS and bounded extra drain for short selection, with independent native/mixed/recovery WAV/NPY proof. General asynchronous cross-frame buffering, complete CORE-02 borrowed-view/channel-identity compositions, broader interval/budget combinations, C ABI independent tails and real desktop requirements remain incomplete."
       ],
       "evidence_requirements": [
         "尾帧补齐、有限drain及不支持flush按算法声明验证，有效区间与报告一致，无假flush或无限循环。"
@@ -1718,7 +1746,8 @@
       "layer": "native_integration",
       "runner": "ctest",
       "test_names": [
-        "AR-16.a native resource versions remain fixed when originals change before prepare"
+        "AR-16.a native resource versions remain fixed when originals change before prepare",
+        "P3-06 resource freezes before native prepare and code update restarts without rebuilding host"
       ],
       "test_methods": [],
       "evidence_requirements": [
@@ -1734,9 +1763,11 @@
       "id": "AR-16.b",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
+      "layer": "component/python_integration",
+      "runner": "ctest",
+      "test_names": [
+        "P3-06 resource freezes before native prepare and code update restarts without rebuilding host"
+      ],
       "test_methods": [],
       "evidence_requirements": [
         "冻结实际默认参数、图/参数revision、资源清单、计划和依赖版本；报告能够独立重建本次请求，不读取可变UI状态。"
@@ -1769,8 +1800,10 @@
       "layer": "native_integration",
       "runner": "ctest",
       "test_names": [
-          "AR-17.b native cancellation stops at a block boundary without success publication then recovers",
-          "AR-16.d exceptions and actual filesystem publication faults leave no success and recover"
+        "AR-17.b native cancellation stops at a block boundary without success publication then recovers",
+        "AR-16.d exceptions and actual filesystem publication faults leave no success and recover",
+        "P3-06 resource freezes before native prepare and code update restarts without rebuilding host",
+        "P3 timeline missing long output EOS cannot publish short success and clean retry recovers"
       ],
       "test_methods": [
         "Real native block handshake; first/final/pre-cancel; no complete/fresh-directory cleanup; <=5s controlled cancellation; valid builtin Gain and unchanged existing success"
@@ -1781,15 +1814,17 @@
       "legacy_requirements": [
         "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
       ],
-        "desktop_required": false
+      "desktop_required": false
     },
     {
       "id": "AR-16.e",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
+      "layer": "component/python_integration",
+      "runner": "ctest",
+      "test_names": [
+        "P3-06 resource freezes before native prepare and code update restarts without rebuilding host"
+      ],
       "test_methods": [],
       "evidence_requirements": [
         "成功/历史/过期/失败分开，历史缓存版本不符不得命中；脚本快照与Python环境扩展后再通过 RUN-02，原生已过不代替Python证据。"
@@ -1808,7 +1843,8 @@
       "test_names": [
         "AR-17.a production run queue retains one active and only the latest pending snapshot",
         "AR-17.a mailbox releases replaced payloads and ignores stale worker cleanup",
-        "AR-17.a mailbox cancels an old session while accepting the new latest snapshot"
+        "AR-17.a mailbox cancels an old session while accepting the new latest snapshot",
+        "P3-05 production mixed queue retains only active and latest of fifty submissions"
       ],
       "test_methods": [
         "Actual production worker queue: 51 submissions -> 2 prepared snapshots, latest +6dB oracle and obsolete directories absent; independent weak_ptr payload bound and stale ticket/new session checks"
@@ -1868,9 +1904,11 @@
       "id": "AR-17.d",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
+      "layer": "component/python_integration",
+      "runner": "ctest",
+      "test_names": [
+        "P3-05 fifty mixed edit run cancel reopen and close cycles keep workers bounded and UI heartbeat responsive"
+      ],
       "test_methods": [],
       "evidence_requirements": [
         "连续50次编辑/运行/取消/重开验证无死锁、结果串用与保留对象随次数线性增长，符合 RUN-06。"
@@ -1878,15 +1916,21 @@
       "legacy_requirements": [
         "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
       ],
-      "desktop_required": false
+      "desktop_required": false,
+      "remaining_contracts": [
+        "P3-05 production queue 50 cycles, crash/retry, bounded worker/registry/dispatch ownership and independent 31 WAV checks verified. Full real desktop RUN-06 acceptance remains not_verified."
+      ]
     },
     {
       "id": "AR-17.e",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
+      "layer": "component/python_integration",
+      "runner": "ctest",
+      "test_names": [
+        "P3-05 fifty mixed edit run cancel reopen and close cycles keep workers bounded and UI heartbeat responsive",
+        "PERF-01 editor heartbeat stays responsive during a controlled slow Python task"
+      ],
       "test_methods": [],
       "evidence_requirements": [
         "取消/运行期间消息线程按PERF-01心跳测量，p95≤100ms、max≤500ms；错误/取消后可继续编辑运行，UI不丢工程。"
@@ -1894,16 +1938,32 @@
       "legacy_requirements": [
         "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
       ],
-      "desktop_required": false
+      "desktop_required": false,
+      "remaining_contracts": [
+        "P3-05 mixed sequence heartbeat and actual ten-second PERF-01 worker/20ms message-thread heartbeat verified in recorded automated runs (484 samples, p95=22.0344ms max=22.3524ms for PERF-01). Formal full-workbench real desktop/performance integration remains not_verified."
+      ]
     },
     {
       "id": "AR-18.a",
       "stage": "R6",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
+      "layer": "python_integration",
+      "runner": "ctest",
+      "test_names": [
+        "PY-01 manifest discovers metadata without importing user code",
+        "PY-01 malformed and duplicate packages commit atomically",
+        "PY-01 schema entrypoint and parameter metadata reject invalid values",
+        "PY-01 C++ host composition and CLI discover Python metadata without importing user code",
+        "PY-01 C++ and Python share manifest acceptance fixtures",
+        "PY-01 host package registration is atomic and duplicates preserve existing factories",
+        "PY-01 shared host and runner manifest fixtures",
+        "P3-06 deployed Python extension six generated parameters and both outputs match independent formula",
+        "P3-06 resource freezes before native prepare and code update restarts without rebuilding host"
+      ],
       "test_methods": [],
+      "remaining_contracts": [
+        "P3-01 discovery and P3-06 six parameters/resources/multioutput/error/reload verified by component and fixed-host CLI independent artifacts. Full EXT-02 desktop and packaged isolated environment remain not_verified."
+      ],
       "evidence_requirements": [
         "manifest扫描不导入用户代码，目录新插件/元数据产生同一目录模型；PY-01及EXT-02全量子用例通过。"
       ],
@@ -1916,10 +1976,22 @@
       "id": "AR-18.b",
       "stage": "R6",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
+      "layer": "python_integration",
+      "runner": "ctest",
+      "test_names": [
+        "PY-02 external process Gain and Stateful preserve numeric results and lifecycle",
+        "PY-02 invalid payloads and outputs diagnose and recover",
+        "PY-07 clip runs once and byte limits precede allocation",
+        "P3-03 RunService executes native Python native stateful chain with exact owned boundaries",
+        "P3-03 mixed instances clip multioutput and shared native branches preserve single execution",
+        "P3-03 task byte limit rejects before Python payload allocation and import",
+        "P3-06 deployed Python extension six generated parameters and both outputs match independent formula",
+        "PY-07 deep run paths preserve payload code and failure recovery"
+      ],
       "test_methods": [],
+      "remaining_contracts": [
+        "RunService continuation, two instances, stateful/clip/multioutput and named native boundaries verified by P3-03. Complete malformed input/clip limits and mixed timeline/budget combinations remain unverified."
+      ],
       "evidence_requirements": [
         "Python Gain/Stateful/clip类型、shape、dtype、NaN/Inf、两实例及跨块状态全部满足 PY-02/03/07，输出可继续接原生区域。"
       ],
@@ -1932,10 +2004,21 @@
       "id": "AR-18.c",
       "stage": "R6",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
+      "layer": "python_integration",
+      "runner": "ctest",
+      "test_names": [
+        "PY-05 namespaced modules restart after code changes and preserve history",
+        "PY-05 only frozen hashed source may execute",
+        "P3-04 RunService freezes all Python instances before native execution and next request restarts",
+        "P3-04 relocated replay consumes fixed plugin code and resources after originals disappear",
+        "P3-04 changed fixed source is rejected without replacing the previous success",
+        "P3-06 resource freezes before native prepare and code update restarts without rebuilding host",
+        "PY-07 deep run paths preserve payload code and failure recovery"
+      ],
       "test_methods": [],
+      "remaining_contracts": [
+        "Whole-run plugin/runner source capture, interpreter selection/hash, two-instance consistency, next-request new PID/hash and relocated CLI replay verified by P3-04. Local native-extension/environment compatibility and final isolated packaged dependency consumption remain incomplete."
+      ],
       "evidence_requirements": [
         "代码/本地模块冻结并按hash区分，同名插件不冲突；修改后重启runner，版本/环境/实际文件符合 PY-05、RUN-02。"
       ],
@@ -1948,10 +2031,26 @@
       "id": "AR-18.d",
       "stage": "R6",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
+      "layer": "python_integration",
+      "runner": "ctest",
+      "test_names": [
+        "PY-06 cooperative cancellation and bounded log drainage recover",
+        "PY-08 protocol length version and unknown messages diagnose then recover",
+        "PY-06 C++ supervisor cancels cooperative work and reclaims unresponsive descendants within five seconds",
+        "PY-08 C++ collector bounds actual pipe floods and recovers after crash and dtype rejection",
+        "PY-08 C++ control EOF from a live runner is diagnosed without waiting for execution timeout",
+        "PY-04 C++ caller retains startup traceback even without requesting log statistics",
+        "P3-05 mixed failures retain traceback clean temporary output preserve success and recover",
+        "P3-05 RunService cancellation reclaims real Python process tree within five seconds and recovers",
+        "P3-05 actual framed transport handles fragmented and coalesced messages rejects invalid peers and recovers",
+        "P3-05 outgoing one MiB control limit refuses execution before user import then recovers",
+        "P3-06 resource freezes before native prepare and code update restarts without rebuilding host",
+        "PY-07 deep run paths preserve payload code and failure recovery"
+      ],
       "test_methods": [],
+      "remaining_contracts": [
+        "P3-05 recovery, real transport framing/authentication/limits, CLI localization and production queue crash/retry verified, including independent new queue sequence. Complete malformed input/protocol combinations and isolated packaged environment remain unverified."
+      ],
       "evidence_requirements": [
         "真实独立进程协议、traceback、日志洪泛、崩溃、取消和进程树回收通过 PY-04/06/08、RUN-01/04/05；协作最多2秒、总回收最多5秒，之后有效任务成功。"
       ],
@@ -1964,9 +2063,27 @@
       "id": "AR-18.e",
       "stage": "R6",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
+      "layer": "pure/python_integration",
+      "runner": "ctest",
+      "test_names": [
+        "P3-03 RunService executes native Python native stateful chain with exact owned boundaries",
+        "P3-03 mixed instances clip multioutput and shared native branches preserve single execution",
+        "P3-03 generated Python parameter control changes controller worker output and report",
+        "P3-03 task byte limit rejects before Python payload allocation and import",
+        "P3-06 deployed Python extension six generated parameters and both outputs match independent formula",
+        "P3-06 resource freezes before native prepare and code update restarts without rebuilding host",
+        "P3 timeline fixed480 Python fixed512 aligns each owned boundary exactly once",
+        "P3 timeline real Speex Python native Output preserves known delay and original-library oracle",
+        "P3 timeline finite FIR tail crosses Python and native output with exact extended valid interval",
+        "P3 timeline unknown latency tail flush and independent tail outputs reject before factories",
+        "P3 timeline finite tail preserves leading trailing and empty intervals on both Python outputs",
+        "P3 timeline independent native output tails reach Python with exact selected lengths",
+        "P3 timeline two native tail ports materialize once before incompatible join rejects",
+        "P3 timeline seeded mixed host partitions reach native callbacks and replay finite tails exactly",
+        "P3 timeline invalid mixed partitions reject before native or offline factories",
+        "P3 timeline independent stream EOS survives Python while short output stays short",
+        "P3 timeline missing long output EOS cannot publish short success and clean retry recovers"
+      ],
       "test_methods": [],
       "evidence_requirements": [
         "C++→PythonStateful→C++在GUI/CLI贯通 E2E-03；UI/设备回调不运行Python，消息/载荷大小预算真实检查，不修改通用View/算法分支接入。"
@@ -1974,7 +2091,10 @@
       "legacy_requirements": [
         "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
       ],
-      "desktop_required": false
+      "desktop_required": false,
+      "remaining_contracts": [
+        "Internal named padded fixed-frame streaming supports distinct per-output tails/EOS and bounded extra drain for short selection, with independent native/mixed/recovery WAV/NPY proof. General asynchronous cross-frame buffering, complete CORE-02 borrowed-view/channel-identity compositions, broader interval/budget combinations, C ABI independent tails and real desktop requirements remain incomplete."
+      ]
     },
     {
       "id": "AR-19.a",
@@ -1985,7 +2105,8 @@
       "test_names": [
         "ALG-01 real Speex denoise matches original library through graph run service and CLI",
         "ALG-04 Speex core instances reset and reject invalid blocks without corrupting output",
-        "ALG-01 generated Speex parameter control drives the original algorithm"
+        "ALG-01 generated Speex parameter control drives the original algorithm",
+        "P3 timeline real Speex Python native Output preserves known delay and original-library oracle"
       ],
       "test_methods": [
         "Original SpeexDSP 1.2.1 direct calls, PCM16 conversion and overlap alignment; 16/48kHz x 1/2/4 channels x silence/impulse/noise x host1/127/512; actual generated control to controller to core/CLI; two independent core instances, repeat/reset and bad parameters/format/NaN/short blocks"
@@ -2179,6 +2300,181 @@
         "AR-17.b"
       ],
       "fact": "One real cancellation/cleanup/Gain-recovery observation supports both rows; AR-16.d retains explicit remaining exception/disk-failure contracts and cannot pass from this subset."
+    },
+    {
+      "test_name": "P3 timeline finite FIR tail crosses Python and native output with exact extended valid interval",
+      "fact": "Shared actual finite-tail/negative-admission fact; each requirement retains its complete remaining contracts and evidence decisions.",
+      "requirement_ids": [
+        "AR-14.e",
+        "AR-15.e",
+        "AR-18.e"
+      ]
+    },
+    {
+      "test_name": "P3 timeline fixed480 Python fixed512 aligns each owned boundary exactly once",
+      "fact": "Actual fixed-frame materialization fact; each requirement retains independent remaining contracts and evidence decisions.",
+      "requirement_ids": [
+        "AR-14.e",
+        "AR-15.b",
+        "AR-15.d",
+        "AR-18.e"
+      ]
+    },
+    {
+      "test_name": "P3 timeline real Speex Python native Output preserves known delay and original-library oracle",
+      "fact": "Actual mixed timeline and original-library component/CLI fact, with independent artifact verification; remaining contracts stay per requirement.",
+      "requirement_ids": [
+        "AR-14.e",
+        "AR-15.d",
+        "AR-18.e",
+        "AR-19.a"
+      ]
+    },
+    {
+      "test_name": "P3 timeline unknown latency tail flush and independent tail outputs reject before factories",
+      "fact": "Shared actual finite-tail/negative-admission fact; each requirement retains its complete remaining contracts and evidence decisions.",
+      "requirement_ids": [
+        "AR-14.e",
+        "AR-15.e",
+        "AR-18.e"
+      ]
+    },
+    {
+      "test_name": "P3-03 RunService executes native Python native stateful chain with exact owned boundaries",
+      "requirement_ids": [
+        "AR-18.b",
+        "AR-18.e"
+      ],
+      "fact": "One real RunService mixed-chain observation verifies Python owned PCM/lifecycle/budget and native continuation; complete mixed integration contracts remain separately required."
+    },
+    {
+      "test_name": "P3-03 mixed instances clip multioutput and shared native branches preserve single execution",
+      "requirement_ids": [
+        "AR-18.b",
+        "AR-18.e"
+      ],
+      "fact": "One real RunService mixed-chain observation verifies Python owned PCM/lifecycle/budget and native continuation; complete mixed integration contracts remain separately required."
+    },
+    {
+      "test_name": "P3-03 task byte limit rejects before Python payload allocation and import",
+      "requirement_ids": [
+        "AR-18.b",
+        "AR-18.e"
+      ],
+      "fact": "One real RunService mixed-chain observation verifies Python owned PCM/lifecycle/budget and native continuation; complete mixed integration contracts remain separately required."
+    },
+    {
+      "test_name": "P3-05 fifty mixed edit run cancel reopen and close cycles keep workers bounded and UI heartbeat responsive",
+      "requirement_ids": [
+        "AR-17.d",
+        "AR-17.e"
+      ],
+      "fact": "Shared P3 component/worker artifact fact; each requirement retains its own remaining contracts and formal evidence decision."
+    },
+    {
+      "test_name": "P3-06 deployed Python extension six generated parameters and both outputs match independent formula",
+      "requirement_ids": [
+        "AR-18.a",
+        "AR-18.b",
+        "AR-18.e"
+      ],
+      "fact": "Shared P3 component/worker artifact fact; each requirement retains its own remaining contracts and formal evidence decision."
+    },
+    {
+      "test_name": "P3-06 resource freezes before native prepare and code update restarts without rebuilding host",
+      "requirement_ids": [
+        "AR-16.a",
+        "AR-16.b",
+        "AR-16.d",
+        "AR-16.e",
+        "AR-18.a",
+        "AR-18.c",
+        "AR-18.d",
+        "AR-18.e"
+      ],
+      "fact": "Shared P3 component/worker artifact fact; each requirement retains its own remaining contracts and formal evidence decision."
+    },
+    {
+      "test_name": "PERF-01 editor heartbeat stays responsive during a controlled slow Python task",
+      "fact": "Shared actual heartbeat/worker fact; remaining formal workbench/desktop contracts remain separately required.",
+      "requirement_ids": [
+        "AR-09.e",
+        "AR-17.e"
+      ]
+    },
+    {
+      "test_name": "PY-07 deep run paths preserve payload code and failure recovery",
+      "fact": "Shared real-process deep-path payload/code hash and failure-recovery fact; complete requirement status remains independent.",
+      "requirement_ids": [
+        "AR-18.b",
+        "AR-18.c",
+        "AR-18.d"
+      ]
+    },
+    {
+      "test_name": "P3 timeline finite tail preserves leading trailing and empty intervals on both Python outputs",
+      "fact": "Both owned Python outputs preserve explicit partial/empty valid intervals across finite-tail native regions; independent tail lengths remain incomplete.",
+      "requirement_ids": [
+        "AR-15.e",
+        "AR-18.e"
+      ]
+    },
+    {
+      "test_name": "P3 timeline independent native output tails reach Python with exact selected lengths",
+      "fact": "Internal named fixed-block output tail and bounded materialization fact; streaming EOS and complete platform acceptance remain separate.",
+      "requirement_ids": [
+        "AR-15.e",
+        "AR-18.e"
+      ]
+    },
+    {
+      "test_name": "P3 timeline two native tail ports materialize once before incompatible join rejects",
+      "fact": "Internal named fixed-block output tail and bounded materialization fact; streaming EOS and complete platform acceptance remain separate.",
+      "requirement_ids": [
+        "AR-15.e",
+        "AR-18.e"
+      ]
+    },
+    {
+      "test_name": "P3 timeline seeded mixed host partitions reach native callbacks and replay finite tails exactly",
+      "fact": "Seeded mixed native-host partition propagation/replay and pre-factory admission; remaining asynchronous and desktop contracts remain separate.",
+      "requirement_ids": [
+        "AR-15.b",
+        "AR-18.e"
+      ]
+    },
+    {
+      "test_name": "P3 timeline invalid mixed partitions reject before native or offline factories",
+      "fact": "Seeded mixed native-host partition propagation/replay and pre-factory admission; remaining asynchronous and desktop contracts remain separate.",
+      "requirement_ids": [
+        "AR-15.b",
+        "AR-18.e"
+      ]
+    },
+    {
+      "test_name": "AR-15.c independent output EOS drains the longer stream when selecting the shorter port",
+      "fact": "Bounded per-port streaming EOS, selected-short drain and publication/recovery fact; remaining asynchronous, ABI and platform contracts stay independent.",
+      "requirement_ids": [
+        "AR-15.c",
+        "AR-15.e"
+      ]
+    },
+    {
+      "test_name": "P3 timeline independent stream EOS survives Python while short output stays short",
+      "fact": "Bounded per-port streaming EOS, selected-short drain and publication/recovery fact; remaining asynchronous, ABI and platform contracts stay independent.",
+      "requirement_ids": [
+        "AR-15.e",
+        "AR-18.e"
+      ]
+    },
+    {
+      "test_name": "P3 timeline missing long output EOS cannot publish short success and clean retry recovers",
+      "fact": "Bounded per-port streaming EOS, selected-short drain and publication/recovery fact; remaining asynchronous, ABI and platform contracts stay independent.",
+      "requirement_ids": [
+        "AR-15.c",
+        "AR-16.d",
+        "AR-18.e"
+      ]
     }
   ],
   "user_native_plugins": {

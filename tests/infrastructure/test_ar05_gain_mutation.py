@@ -26,7 +26,7 @@ ACTIVE_SOURCE_ROOTS = tuple(ROOT / name for name in (
     "libs", "apps", "plugins", "tests", "scripts", "doc", "examples", "cmake", "dependencies"))
 MAIN_BUILD_PRESET_DIRS = tuple(ROOT / "build" / name for name in (
     "windows-debug", "windows-headless", "windows-release"))
-SOURCE_INCLUDES = ("CMakeLists.txt", "CMakePresets.json", "cmake", "dependencies",
+SOURCE_INCLUDES = ("CMakeLists.txt", "CMakePresets.json", "cmake", "dependencies", "sdk",
                    "libs", "apps", "plugins", "tests", "examples")
 PRESERVED_BINARIES = ("audio_algorithm_tests.exe", "audioalgo_tests.exe", "audio_cli.exe")
 OLD_ANCHOR = b"linear_gain_ = std::pow(10.0, config.gain_db / 20.0);"

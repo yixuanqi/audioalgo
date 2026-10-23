@@ -20,6 +20,20 @@ def manifest(plugin='example.python',type_id='example.python_gain'):
         'parameters':[{'id':'gain_db','type':'float','default':0.0,'minimum':-60.0,'maximum':12.0,'unit':'dB','update_policy':'OfflineOnly'}]}]}
 
 class ManifestTests(unittest.TestCase):
+    def test_shared_host_runner_contract(self):
+        contract=json.loads((ROOT/'tests/fixtures/python_manifest_contract.json').read_text(encoding='utf-8'))
+        for case in contract['cases']:
+            with self.subTest(case=case['name']),tempfile.TemporaryDirectory(prefix='AudioAlgo-shared-manifest-') as raw:
+                value=copy.deepcopy(contract['base'])
+                for edit in case['edits']:
+                    parent=value
+                    for key in edit['path'][:-1]:parent=parent[key]
+                    if edit.get('remove'):del parent[edit['path'][-1]]
+                    else:parent[edit['path'][-1]]=edit['value']
+                p=Path(raw);(p/'manifest.json').write_text(json.dumps(value),encoding='utf-8')
+                result=discover([p]);self.assertEqual(not result.diagnostics,case['valid'])
+                self.assertEqual(bool(result.nodes),case['valid'])
+
     def test_new_directory_discovers_block_clip_and_metadata_without_import(self):
         with tempfile.TemporaryDirectory(prefix='AudioAlgo-python-discovery-') as raw:
             root=Path(raw);package=root/'01-plugin';package.mkdir();m=manifest()
