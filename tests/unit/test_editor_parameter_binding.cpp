@@ -249,6 +249,52 @@ TEST_CASE("Canvas zoomed selection left editing and middle pan share the display
     }
 }
 
+TEST_CASE("Canvas node drag crosses the old top left limits after zoom and pan",
+          "[node_interaction][canvas_regression][canvas_unbounded_drag][NED-06.d][NED-06.e]") {
+    juce::ScopedJuceInitialiser_GUI juce_initialiser;
+    for (const auto scale : {0.4f, 1.0f, 1.25f, 2.5f}) {
+        for (const auto target : {juce::Point<float>{4, 20}, juce::Point<float>{0, 0},
+                                  juce::Point<float>{-80, -60}}) {
+            INFO("scale=" << scale << ", target=" << target.x << "," << target.y);
+            CanvasInteractionFixture fixture;
+            fixture.canvas.setSize(2200, 1200);
+            juce::MouseWheelDetails wheel{};
+            wheel.deltaY = std::log(scale) / std::log(1.25f);
+            fixture.canvas.mouseWheelMove(canvas_mouse(fixture.canvas, {0, 0}, 0, {0, 0}), wheel);
+            fixture.drag({10, 10}, {410, 410}, juce::ModifierKeys::middleButtonModifier);
+            const auto view = [&](float x, float y) {
+                const auto point = fixture.canvas.coordinate_transform().model_to_canvas({x, y});
+                return juce::Point<float>{point.x, point.y};
+            };
+            const auto results_stale = fixture.controller.results_stale();
+            fixture.drag(view(50, 110), view(target.x + 10, target.y + 10),
+                         juce::ModifierKeys::leftButtonModifier);
+            CHECK(std::abs(fixture.controller.project().nodes[0].x - target.x) < 0.001);
+            CHECK(std::abs(fixture.controller.project().nodes[0].y - target.y) < 0.001);
+            CHECK(fixture.controller.revision() == 0);
+            CHECK(fixture.controller.results_stale() == results_stale);
+            CHECK(fixture.controller.dirty());
+            CHECK(fixture.layout_changes == 1);
+            CHECK(fixture.controller.project().connections.size() == 2);
+            const auto connection = audioalgo::editor::make_connection_geometry(
+                fixture.controller.project(), fixture.registry, fixture.controller.project().connections[0],
+                fixture.canvas.coordinate_transform());
+            REQUIRE(connection.has_value());
+            const auto output = view(target.x + 176, target.y + 64);
+            CHECK(std::abs(connection->start.x - output.x) < 0.001);
+            CHECK(std::abs(connection->start.y - output.y) < 0.001);
+            REQUIRE(fixture.controller.undo());
+            CHECK(fixture.controller.project().nodes[0].x == 40);
+            CHECK(fixture.controller.project().nodes[0].y == 100);
+            REQUIRE(fixture.controller.redo());
+            CHECK(std::abs(fixture.controller.project().nodes[0].x - target.x) < 0.001);
+            CHECK(std::abs(fixture.controller.project().nodes[0].y - target.y) < 0.001);
+            CHECK(fixture.controller.revision() == 0);
+            CHECK(fixture.errors.empty());
+        }
+    }
+}
+
 TEST_CASE("AR-10.c numeric text rejects malformed and out of range input then recovers",
           "[AR-10.c][R3]") {
     juce::ScopedJuceInitialiser_GUI juce_initialiser;

@@ -531,8 +531,7 @@ private:
             return;
         const auto model_position = coordinates_.canvas_to_model(
             {canvas_point.x - drag_offset_.x, canvas_point.y - drag_offset_.y});
-        node_drag_preview_position_ = audioalgo::editor::EditorPoint{
-            std::max(8.0f, model_position.x), std::max(42.0f, model_position.y)};
+        node_drag_preview_position_ = model_position;
         existing_node_insertion_target_.reset();
         node_order_swap_target_.reset();
         node_order_drop_target_.reset();
