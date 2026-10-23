@@ -162,7 +162,7 @@ target_link_libraries(audio_editor_application PUBLIC audio_project)
 target_compile_features(audio_editor_application PUBLIC cxx_std_20)
 
 # Pure execution metadata compiler is available with the JUCE runtime disabled.
-add_library(audio_runtime STATIC libs/audio_runtime/NativePlan.cpp)
+add_library(audio_runtime STATIC libs/audio_runtime/NativePlan.cpp libs/audio_runtime/PreparedPlan.cpp)
 target_include_directories(audio_runtime PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libs")
 target_link_libraries(audio_runtime PUBLIC audio_project)
 target_compile_features(audio_runtime PUBLIC cxx_std_20)
@@ -230,7 +230,7 @@ if(AUDIO_BUILD_TESTS)
   )
   set_tests_properties(AR-05.a PROPERTIES LABELS "R1;pure;DSP-01" TIMEOUT 60)
 
-  add_executable(audio_application_tests tests/unit/test_run_reception.cpp tests/unit/test_native_plan.cpp)
+  add_executable(audio_application_tests tests/unit/test_run_reception.cpp tests/unit/test_native_plan.cpp tests/unit/test_prepared_plan.cpp)
   target_include_directories(audio_application_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/libs")
   target_link_libraries(audio_application_tests PRIVATE Catch2::Catch2WithMain audio_runtime)
   catch_discover_tests(audio_application_tests PROPERTIES LABELS "pure;architecture" TIMEOUT 10)
@@ -266,6 +266,7 @@ if(AUDIO_BUILD_TESTS)
       AUDIOALGO_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
       AUDIOALGO_CLI_EXECUTABLE="$<TARGET_FILE:audio_cli>"
       AUDIOALGO_PYTHON_EXECUTABLE="${Python3_EXECUTABLE}"
+      AUDIOALGO_TEST_PYTHON_ENABLED=$<BOOL:${AUDIO_ENABLE_PYTHON}>
     )
     catch_discover_tests(audioalgo_tests TEST_PREFIX "")
     add_test(
@@ -491,9 +492,10 @@ add_executable(audio_cli apps/cli/main.cpp)
 target_compile_features(audio_cli PRIVATE cxx_std_20)
 target_compile_definitions(audio_cli PRIVATE AUDIOALGO_VERSION="${PROJECT_VERSION}")
 
-add_library(audio_run_service STATIC libs/audio_run_service/RunService.cpp)
+add_library(audio_run_service STATIC libs/audio_run_service/RunService.cpp libs/audio_run_service/MixedExecution.cpp)
 target_include_directories(audio_run_service PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libs")
 target_link_libraries(audio_run_service PUBLIC audio_project_file_io audio_juce_backend audio_io juce::juce_core)
+target_link_libraries(audio_run_service PRIVATE juce::juce_cryptography)
 target_compile_features(audio_run_service PUBLIC cxx_std_20)
 
 if(MSVC)
@@ -506,6 +508,15 @@ target_link_libraries(audio_cli PRIVATE audio_run_service audio_host_nodes juce:
 if(AUDIO_BUILD_TESTS)
   target_link_libraries(audioalgo_tests PRIVATE audio_run_service juce::juce_gui_basics)
   add_dependencies(audioalgo_tests audio_cli)
+  add_executable(audio_python_catalog_tests tests/integration/test_python_catalog.cpp)
+  target_link_libraries(audio_python_catalog_tests PRIVATE Catch2::Catch2WithMain audio_host_nodes juce::juce_core)
+  add_dependencies(audio_python_catalog_tests audio_cli)
+  target_compile_definitions(audio_python_catalog_tests PRIVATE AUDIOALGO_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    AUDIOALGO_CLI_EXE="$<TARGET_FILE:audio_cli>" AUDIOALGO_TEST_PYTHON_ENABLED=$<BOOL:${AUDIO_ENABLE_PYTHON}>)
+  if(MSVC)
+    target_compile_options(audio_python_catalog_tests PRIVATE /utf-8)
+  endif()
+  catch_discover_tests(audio_python_catalog_tests PROPERTIES LABELS "python;catalog;R6" TIMEOUT 30)
   add_executable(audio_native_plugin_tests tests/integration/test_native_plugin.cpp
     apps/editor/EditorParameterPanel.cpp apps/editor/EditorNodeParameterBinding.cpp)
   target_include_directories(audio_native_plugin_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/apps/editor")
@@ -550,8 +561,38 @@ endif()
 if(AUDIO_ENABLE_PYTHON)
   find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
   message(STATUS "AudioAlgo Python 3: ${Python3_EXECUTABLE} (${Python3_VERSION})")
+  add_library(audio_python_backend STATIC libs/audio_python_backend/PythonTask.cpp)
+  target_include_directories(audio_python_backend PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libs")
+  target_link_libraries(audio_python_backend PUBLIC audio_node_sdk PRIVATE juce::juce_core juce::juce_cryptography)
+  target_link_libraries(audio_native_plugins PRIVATE audio_python_backend)
+  target_compile_definitions(audio_native_plugins PRIVATE AUDIOALGO_HAS_PYTHON=1
+    AUDIOALGO_PYTHON_EXE_SOURCE="${Python3_EXECUTABLE}" AUDIOALGO_PYTHON_MODULE_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/python")
+  if(MSVC)
+    target_compile_options(audio_python_backend PRIVATE /utf-8)
+  endif()
+  if(WIN32)
+    target_link_libraries(audio_python_backend PRIVATE ws2_32)
+  endif()
   if(AUDIO_BUILD_TESTS)
+    add_executable(audio_python_process_tests tests/integration/test_python_process.cpp tests/integration/test_python_mixed.cpp tests/integration/test_python_snapshot_run.cpp)
+    target_sources(audio_python_process_tests PRIVATE tests/integration/test_python_mixed_recovery.cpp)
+    target_sources(audio_python_process_tests PRIVATE tests/integration/test_python_mixed_queue.cpp)
+    target_sources(audio_python_process_tests PRIVATE tests/integration/test_python_extension.cpp)
+    target_link_libraries(audio_python_process_tests PRIVATE audio_python_backend audio_algorithms Catch2::Catch2WithMain juce::juce_core)
+    target_link_libraries(audio_python_process_tests PRIVATE audio_host_nodes audio_runtime)
+    target_link_libraries(audio_python_process_tests PRIVATE audio_run_service juce::juce_gui_basics)
+    target_sources(audio_python_process_tests PRIVATE apps/editor/EditorParameterPanel.cpp apps/editor/EditorNodeParameterBinding.cpp)
+    target_include_directories(audio_python_process_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/apps/editor")
+    target_link_libraries(audio_python_process_tests PRIVATE audio_editor_application)
+    add_dependencies(audio_python_process_tests audio_cli)
+    target_compile_definitions(audio_python_process_tests PRIVATE AUDIOALGO_CLI_EXE="$<TARGET_FILE:audio_cli>")
+    if(MSVC)
+      target_compile_options(audio_python_process_tests PRIVATE /utf-8)
+    endif()
+    target_compile_definitions(audio_python_process_tests PRIVATE AUDIOALGO_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}" AUDIOALGO_PYTHON_EXE="${Python3_EXECUTABLE}")
+    catch_discover_tests(audio_python_process_tests PROPERTIES LABELS "python;process_integration;R6" TIMEOUT 30)
     set(python_runner_cases
+      "PY-01 shared host and runner manifest fixtures|test_python_manifest.py|ManifestTests.test_shared_host_runner_contract"
       "PY-01 manifest discovers metadata without importing user code|test_python_manifest.py|ManifestTests.test_new_directory_discovers_block_clip_and_metadata_without_import"
       "PY-01 malformed and duplicate packages commit atomically|test_python_manifest.py|ManifestTests.test_invalid_metadata_is_atomic_and_duplicates_never_replace_existing_nodes"
       "PY-01 schema entrypoint and parameter metadata reject invalid values|test_python_manifest.py|ManifestTests.test_entrypoints_schema_boolean_numbers_and_path_escape_are_rejected"
@@ -561,6 +602,7 @@ if(AUDIO_ENABLE_PYTHON)
       "PY-05 only frozen hashed source may execute|test_python_runner.py|PythonRunnerTests.test_unhashed_bytecode_cannot_override_the_frozen_source"
       "PY-06 cooperative cancellation and bounded log drainage recover|test_python_runner.py|PythonRunnerTests.test_cooperative_cancel_and_log_flood_use_separate_bounded_pipes"
       "PY-07 clip runs once and byte limits precede allocation|test_python_runner.py|PythonRunnerTests.test_clip_runs_once_and_payload_budget_is_checked_before_plugin_import"
+      "PY-07 deep run paths preserve payload code and failure recovery|test_python_runner.py|PythonRunnerTests.test_deep_run_paths_preserve_payload_code_and_failure_recovery"
       "PY-08 protocol length version and unknown messages diagnose then recover|test_python_runner.py|PythonRunnerTests.test_protocol_length_version_and_unknown_message_are_diagnosable")
     foreach(python_case IN LISTS python_runner_cases)
       string(REPLACE "|" ";" parts "${python_case}")
