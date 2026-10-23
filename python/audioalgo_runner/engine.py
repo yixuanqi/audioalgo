@@ -19,6 +19,14 @@ from .source_loader import load_class
 
 DEFAULT_PAYLOAD_BYTES=64*1024*1024
 
+def filesystem_root(path:Path)->Path:
+    """Use the Windows filesystem namespace for all descendants, including NPY files."""
+    resolved=path.resolve()
+    if os.name!='nt':return resolved
+    name=str(resolved)
+    if name.startswith('\\\\?\\'):return resolved
+    return Path('\\\\?\\UNC\\'+name[2:] if name.startswith('\\\\') else '\\\\?\\'+name)
+
 def sha(path:Path)->str:
     digest=hashlib.sha256()
     with path.open('rb') as stream:
@@ -49,8 +57,8 @@ def header(path:Path,limit:int,port:str)->tuple[int,int]:
 class Engine:
     def __init__(self,plugin_roots:list[Path],run_root:Path,max_payload_bytes:int=DEFAULT_PAYLOAD_BYTES):
         checked(type(max_payload_bytes) is int and max_payload_bytes>0,'python_payload_limit','Payload budget must be positive')
-        self.catalog=discover(plugin_roots);self.nodes={n.type_id:n for n in self.catalog.nodes}
-        self.run_root=run_root.resolve();self.run_root.mkdir(parents=True,exist_ok=True)
+        self.catalog=discover([filesystem_root(p) for p in plugin_roots]);self.nodes={n.type_id:n for n in self.catalog.nodes}
+        self.run_root=filesystem_root(run_root);self.run_root.mkdir(parents=True,exist_ok=True)
         self.max_payload_bytes=max_payload_bytes;self.loaded_hashes={}
 
     def confined(self,name:Any)->Path:

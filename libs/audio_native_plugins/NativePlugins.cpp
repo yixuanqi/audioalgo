@@ -8,6 +8,11 @@
 #include <set>
 #include <stdexcept>
 #include <type_traits>
+#include <fstream>
+#include <regex>
+#ifdef AUDIOALGO_HAS_PYTHON
+#include "audio_python_backend/PythonTask.h"
+#endif
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -52,6 +57,11 @@ ParameterValue parameter_value(const juce::var& v, ParameterKind kind) {
     if(kind==ParameterKind::floating) { require(v.isDouble()||v.isInt()||v.isInt64(),"Number default required"); return static_cast<double>(v); }
     require(v.isString(),"String default required"); return text(v);
 }
+std::string manifest_bytes(const std::filesystem::path& path) {
+    std::ifstream stream(path,std::ios::binary);require(stream.is_open(),"Could not read manifest");
+    std::string data(1024*1024+1,'\0');stream.read(data.data(),static_cast<std::streamsize>(data.size()));
+    const auto count=static_cast<std::size_t>(stream.gcount());require(!stream.bad() && count>0 && count<=1024*1024,"Manifest size must be1..1048576 bytes");data.resize(count);return data;
+}
 NodeDescriptor descriptor(const juce::var& v) {
     NodeDescriptor d;
     d.type_id=string_field(v,"type_id"); d.version=string_field(v,"version"); d.display_name=string_field(v,"display_name");
@@ -82,6 +92,8 @@ NodeDescriptor descriptor(const juce::var& v) {
     d.capabilities.supports_named_audio_ports=true;
     if(boolean_field(v,"uses_streaming_frame_api",false))
         throw Rejected("plugin_capability_unsupported","Published C ABI v1 supports full-frame processors only");
+    if(boolean_field(v,"requires_offline_task",false))
+        throw Rejected("plugin_capability_unsupported","Published C ABI v1 does not expose owned offline tasks");
     d.capabilities.supports_variable_block_size=boolean_field(v,"supports_variable_block_size",true);
     if(v.hasProperty("fixed_block_frames")) d.capabilities.fixed_block_frames=positive(v["fixed_block_frames"]);
     if(v.hasProperty("fixed_frame_end_policy")) {
@@ -100,6 +112,123 @@ NodeDescriptor descriptor(const juce::var& v) {
     require(inputs>0 && static_cast<std::size_t>(inputs)<d.ports.size(),"Transform needs inputs and outputs");
     return d;
 }
+NodeDescriptor python_descriptor(const juce::var& node) {
+    const auto bounded_text=[](const juce::var& object,const char* key) {
+        const auto value=string_field(object,key);require(value.size()<=1024,key);return value;
+    };
+    const auto identifier=[&](const juce::var& object,const char* key) {
+        const auto value=bounded_text(object,key);
+        static const std::regex id(R"([A-Za-z0-9_][A-Za-z0-9_.-]{0,127})");
+        require(std::regex_match(value,id),key);return value;
+    };
+    identifier(node,"type_id");bounded_text(node,"version");bounded_text(node,"display_name");
+    const auto execution=node["execution"];require(execution.isObject(),"Python execution must be an object");
+    const auto kind=string_field(execution,"kind");require(kind=="block" || kind=="clip","Python kind must be block or clip");
+    require(!boolean_field(execution,"realtime_verified",false),"Python cannot execute in the device callback");
+    (void)boolean_field(execution,"stateful",false);
+    const auto entry=string_field(node,"entrypoint");
+    static const std::regex pattern(R"([A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_][A-Za-z0-9_]*)");
+    require(entry.size()<=1024 && std::regex_match(entry,pattern),"Invalid package-relative Python entrypoint");
+    juce::DynamicObject::Ptr normalized=new juce::DynamicObject;
+    for(const auto* key:{"type_id","version","display_name"})normalized->setProperty(key,node[key]);
+    juce::Array<juce::var> ports,parameters;
+    for(const auto* direction:{"inputs","outputs"}) {
+        const auto& declared=array_field(node,direction);require(!declared.isEmpty() && declared.size()<=64,"Python needs1..64 ports per direction");
+        for(const auto& p:declared){juce::DynamicObject::Ptr value=new juce::DynamicObject;
+            identifier(p,"id");
+            value->setProperty("id",p["id"]);value->setProperty("type_id",p["type"]);value->setProperty("direction",std::string_view(direction)=="inputs"?"input":"output");
+            value->setProperty("required",boolean_field(p,"required",false));ports.add(juce::var(value.get()));}
+    }
+    const auto& declared=array_field(node,"parameters");require(declared.size()<=128,"Python parameter count exceeds128");
+    for(const auto& p:declared){require(p.isObject(),"Parameter must be an object");
+        identifier(p,"id");require(p.hasProperty("default"),"Parameter default is required");
+        if(p.hasProperty("update_policy"))require(string_field(p,"update_policy")=="OfflineOnly","Python dynamic parameter updates are unsupported");
+        juce::DynamicObject::Ptr value=new juce::DynamicObject;const auto& properties=p.getDynamicObject()->getProperties();
+        for(int i=0;i<properties.size();++i)value->setProperty(properties.getName(i),properties.getValueAt(i));
+        value->setProperty("kind",p["type"]);parameters.add(juce::var(value.get()));}
+    normalized->setProperty("ports",ports);normalized->setProperty("parameters",parameters);
+    for(const auto* name:{"sample_rates_hz","channels"}) {
+        const auto& values=array_field(node["format"],name);
+        require(!values.isEmpty() && values.size()<=32,"Python format needs1..32 values");
+    }
+    normalized->setProperty("sample_rates_hz",node["format"]["sample_rates_hz"]);normalized->setProperty("channel_counts",node["format"]["channels"]);
+    auto result=descriptor(juce::var(normalized.get()));result.capabilities.requires_offline_task=true;
+    result.backend_metadata_json=juce::JSON::toString(node,true).toStdString();return result;
+}
+class PythonProcessor final:public AudioNodeProcessor {
+public:
+    PythonProcessor(std::filesystem::path root,NodeDescriptor desc,std::string hash):root_(std::move(root)),desc_(std::move(desc)),manifest_hash_(std::move(hash)){}
+    std::optional<Diagnostic> freeze_task(const NodeExecutionContext& context) override {
+#ifdef AUDIOALGO_HAS_PYTHON
+        configure_runtime();
+        interpreter_hash_=juce::SHA256(file(python_executable_)).toHexString().toStdString();
+        const auto runner_key="python-runner:"+file(runner_root_).getFullPathName().toStdString();
+        const auto existing=context.frozen_task_packages?context.frozen_task_packages->find(runner_key):std::map<std::string,std::string>::iterator{};
+        if(context.frozen_task_packages && existing!=context.frozen_task_packages->end())runner_root_=std::filesystem::u8path(existing->second);
+        else {
+            const auto runner=freeze_python_package(runner_root_,std::filesystem::u8path(context.output_directory)/"runner-packages",{},context.is_cancelled);
+            if(const auto* error=std::get_if<Diagnostic>(&runner)){auto e=*error;e.node_id=context.node_id;return e;}
+            runner_root_=std::get<std::filesystem::path>(runner);
+            if(context.frozen_task_packages)(*context.frozen_task_packages)[runner_key]=file(runner_root_).getFullPathName().toStdString();
+        }
+        const auto cache_key="python-plugin:"+file(root_).getFullPathName().toStdString()+":"+manifest_hash_;
+        if(context.frozen_task_packages)if(const auto found=context.frozen_task_packages->find(cache_key);found!=context.frozen_task_packages->end()){frozen_root_=std::filesystem::u8path(found->second);return {};}
+        const auto frozen=freeze_python_package(root_,std::filesystem::u8path(context.output_directory)/"python-packages",manifest_hash_,context.is_cancelled);
+        if(const auto* error=std::get_if<Diagnostic>(&frozen)){auto e=*error;e.node_id=context.node_id;return e;}
+        frozen_root_=std::get<std::filesystem::path>(frozen);
+        if(context.frozen_task_packages)(*context.frozen_task_packages)[cache_key]=file(frozen_root_).getFullPathName().toStdString();
+        return {};
+#else
+        return Diagnostic{"python_runtime_disabled","Python backend disabled",context.node_id};
+#endif
+    }
+    NodeProcessOutcome process(const NodeProcessRequest& request) override {
+#ifdef AUDIOALGO_HAS_PYTHON
+        const auto execution_root=frozen_root_.empty()?root_:frozen_root_;
+        const auto bytes=manifest_bytes(execution_root/"manifest.json");
+        if(juce::SHA256(bytes.data(),bytes.size()).toHexString().toStdString()!=manifest_hash_)
+            return Diagnostic{"python_manifest_changed","Python metadata changed; refresh the host catalog before running",request.context.node_id,{}};
+        if(!frozen_root_.empty())for(const auto& root:{frozen_root_,runner_root_})if(auto error=validate_python_snapshot(root,request.context.is_cancelled)){error->node_id=request.context.node_id;return *error;}
+        PythonTaskRequest task;
+        if(python_executable_.empty())configure_runtime();
+        if(!interpreter_hash_.empty() && juce::SHA256(file(python_executable_)).toHexString().toStdString()!=interpreter_hash_)
+            return Diagnostic{"python_environment_changed","Frozen interpreter contents changed before execution",request.context.node_id};
+        task.python_executable=python_executable_;task.runner_module_root=runner_root_;
+        task.plugin_root=execution_root;task.output_parent=std::filesystem::u8path(request.context.output_directory);task.type_id=desc_.type_id;task.node_id=request.context.node_id;
+        task.parameters=request.parameters;task.inputs=request.inputs;task.identity=request.context.identity;task.is_cancelled=request.context.is_cancelled;
+        task.maximum_block_frames=request.context.maximum_block_frames;task.maximum_payload_bytes=request.context.maximum_task_payload_bytes;
+        for(const auto& port:desc_.ports)if(port.direction==PortDirection::output)task.output_ports.push_back(port.id);
+        PythonTaskStatistics statistics;auto outcome=run_python_task(task,&statistics);
+        if(const auto* error=std::get_if<Diagnostic>(&outcome))return *error;
+        auto success=std::move(std::get<PythonTaskSuccess>(outcome));
+        if(!frozen_root_.empty())for(const auto& root:{frozen_root_,runner_root_})if(auto error=validate_python_snapshot(root,request.context.is_cancelled)){error->node_id=request.context.node_id;return *error;}
+        if(request.context.record_task_artifact){auto provenance=juce::JSON::parse(js(success.provenance_json));auto* object=provenance.getDynamicObject();
+            object->setProperty("process_id",static_cast<juce::int64>(statistics.process_id));object->setProperty("node_id",js(request.context.node_id));object->setProperty("request_id",js(task.identity.request_id));
+            object->setProperty("interpreter_sha256",js(interpreter_hash_));
+            juce::DynamicObject::Ptr logs=new juce::DynamicObject;
+            logs->setProperty("stdout_bytes",static_cast<juce::int64>(statistics.stdout_bytes));logs->setProperty("stderr_bytes",static_cast<juce::int64>(statistics.stderr_bytes));
+            logs->setProperty("stdout_tail",js(statistics.stdout_tail));logs->setProperty("stderr_tail",js(statistics.stderr_tail));
+            object->setProperty("logs",juce::var(logs.get()));
+            object->setProperty("frozen_package_root",file(execution_root).getRelativePathFrom(file(std::filesystem::u8path(request.context.output_directory))).replaceCharacter('\\','/'));
+            object->setProperty("runner_snapshot",file(runner_root_).getRelativePathFrom(file(std::filesystem::u8path(request.context.output_directory))).replaceCharacter('\\','/'));
+            request.context.record_task_artifact(file(success.artifact_directory).getFullPathName().toStdString(),juce::JSON::toString(provenance,true).toStdString());}
+        return std::move(success.outputs);
+#else
+        return Diagnostic{"python_runtime_disabled","This host configuration disables the Python process backend",request.context.node_id,{}};
+#endif
+    }
+private:
+    void configure_runtime() {
+#ifdef AUDIOALGO_HAS_PYTHON
+        const auto configured=juce::SystemStats::getEnvironmentVariable("AUDIOALGO_PYTHON_EXECUTABLE",{});
+        const auto host=juce::File::getSpecialLocation(juce::File::currentExecutableFile).getParentDirectory(),bundled=host.getChildFile("python/python.exe"),modules=host.getChildFile("python");
+        python_executable_=std::filesystem::u8path(configured.isNotEmpty()?configured.toStdString():bundled.existsAsFile()?bundled.getFullPathName().toStdString():std::string(AUDIOALGO_PYTHON_EXE_SOURCE));
+        runner_root_=std::filesystem::u8path(modules.getChildFile("audioalgo_runner/__main__.py").existsAsFile()?modules.getFullPathName().toStdString():std::string(AUDIOALGO_PYTHON_MODULE_SOURCE));
+#endif
+    }
+    std::filesystem::path root_,frozen_root_,python_executable_,runner_root_;NodeDescriptor desc_;std::string manifest_hash_,interpreter_hash_;
+};
+
 aa_string borrowed(const std::string_view s) { return {s.data(),static_cast<uint32_t>(s.size())}; }
 template<std::size_t N> std::string bounded(const char (&s)[N]) { return {s,std::find(s,s+N,'\0')}; }
 Diagnostic failure(const aa_error& e,const char* fallback) {
@@ -211,11 +340,29 @@ PluginDiscovery load_native_plugins(NodeRegistry& registry,const std::vector<std
         try {
             auto manifest_file=file(path);
             require(manifest_file.getSize()>0 && manifest_file.getSize()<=1024*1024,"Manifest size must be 1..1048576 bytes");
-            const auto raw=manifest_file.loadFileAsString();
+            const auto captured=manifest_bytes(path);
+            const auto raw=juce::String::createStringFromData(captured.data(),static_cast<int>(captured.size()));
             auto manifest=juce::JSON::parse(raw);
             require(manifest.isObject(),"Invalid JSON object");
             require(positive(manifest["schema_version"])==1,"Unsupported manifest schema");
             id=string_field(manifest,"plugin_id");
+            const auto manifest_hash=juce::SHA256(captured.data(),captured.size()).toHexString().toStdString();
+            if(text(manifest["runtime"])=="python") {
+#ifndef AUDIOALGO_HAS_PYTHON
+                throw Rejected("python_runtime_disabled","This host configuration disables the Python process backend");
+#endif
+                const auto version=string_field(manifest,"plugin_version");
+                static const std::regex identifier(R"([A-Za-z0-9_][A-Za-z0-9_.-]{0,127})");
+                require(std::regex_match(id,identifier) && version.size()<=1024,"Invalid Python plugin ID/version");
+                if(plugin_ids.contains(id))throw Rejected("plugin_id_duplicate","Plugin ID already loaded");
+                const auto& nodes=array_field(manifest,"nodes");require(!nodes.isEmpty() && nodes.size()<=64,"Python package needs1..64 nodes");
+                auto candidate=registry;
+                for(const auto& node:nodes){auto d=python_descriptor(node);d.plugin_origin=NodeDescriptor::PluginOrigin{id,version,"",manifest_hash,"python"};
+                    if(candidate.find(d.type_id))throw Rejected("python_node_duplicate","Python node type ID already registered");
+                    const auto root=path.parent_path();const auto registration=candidate.register_node(d,[root,d,manifest_hash]{return std::make_unique<PythonProcessor>(root,d,manifest_hash);});
+                    if(!registration.registered)throw Rejected("python_node_registration_failed",registration.diagnostic?registration.diagnostic->message:"Python registration failed");}
+                registry=std::move(candidate);plugin_ids.insert(id);result.loaded_plugin_ids.push_back(id);continue;
+            }
             const auto version=string_field(manifest,"version");
             if(positive(manifest["abi_version"])!=AA_NODE_ABI_V1) throw Rejected("plugin_abi_incompatible","Expected ABI v1");
             if(string_field(manifest,"platform")!="windows" || string_field(manifest,"architecture")!="x64" || sizeof(void*)!=8)
@@ -228,7 +375,6 @@ PluginDiscovery load_native_plugins(NodeRegistry& registry,const std::vector<std
             require(!inside.empty() && *inside.begin()!="..","Library must remain inside package");
             if(!std::filesystem::is_regular_file(library)) throw Rejected("plugin_library_missing","Declared DLL does not exist");
             const auto dll_hash=juce::SHA256(file(library)).toHexString().toStdString();
-            const auto manifest_hash=juce::SHA256(manifest_file).toHexString().toStdString();
             std::vector<NodeDescriptor> descriptors;
             for(auto& node:array_field(manifest,"nodes")) {
                 auto d=descriptor(node);
@@ -280,7 +426,9 @@ std::string node_catalog_json(const NodeRegistry& registry,const PluginDiscovery
         for(auto& p:d.ports) {juce::DynamicObject::Ptr v=new juce::DynamicObject; v->setProperty("id",js(p.id));v->setProperty("direction",p.direction==PortDirection::input?"input":"output");v->setProperty("type_id",js(p.type_id));ports.add(juce::var(v.get()));}
         for(auto& p:d.parameters) {juce::DynamicObject::Ptr v=new juce::DynamicObject;v->setProperty("id",js(p.id));params.add(juce::var(v.get()));}
         n->setProperty("ports",ports);n->setProperty("parameters",params);
-        if(d.plugin_origin) {auto& o=*d.plugin_origin;n->setProperty("plugin_id",js(o.plugin_id));n->setProperty("library_sha256",js(o.library_sha256));n->setProperty("manifest_sha256",js(o.manifest_sha256));}
+        n->setProperty("execution_domain",d.capabilities.requires_offline_task?"offline_task":"native_region");
+        if(!d.backend_metadata_json.empty())n->setProperty("backend_descriptor",juce::JSON::parse(js(d.backend_metadata_json)));
+        if(d.plugin_origin) {auto& o=*d.plugin_origin;n->setProperty("plugin_id",js(o.plugin_id));n->setProperty("runtime",js(o.runtime));n->setProperty("library_sha256",js(o.library_sha256));n->setProperty("manifest_sha256",js(o.manifest_sha256));}
         nodes.add(juce::var(n.get()));
     }
     for(auto& e:discovery.diagnostics) {juce::DynamicObject::Ptr v=new juce::DynamicObject;v->setProperty("code",js(e.code));v->setProperty("plugin_id",js(e.plugin_id));v->setProperty("message",js(e.message));v->setProperty("manifest",file(e.manifest).getFullPathName());errors.add(juce::var(v.get()));}

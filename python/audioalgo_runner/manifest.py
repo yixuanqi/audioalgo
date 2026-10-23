@@ -72,6 +72,7 @@ def validate_node(n:Any)->None:
     require(isinstance(n,dict),'Node must be an object')
     identifier(n.get('type_id'),'type_id');text(n.get('version'),'version');text(n.get('display_name'),'display_name')
     require(isinstance(n.get('entrypoint'),str) and ENTRYPOINT.fullmatch(n['entrypoint']) is not None,'Invalid package-relative entrypoint')
+    require(len(n['entrypoint'])<=1024,'Entrypoint exceeds 1024 characters')
     execution=n.get('execution');require(isinstance(execution,dict),'execution must be an object')
     require(execution.get('kind') in ('block','clip'),'execution.kind must be block or clip')
     require(type(execution.get('stateful',False)) is bool,'stateful must be boolean')
@@ -92,8 +93,12 @@ def validate_node(n:Any)->None:
         require(name not in names,'Duplicate parameter');names.add(name)
         require(p.get('type') in ('bool','int','float','enum','string','path'),'Unsupported parameter type')
         require(p.get('update_policy','OfflineOnly')=='OfflineOnly','Only OfflineOnly parameter updates are supported')
+        require(type(p.get('input_resource',False)) is bool,'input_resource must be boolean')
+        require(not p.get('input_resource',False) or p['type']=='path','Input resources require path parameters')
         for bound in ('minimum','maximum','step'):
-            if bound in p:require(numeric(p[bound]),'Parameter bounds must be finite numbers')
+            if bound in p:
+                require(p['type'] in ('int','float') and numeric(p[bound]),'Parameter bounds require finite numeric parameters')
+                if p['type']=='int':require(p[bound]==math.trunc(p[bound]),'Integer bounds and steps must be whole numbers')
         if 'step' in p:require(p['step']>0,'Parameter step must be positive')
         if 'minimum' in p and 'maximum' in p:require(p['minimum']<=p['maximum'],'Parameter bounds are reversed')
         if p['type']=='enum':
@@ -101,6 +106,7 @@ def validate_node(n:Any)->None:
             for c in choices:
                 require(isinstance(c,dict),'Choice must be an object');value=text(c.get('value'),'choice.value')
                 text(c.get('label'),'choice.label');require(value not in seen,'Duplicate choice');seen.add(value)
+        else:require(not p.get('choices',[]),'Only enum parameters may declare choices')
         require('default' in p,'Parameter default is required')
     validate_parameters(parameters,{})
 
