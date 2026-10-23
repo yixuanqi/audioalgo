@@ -4,6 +4,7 @@
 #include <string_view>
 #include <string>
 #include <vector>
+#include <future>
 
 #include "audio_node_sdk/NodeSDK.h"
 #include "plugins/builtin/registration.h"
@@ -64,9 +65,20 @@ int run_cli(int argc, const char* const* argv) {
         for(auto& e:discovery.diagnostics)
             std::cerr<<e.code<<" ["<<e.plugin_id<<"]: "<<e.message<<'\n';
         audioalgo::RunService service(nodes);
-        const auto outcome = service.run({std::get<audioalgo::ProjectModel>(loaded), project_file, output_directory, block_size});
+        auto worker=std::async(std::launch::async,[&] {
+            audioalgo::RunOutcome result;
+            try {result=service.run({std::get<audioalgo::ProjectModel>(loaded), project_file, output_directory, block_size});}
+            catch(const std::exception& e){result=audioalgo::Diagnostic{"run_exception",e.what()};}
+            juce::MessageManager::callAsync([]{juce::MessageManager::getInstance()->stopDispatchLoop();});
+            return result;
+        });
+        juce::MessageManager::getInstance()->runDispatchLoop();
+        const auto outcome=worker.get();
         if (const auto* error = std::get_if<audioalgo::Diagnostic>(&outcome)) {
-            std::cerr << error->code << ": " << error->message << '\n';
+            std::cerr << error->code;
+            if(!error->node_id.empty())std::cerr<<" [node="<<error->node_id<<"]";
+            if(!error->port_id.empty())std::cerr<<" [port="<<error->port_id<<"]";
+            std::cerr<<": "<<error->message<<'\n';
             return 1;
         }
         const auto& result = std::get<audioalgo::RunSuccess>(outcome);
