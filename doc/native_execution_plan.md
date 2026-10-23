@@ -1,5 +1,9 @@
 # 原生计划编译与执行投影
 
+最新[ADR0035](decisions/0035-per-port-stream-eos.md)允许内部命名固定帧流式节点声明独立输出尾长/EOS。图会额外驱动闭包内较长输出到有界终点，单独记录 `drain_padding_frames`；所选短输出raw/aligned长度和有效区间不增加。进展预算为0、未知时序/flush仍拒绝。下方ADR0034最初的流式限制已由此扩展，发布C ABI v1边界保持原状。
+
+2026-10-23时序补充：内部命名固定块节点可用完整 `capabilities.output_tail_frames` 映射声明各输出尾长，标量 `tail_frames` 必须为最大值。计划保存 `output_tails`，逐边决定输入EOS和所选输出长度，适配器按各输出结束帧写零；混合边界统一补偿延迟后分别裁剪raw/aligned和有效区间。见[ADR0034](decisions/0034-independent-native-output-tails.md)。流式EOS与发布C ABI v1不支持此映射；不同输入长度/区间的任务仍明确拒绝。本文件下方旧G1边界描述仅为原切片背景，当前范围以唯一状态摘要为准。
+
 `audio_runtime/NativePlan` 是纯C++元数据编译模块，只依赖core/SDK/project。它通过NodeCatalog只读接口验证工程、格式、端口类型及块约束，不访问工厂、音频文件、GUI或算法类型分支。无工厂的元数据目录也能编译合法计划。不支持的typed端口/rate/fixed-frame声明在构造任何处理器前定位拒绝。
 
 计划保存按拓扑排列的节点描述/版本/实际默认参数、source_boundary/native_region/sink_boundary任务、以(node_id,port_id)命名的PCM连接以及通道基址/数量。结果是值快照，调用方后续修改参数不改变计划。生产JuceGraph先编译计划，再按region节点创建处理器、按计划路由连接，JUCE只是执行投影。

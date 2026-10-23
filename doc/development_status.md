@@ -1,22 +1,34 @@
 # Development status
 
-## 唯一当前摘要（2026-10-23，P1自动化出口；P2逐端口帧内进展已验证）
+## 唯一当前摘要（2026-10-23：内部逐端口流式EOS、有界排空及Python恢复子集已验证）
 
-执行入口：[交付收口、必要验证与独立原生节点](plan_delivery_convergence.md)。旧R2任务卡、下面历史“下一条”及旧数量不作为当前恢复起点。M21/P0 已于2026-10-22定向收口；文档hash修订不使旧报告自动成为累计passed，复用项均已在 `build/reports/loops/RF0006/M21-r5-graph-milestone/milestone-summary.json` 中列明差异与理由。
+入口：[交付收口](plan_delivery_convergence.md)、[P3任务卡第0节](plan_agent_next_p3.md)、[时序边界ADR0033](decisions/0033-owned-native-timeline-boundaries.md)。已实现行为按下表直接证据恢复；旧R0/R2/M21起点、历史“下一条”和旧数量均不作为当前起点。完整R5/R6、AR/G/NED/UPN仍未通过。
 
-| 用户能力/事项 | 实现与已读取证据 | 当前缺口与下一步 |
+| 用户能力/事项 | 实现及直接有效证据 | 当前缺口 |
 | --- | --- | --- |
-| Gain/ChannelSwap、参数表单与controller | 已实现，历史M20及后续组件/CLI有真实记录 | 桌面/设备证据仍未齐全，不重做已完成代码 |
-| 双独立源、Mixer、命名端口及所选输出裁剪 | A0～A3切片证据齐备；M21冻结快照 Debug 全量 **242/242**（并非当前P1/P2源码全量）；双源 Mixer oracle 2.94e-08、所选端口裁剪1.48e-08，AR-14.b/c及AR-07.e精确映射，历史R5报告69 passed | 本轮未重做M21产品行为或全矩阵；历史headless/Runtime OFF/Release复用仅适用于M21差异声明。当前新增P1/P2只按下面定向记录判定，注册IO/非PCM及累计验收仍未闭合 |
-| M21基线刷新 | mapping（文档波后重scaffold）、environment、debug/headless 绑定构建记录均已刷新；AR-01.a/c/d 定向全绿（ar01-post-rebind-check）；验证器基础设施 **14/14**（含110用例覆盖与验收文档hash）；R5阶段报告 sha `2928fa3…` 绑定源hash `68ad0831…` | AR-02.g 探针未按新规则无收益重跑，保留 not_verified；AR-05.b 证据缺、AR-12.d 桌面暂停同M20诚实状态 |
-| 用户C++节点独立编译/加载 | P1已实现可安装纯C ABI v1 SDK、仓库外有状态2入2出DLL模板、GUI/CLI同一启动装配、参数/端口表单、插件版本/hash报告。真实外部工程：`build/reports/loops/P1-native-sdk/20261022T080519.989296Z/report.json`；组件2用例与CLI块1/127/512逐样本oracle最大误差 **1.49e-08**，ABI/架构/缺DLL/缺入口/重复ID/描述不匹配拒绝，内置Gain恢复；两并发实例在catalog销毁后继续处理，插件v1→v2仅重建DLL并重启，原CLI/编辑器EXE hash不变。直接回归见同目录`direct-regression.json` | UPN-01/04/05自动化证据已具备；UPN-02/03组件/CLI通过但真实桌面暂停；UPN-06受控安装目录/禁代理构建通过，正式OS禁网干净环境仍not_verified。原110 AR不变，新增6项接入同一AR验收入口的R6累计。使用说明：`native_node_sdk.md`；热卸载后置 |
-| 固定帧与已知延迟 | F480→F512真实图host1/127/256/480/512/1024及固定seed随机划分，8种短尾/长输入逐样本一致；容量/峰值F有界、重置脉冲、回调零分配通过。`P2-fixed-fifo/focused-regression.json` **27/27**（含UPN消费者）。AR-15.b精确映射；AR-15.d真实37样本延迟分支脉冲合流、未知延迟零实例拒绝、实际raw550/aligned513/offset37 WAV通过，见`P2-latency/green.json`；run.json记录原始/对齐长度、offset、hash/版本，旧未声明补零节点仍拒绝短尾 | AR-15.c帧内逐端口部分消费/产出、NeedMoreInput、无进展预算与回调零分配已实现，P2-stream-progress/focused-green.json 10/10（含真实Speex新驱动）；有限尾部已实现：FIR480→FIR512保留6帧、短分支结束静音、未知/flush/预算前置拒绝、实际WAV/报告；P2-finite-tail/focused-green.json 14/14。逐端口EOS/完成及空流/错误完成/回调零分配已实现，P2-eos/focused-green.json 18/18（含真实UPN消费者）；空有效区间尾部扩展缺陷已修复；整数时间映射16↔48k十分钟全部指定/随机划分误差0，实际报告纳秒及安装纯消费者通过（P2-time-map/green.json 7/7）。不同输出独立尾长/有效区间、通用异步跨帧及CORE-02借用视图完整组合证据未闭合；整个AR-15/R5未通过 |
-| 真实Speex降噪 | 已实现独立core、薄节点、GUI/CLI共享注册。Debug preset现为Speex ON。`P2-speex/focused-green.json` **8/8**，16/48kHz×1/2/4通道×静音/脉冲/噪声×host1/127/512原库一致；两实例/reset/失败/实际生成控件调参通过。独立Python RIFF复核13产物，最大误差0，raw偏移959。`install-consumer.json` AR-04.a **1/1**，安装后Speex纯算法调用无JUCE/SDK/项目依赖。实际示例：`examples/speex_denoise_demo/speex_denoise.aaproj`，输出`build/runs/speex-demo-first/output.wav`，32037帧 | AR-19.a已映射3精确测试，但profile-OFF/缺依赖、未支持flush/动态更新诊断验收仍单列，verifier保持not_verified（partial-mapping Red→Green3/3）。F04授权语音/质量/听评/桌面仍缺；取消及最新队列见下一行；当前下一片为有限尾部与EOS |
-| 取消发布与最新请求队列 | 原生首块/末块/预取消、目录清理、旧成功不变及实际Gain恢复通过（`P2-cancel/green.json`）；旧关闭用例依方案取消契约强化后45断言通过，活跃分支原oracle保留（ADR0024）。新队列真实Red曾排51/执行51；现在只保留一个执行与最新pending，取消旧active，49个中间快照无目录，第50个Gain oracle通过。`P2-latest-queue/focused-green.json` **11/11**，含载荷最多2个、代次隔离、未启动关闭、新工程接续和生产路由；New/Open/关闭已转发取消 | AR-17.a/b自动化证据具备，AR-17.c还有完整宿主New/Open顺序验收缺项；AR-16.d异常及真实文件发布故障100断言首次通过（P2-publication-failure/behavior-check.json），故无额外产品修复；旧成功保持且每个故障后实际Gain恢复。AR-17.d/e完整50周期/心跳、AR-16.c完整发布验收和剩余流/时间组合证据仍未闭合。桌面不恢复，不把这些子集当P2/R5全过 |
-| Python、AEC/DAS、指标/工作台/打包 | 剩余R5/R6尚未闭合 | P3/P4按实际依赖继续，完整Release累计及隔离交付在最终出口执行 |
-| 外部验收 | 桌面继续暂停；F04授权语音、F07真实同步阵列证据缺失 | 保留not_verified，不重试桌面；不阻挡无此依赖的代码开发 |
+| 基础编辑与原生图 | Gain/ChannelSwap、controller/参数表单、多源Mixer、命名路由、所选端口裁剪已实现。M21冻结候选Debug242/242，仅代表当时快照；旧证据在RF0006/M21-r5-graph-milestone。 | 桌面/设备、注册非PCM任务与工作台尚未闭合；不重做旧Red。 |
+| 独立C++用户节点 | 安装C ABI v1 SDK、仓库外DLL、启动加载、两实例/错误/更新及固定宿主hash已有P1证据。最新后端Python OFF外部SDK消费者 `P3-mixed-timeline/finite-tail/external-consumer-check.json/xml` 1/1。说明 `native_node_sdk.md`；SDK包 `build/releases/AudioAlgoNodeSDK-1.0.0.zip`。 | UPN真实GUI桌面与正式干净OS禁网环境未验证；运行中热卸载后置，原110 AR之外另保留6 UPN。 |
+| 原生时序、快照及队列 | 固定480/512 FIFO、partial progress、有界尾部/延迟、取消/发布与pending均有分片证据；最新 `stream-port-eos/` 新增独立输出EOS，选短输出时长输出仍有界结束，原有EOS严格失败/零分配/恢复回归通过。未知延迟/尾部/flush及零进展预算继续前置拒绝。 | 通用异步跨帧缓存、完整CORE-02借用/通道身份组合与更宽区间组合仍未闭合。 |
+| Python主路径P3-01～04 | 宿主发现/原子校验、纯混合计划、worker组件/CLI、状态/clip/多输出、整次代码/环境冻结、迁移重放已有Green；原生回调不执行Python。各分片在 `build/reports/loops/P3-host-integration/`。 | AR-18各项保留完整剩余合同；原生扩展环境兼容与最终独立安装仍未验证。 |
+| P3-05协议/恢复/队列 | protocol-cli-check 3/3、queue-crash-check 2/2；新序列由 `P3-05/queue-crash-independent-read.json` 读取31份WAV/代码/NPY hash，误差0，含崩溃重试、取消清理/身份，对象active/pending各峰值1。心跳p95=4.0478ms/max=18.6268ms。候选PERF-01另实测十秒484点，p95=22.0344ms/max=22.3524ms。 | 真实桌面/完整宿主生命周期及剩余协议/预算组合仍按清单逐项判定；不用旧序列数值替代新序列。 |
+| P3-06独立Python扩展 | `examples/plugins/python_user_transform/` 与 `examples/python_extension_demo/README.md` 可用；六类真实参数、main/side同时消费、运行前系数冻结、错误恢复、代码更新后新PID/hash/行为、宿主EXE不变通过。初始独立21份WAV；最新runner下 `long-path/selected-extension-report.json` 只读核验实际通过两用例的19份WAV/NPY及plugin/runner快照hash，误差0；深目录CLI v1→错误→v2亦通过。 | 组件/CLI是自动化子集，不替代EXT-02真实桌面与打包。旧结果/日志/hash保持原归属。 |
+| 混合固定帧及已知延迟 | F480→Python→F512六host与固定seed worker重放均有独立数值证明；实际 `examples/speex_python_demo/speex_python.aaproj` 可跑File→SpeexDenoise→Python→原生Output，锁定原库+独立公式误差0，区域offset959/final offset0/32037帧。当前直接原生回归保留真实Speex组件/CLI验收。 | 更宽异步、分支/区间组合未闭合；worker分区重放不等于新增UI/CLI随机分块选项。 |
+| 混合有限尾部/EOS | ADR0034命名固定块逐输出2/5帧尾长已由ADR0035扩展到内部有界固定帧流式接口。六host及原生固定seed覆盖跨帧边界，短输出只额外驱动3帧但不扩展WAV/有效区间。长输出缺EOS拒绝发布、清理后同工程恢复，错误定位before/side。最新56份原生及26份Python/恢复WAV、raw/aligned、main/side NPY与代码/runner hash独立核验误差0，旧结果完整字节保留。 | 发布C ABI v1不支持此独立尾长/流式接口；未完整声明或未知能力仍拒绝。不同入口区间不隐式补齐，通用异步及完整借用组合后续验收。 |
+| 累计候选及缺陷修复 | `RF0007-P3-candidate/debug-cumulative.json` 实际294/305；8项Temp访问、Speex worker图准备竞态、隔离副本漏SDK、旧共同装配守卫共11失败，均有定向Green（12/12与mutation-repair-check 1/1）。原JUnit落点/原missing记录保留，正式R6仍非通过。 | 原候选不改写成当前源码全量passed；新增时序后未再重复全量，最终Release必须Python/Speex ON并完整累计。 |
+| 深目录runner缺陷 | 独立检查发现长路径NPY复制失败；真实独立进程Red→Green后规范Windows文件系统根，未改预算/时限。Python消费者 `long-path/python-consumers` 37/38，唯一self-modify夹具重复前缀已按原断言修复，同目标 `fault-recovery-green` 1/1；其余37项不重跑。 | 原非零集合仍保留失败状态，不把已过子集提升为整次passed。 |
+| 构型与外部验收 | `stream-port-eos/` 重建Debug宿主、Python OFF CLI/目录/插件消费者及Runtime OFF纯计划；纯计划两构型各313断言通过，Python OFF负例/原生Gain和仓库外发布SDK消费者定向通过。桌面继续暂停，F04授权语音/F07真实同步阵列/设备及正式禁网环境缺项保留。 | AEC/DAS、注册资源/几何/指标、完整工作台、质量/设备/Release及离线交付仍未完成。 |
 
-下一行为：P3 Python manifest/独立runner真实执行；剩余P2组合与累计验收按依赖继续。P1精细参数显示已修复；历史M21不重做，未执行新全矩阵。UPN及部分契约fail-closed3/3、原验证器基础设施14/14通过；R6累计仍需6项UPN逐项判定。SDK包：`build/releases/AudioAlgoNodeSDK-1.0.0.zip`；外部证据校验副本见`P1-native-sdk/preserved-20261022T133337Z/preservation.json`，旧日志/hash未改写。最近新功能构型仅Debug，其他构型未继承passed。收口文档初始状态的时间语义澄清不改契约；仅重绑UPN文档hash，不因此编译或重跑产品。
+有效区间补验（2026-10-23）：`P3-mixed-timeline/valid-interval/target.json/xml` 对真实固定480 FIR→Python main/side→原生Gain链验证四种区间，8次运行、16432以上数值断言通过。输入区间 `{7,1018}/{7,1000}/{7,0}/{1025,0}` 在1025→1027帧后分别为 `{7,1020}/{7,1000}/{7,0}/{1025,0}`；空区间不制造有效样本。`independent-boundaries.json` 独立读取8份WAV、16份输出NPY、raw/aligned和代码/runner快照，误差0。现有实现无需修改，未制造Red；首次验收编译的字符串类型错误及独立检查容器比较/沙箱长路径失败均保留。该记录只证明部分/空区间；独立尾长与流式EOS由后续记录补齐。
+
+端口尾长边界补验：内部SDK与纯计划变化后重新构建Debug编辑器/CLI/原生及Python测试、Python OFF CLI/目录/插件消费者、Runtime OFF纯计划；`port-tail/pure-debug` 和 `pure-runtime-off` 各253断言通过，Python OFF负例与仓库外发布SDK消费者各1/1。原候选累计报告保持原状态，不能提升为当前整平台passed。
+
+随机mixed分块已接续：`P3-mixed-timeline/random/red.json/xml` 真实回调1024≠127；worker入口传递/预检/记录借用分区后 `green.json/xml` 通过。固定种子20261023、固定480 FIR→Python→固定512两次独立进程，独立重建分区并检查实际原生回调trace、两侧raw/aligned、main/side NPY与代码/runner hash，WAV字节一致、误差0。`admission-green` 以原生/离线工厂双计数验证0/-1/1025三类非法分区均在冻结前拒绝；`direct-regression` 和当前宿主 `default-speex` 通过，最新12份真实组件/CLI WAV独立核验。此入口仅显式worker重放，不新增UI/CLI随机分块选项。
+
+下一行为：接续CORE-02借用视图生命周期与稳定通道ID的组合验收。先查已有实现/测试，补齐拥有缓冲释放后结果仍自有、分块重用暂存不污染历史结果，以及通道ID与下标分离的直接组合证据；已有正确行为不制造Red。随后通用异步跨帧、AEC/DAS、注册任务与工作台/最终交付。常规持续授权有效；不恢复桌面、不自动提交/推送/发布，不把外部缺证据记passed。
+
+本轮详细循环与唯一命令记录：`build/reports/loops/P3-host-integration/P3-05/`、`P3-06/`、`long-path/`，`build/reports/loops/P3-mixed-timeline/{worker-prepare,fixed,known-delay,finite-tail}/` 及 `build/reports/loops/RF0007-P3-candidate/`。源码/二进制/解释器/快照/产物hash按各自执行记录归属；后续纯文档变化按实际产品影响复用，不改写旧日志或hash。
+
+最新自动化出口汇总：`build/reports/loops/P3-mixed-timeline/stream-port-eos/summary.json` 绑定当前源码/Debug宿主、逐输出EOS/失败恢复/独立公式和定向消费者。`random/summary.json`、`port-tail/summary.json` 等保留原快照归属。完整累计与平台状态仍为非通过。
 
 ## 历史切片记录（以下“当前/下一条”均仅适用于各自快照）
 
