@@ -1,11 +1,14 @@
 # Development status
 
-## 唯一当前摘要（2026-10-23：画布缩放与右键框选已修复；内部逐端口EOS等既有进展保留）
+## 唯一当前摘要（2026-10-23：自定义节点工作台实施文档就绪；既有产品进展保留）
 
-入口：[交付收口](plan_delivery_convergence.md)、[P3任务卡第0节](plan_agent_next_p3.md)、[时序边界ADR0033](decisions/0033-owned-native-timeline-boundaries.md)。已实现行为按下表直接证据恢复；旧R0/R2/M21起点、历史“下一条”和旧数量均不作为当前起点。完整R5/R6、AR/G/NED/UPN仍未通过。
+入口：[交付收口](plan_delivery_convergence.md)、[工作台方案](plan_node_authoring_workbench.md)、[工作台测试](testing_node_authoring_workbench.md)、[工作台TDD规程及启动提示词](agent_loop_node_authoring_workbench.md)。原P3恢复见[P3任务卡第0节](plan_agent_next_p3.md)、[时序边界ADR0033](decisions/0033-owned-native-timeline-boundaries.md)。已实现行为按下表直接证据恢复；旧R0/R2/M21起点、历史“下一条”和旧数量均不作为当前起点。完整R5/R6、AR/G/NED/UPN仍未通过，新增NA尚未实现/验收。
 
 | 用户能力/事项 | 实现及直接有效证据 | 当前缺口 |
 | --- | --- | --- |
+| 应用内自定义节点工作台（本轮仅规划） | 开发方案、17组/68个必需验收子项、S0～S5逐项阶段映射与TDD启动规程已写入，AGENTS/交付入口同步。规定内置编辑→检查/隔离试跑→原子应用→库刷新；精确版本和schema 2兼容、C++独立构建/probe/重启激活。文档检查证据 `build/reports/planning/node-authoring-20261023/`。 | 本轮未实现新按钮/服务/测试/manifest/schema 2/验证命令，未编译产品。后续从NA-01.a真实入口/草稿Red开始；NA不替代原验收，桌面继续暂停。 |
+| 节点自由拖动 | NI0014移除拖动预览中`x>=8/y>=42`模型坐标夹取；四倍率+平移后可落在(4,20)、(0,0)、(-80,-60)，鼠标锚点、连线、布局撤销/重做与计算revision保持正确。真实Red→Green，Debug测试/宿主已构建，直接回归16/16；证据 `build/reports/loops/NI0014-unbounded-node-drag/`。 | 保留底层有限数值校验及视口裁剪；真实桌面/DPI未验证，未自动重启用户应用。完整平台状态不提升。 |
+| 一键编译启动 | 仓库根目录 `build_and_run.cmd` 双击默认Debug，复用现有共享PowerShell脚本；支持Release、并行数量与BuildOnly，编译前检查已运行编辑器，失败返回非零并保留错误窗口。NI0013受控6场景及真实CMD非法配置退出链通过；从不同工作目录调用真实Debug配置/编译成功。用法 `doc/build_and_run.md`；证据 `build/reports/loops/NI0013-one-click-launch/`。 | 本轮使用BuildOnly完成真实构建，启动分支为受控检查；未自动打开/重启桌面窗口，Release未在此脚本切片重跑。原平台/桌面/DPI缺项保持不变。 |
 | 画布缩放与右键框选 | NI0012统一投影节点完整几何/端口/文字，右键优先框选，Inspector刷新保留多选；0.4/1/1.25/2.5倍缩放+平移的真实组件输入、连续连线像素、多端口命中、批量删除/一次撤销、取消路径已验证。Debug宿主已构建；证据 `build/reports/loops/NI0012-canvas-zoom-marquee/summary.json`、`loop.md`。直接CTest首轮85/89，4项仅系统Temp拒绝写入；仅这4项改用工作区临时目录后4/4，原失败保留。 | 属于本次用户指定缺陷切片，完整NED/平台仍未通过；组件渲染图已查看，真实桌面/DPI继续未验证，不自动重启用户应用。 |
 | 基础编辑与原生图 | Gain/ChannelSwap、controller/参数表单、多源Mixer、命名路由、所选端口裁剪已实现。M21冻结候选Debug242/242，仅代表当时快照；旧证据在RF0006/M21-r5-graph-milestone。 | 桌面/设备、注册非PCM任务与工作台尚未闭合；不重做旧Red。 |
 | 独立C++用户节点 | 安装C ABI v1 SDK、仓库外DLL、启动加载、两实例/错误/更新及固定宿主hash已有P1证据。最新后端Python OFF外部SDK消费者 `P3-mixed-timeline/finite-tail/external-consumer-check.json/xml` 1/1。说明 `native_node_sdk.md`；SDK包 `build/releases/AudioAlgoNodeSDK-1.0.0.zip`。 | UPN真实GUI桌面与正式干净OS禁网环境未验证；运行中热卸载后置，原110 AR之外另保留6 UPN。 |
@@ -25,7 +28,7 @@
 
 随机mixed分块已接续：`P3-mixed-timeline/random/red.json/xml` 真实回调1024≠127；worker入口传递/预检/记录借用分区后 `green.json/xml` 通过。固定种子20261023、固定480 FIR→Python→固定512两次独立进程，独立重建分区并检查实际原生回调trace、两侧raw/aligned、main/side NPY与代码/runner hash，WAV字节一致、误差0。`admission-green` 以原生/离线工厂双计数验证0/-1/1025三类非法分区均在冻结前拒绝；`direct-regression` 和当前宿主 `default-speex` 通过，最新12份真实组件/CLI WAV独立核验。此入口仅显式worker重放，不新增UI/CLI随机分块选项。
 
-下一行为：接续CORE-02借用视图生命周期与稳定通道ID的组合验收。先查已有实现/测试，补齐拥有缓冲释放后结果仍自有、分块重用暂存不污染历史结果，以及通道ID与下标分离的直接组合证据；已有正确行为不制造Red。随后通用异步跨帧、AEC/DAS、注册任务与工作台/最终交付。常规持续授权有效；不恢复桌面、不自动提交/推送/发布，不把外部缺证据记passed。
+下一行为（后续Agent收到工作台启动指令后）：按工作台三份文档从NA-01.a“真实新建按钮→源码/定义草稿保存重开，当前图/目录不变”的产品Red开始，随后S0～S5持续实施。当前本轮仅交付文档，不自动开始代码任务。原P3独立下一行为保留：CORE-02借用视图生命周期与稳定通道ID组合验收，补拥有缓冲释放后结果仍自有、分块暂存复用不污染旧结果、通道ID与下标分离证据，再接通用异步、AEC/DAS及剩余平台交付；启动NA后不同时扩无关P3切片。常规持续授权与工具边界有效；不恢复桌面、不自动提交/推送/发布，不把外部缺证据记passed。
 
 本轮详细循环与唯一命令记录：`build/reports/loops/P3-host-integration/P3-05/`、`P3-06/`、`long-path/`，`build/reports/loops/P3-mixed-timeline/{worker-prepare,fixed,known-delay,finite-tail}/` 及 `build/reports/loops/RF0007-P3-candidate/`。源码/二进制/解释器/快照/产物hash按各自执行记录归属；后续纯文档变化按实际产品影响复用，不改写旧日志或hash。
 
