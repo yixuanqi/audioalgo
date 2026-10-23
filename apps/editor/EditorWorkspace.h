@@ -122,6 +122,31 @@ public:
             canvas_.finish_library_drag(button->gesture_project_epoch());
     }
 
+    // Opens a project from an explicit path; shares the File→Open completion flow (command-line launch).
+    void open_project_file(const std::filesystem::path& path) {
+        if (path.empty())
+            return;
+        const auto expected_session = controller_.session_identity();
+        const auto expected_document_generation = controller_.document_generation();
+        const auto service = document_service_;
+        submit_work<audioalgo::ProjectDocumentLoadOutcome>(
+            [service, path] { return service->load(path); },
+            [path, expected_session, expected_document_generation]
+            (EditorComponent& target, audioalgo::ProjectDocumentLoadOutcome outcome) {
+                const auto opened = audioalgo::EditorProjectDocuments::complete_open(
+                    target.controller_, std::move(outcome), expected_session, expected_document_generation,
+                    [&target] { target.advance_project_epoch(); });
+                if (const auto* error = std::get_if<audioalgo::Diagnostic>(&opened)) {
+                    if (error->code != "project_session_stale")
+                        target.set_status(utf8_string(error->code) + ": " + utf8_string(error->message), true);
+                    return;
+                }
+                target.update_history_controls();
+                target.project_path_ = path;
+                target.set_status("Opened " + utf8_string(path_to_utf8(path.filename())), false);
+            });
+    }
+
     ~EditorComponent() override {
         file_chooser_completion_.close();
         completion_dispatch_state_->invalidate();
@@ -661,35 +686,10 @@ private:
     }
 
     void open_project() {
-        const auto expected_session = controller_.session_identity();
-        const auto expected_document_generation = controller_.document_generation();
         launch_file_chooser("Open AudioAlgo project", juce::File::getSpecialLocation(juce::File::userDocumentsDirectory),
                             "*.aaproj", juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
-                            [this, expected_session, expected_document_generation](const std::filesystem::path& path) {
-            if (path.empty())
-                return;
-            if (controller_.session_identity() != expected_session ||
-                controller_.document_generation() != expected_document_generation) {
-                set_status("The project changed while choosing a file; the selected project was not opened.", true);
-                return;
-            }
-            const auto service = document_service_;
-            submit_work<audioalgo::ProjectDocumentLoadOutcome>(
-                [service, path] { return service->load(path); },
-                [path, expected_session, expected_document_generation]
-                (EditorComponent& target, audioalgo::ProjectDocumentLoadOutcome outcome) {
-                    const auto opened = audioalgo::EditorProjectDocuments::complete_open(
-                        target.controller_, std::move(outcome), expected_session, expected_document_generation,
-                        [&target] { target.advance_project_epoch(); });
-                    if (const auto* error = std::get_if<audioalgo::Diagnostic>(&opened)) {
-                        if (error->code != "project_session_stale")
-                            target.set_status(utf8_string(error->code) + ": " + utf8_string(error->message), true);
-                        return;
-                    }
-                    target.update_history_controls();
-                    target.project_path_ = path;
-                    target.set_status("Opened " + utf8_string(path_to_utf8(path.filename())), false);
-                });
+                            [this](const std::filesystem::path& path) {
+            open_project_file(path);
         });
     }
 

@@ -2,6 +2,7 @@
 #include "EditorHostServices.h"
 #include "plugins/builtin/registration.h"
 #include "plugins/host/registration.h"
+#include <filesystem>
 #include <stdexcept>
 namespace {
 using namespace audioalgo::editor;
@@ -52,6 +53,20 @@ public:
 
     void initialise(const juce::String&) override {
         window_ = std::make_unique<MainWindow>();
+        const auto& parameters = getCommandLineParameterArray();
+        if (!parameters.isEmpty()) {
+            const auto requested = juce::File::getCurrentWorkingDirectory().getChildFile(parameters[0].unquoted());
+            const auto project = requested.existsAsFile() ? requested : juce::File(parameters[0].unquoted());
+            if (project.existsAsFile() && project.hasFileExtension(".aaproj")) {
+                const auto path = std::filesystem::path(project.getFullPathName().toStdString());
+                juce::Component::SafePointer<MainWindow> window{window_.get()};
+                juce::MessageManager::callAsync([window, path] {
+                    if (window != nullptr)
+                        if (auto* editor = dynamic_cast<EditorComponent*>(window->getContentComponent()))
+                            editor->open_project_file(path);
+                });
+            }
+        }
         if (getCommandLineParameters().contains("--smoke-test"))
             juce::Timer::callAfterDelay(250, [] { juce::JUCEApplication::getInstance()->systemRequestedQuit(); });
     }
