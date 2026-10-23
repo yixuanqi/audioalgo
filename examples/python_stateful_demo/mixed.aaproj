@@ -1,0 +1,17 @@
+{
+  "schema_version": 1, "project_id": "python-stateful-demo", "name": "Native Python Native", "revision": 1,
+  "selected_output_node_id": "output",
+  "nodes": [
+    {"id":"file", "type_id":"builtin.file_source", "parameters":{"path":"input.wav"}, "x":20,"y":100},
+    {"id":"before", "type_id":"builtin.gain", "parameters":{"gain_db":6.020599913279624}, "x":220,"y":100},
+    {"id":"python", "type_id":"example.python_stateful", "parameters":{}, "x":420,"y":100},
+    {"id":"after", "type_id":"builtin.gain", "parameters":{"gain_db":-6.020599913279624}, "x":620,"y":100},
+    {"id":"output", "type_id":"builtin.output", "parameters":{}, "x":820,"y":100}
+  ],
+  "connections": [
+    {"from_node":"file","from_port":"audio","to_node":"before","to_port":"audio_in"},
+    {"from_node":"before","from_port":"audio_out","to_node":"python","to_port":"audio_in"},
+    {"from_node":"python","from_port":"main","to_node":"after","to_port":"audio_in"},
+    {"from_node":"after","from_port":"audio_out","to_node":"output","to_port":"audio"}
+  ]
+}

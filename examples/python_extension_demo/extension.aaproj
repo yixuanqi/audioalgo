@@ -1,0 +1,17 @@
+{
+  "schema_version":1,"project_id":"python-extension-demo","name":"Independent Python extension","revision":1,"selected_output_node_id":"output",
+  "nodes":[
+    {"id":"file","type_id":"builtin.file_source","parameters":{"path":"../python_stateful_demo/input.wav"},"x":20,"y":120},
+    {"id":"before","type_id":"builtin.gain","parameters":{"gain_db":0.0},"x":210,"y":120},
+    {"id":"python","type_id":"example.python_user_transform","parameters":{},"x":400,"y":120},
+    {"id":"mix","type_id":"builtin.mixer","parameters":{"primary_gain_db":0.0,"secondary_gain_db":-6.020599913279624},"x":590,"y":120},
+    {"id":"output","type_id":"builtin.output","parameters":{},"x":780,"y":120}
+  ],
+  "connections":[
+    {"from_node":"file","from_port":"audio","to_node":"before","to_port":"audio_in"},
+    {"from_node":"before","from_port":"audio_out","to_node":"python","to_port":"audio_in"},
+    {"from_node":"python","from_port":"main","to_node":"mix","to_port":"primary"},
+    {"from_node":"python","from_port":"side","to_node":"mix","to_port":"secondary"},
+    {"from_node":"mix","from_port":"sum","to_node":"output","to_port":"audio"}
+  ]
+}

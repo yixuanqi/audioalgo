@@ -1,0 +1,14 @@
+{
+  "schema_version":1,"project_id":"speex-python-demo","name":"Speex Denoise to Python","revision":1,"selected_output_node_id":"output",
+  "nodes":[
+    {"id":"file","type_id":"builtin.file_source","parameters":{"path":"../speex_denoise_demo/input.wav"},"x":20,"y":100},
+    {"id":"denoise","type_id":"speex.denoise","parameters":{"noise_suppress_db":-25},"x":230,"y":100},
+    {"id":"python","type_id":"example.python_stateful","parameters":{"scale":0.75,"step":0.00001},"x":440,"y":100},
+    {"id":"output","type_id":"builtin.output","parameters":{},"x":650,"y":100}
+  ],
+  "connections":[
+    {"from_node":"file","from_port":"audio","to_node":"denoise","to_port":"audio_in"},
+    {"from_node":"denoise","from_port":"audio_out","to_node":"python","to_port":"audio_in"},
+    {"from_node":"python","from_port":"main","to_node":"output","to_port":"audio"}
+  ]
+}

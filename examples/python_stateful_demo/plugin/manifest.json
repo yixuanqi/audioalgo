@@ -1,0 +1,18 @@
+{
+  "schema_version": 1, "runtime": "python", "plugin_id": "example.stateful", "plugin_version": "1.0.0",
+  "nodes": [{
+    "type_id": "example.python_stateful", "version": "1.0.0", "display_name": "Python Stateful",
+    "entrypoint": "stateful:Stateful", "execution": {"kind": "block", "stateful": true, "realtime_verified": false},
+    "inputs": [{"id": "audio_in", "type": "audio.pcm@1", "required": true}],
+    "outputs": [{"id": "main", "type": "audio.pcm@1"}, {"id": "side", "type": "audio.pcm@1"}],
+    "format": {"sample_rates_hz": [16000, 48000], "channels": [1, 2, 4]},
+    "parameters": [{"id": "scale", "type": "float", "default": 0.75, "minimum": -2, "maximum": 2}, {"id": "step", "type": "float", "default": 0.00001, "minimum": 0, "maximum": 0.001}]
+  }, {
+    "type_id": "example.python_clip", "version": "1.0.0", "display_name": "Python Clip",
+    "entrypoint": "stateful:Clip", "execution": {"kind": "clip", "stateful": false, "realtime_verified": false},
+    "inputs": [{"id": "audio_in", "type": "audio.pcm@1", "required": true}],
+    "outputs": [{"id": "main", "type": "audio.pcm@1"}, {"id": "side", "type": "audio.pcm@1"}],
+    "format": {"sample_rates_hz": [16000, 48000], "channels": [1, 2, 4]},
+    "parameters": [{"id": "scale", "type": "float", "default": 0.75, "minimum": -2, "maximum": 2}, {"id": "step", "type": "float", "default": 0.00001, "minimum": 0, "maximum": 0.001}]
+  }]
+}
