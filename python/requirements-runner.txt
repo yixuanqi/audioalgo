@@ -1,0 +1,3 @@
+# Verified local independent-process tests use CPython 3.13.9 and this NumPy version.
+# Offline redistribution/isolated installation remains a final packaging acceptance.
+numpy==2.4.3

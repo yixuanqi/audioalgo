@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "plugin_id": "example.external_stateful",
+  "version": "1.0.@PLUGIN_REVISION@",
+  "abi_version": 1,
+  "platform": "windows",
+  "architecture": "x64",
+  "library": "external_stateful.dll",
+  "nodes": [{
+    "type_id": "example.external_stateful",
+    "version": "1.0.@PLUGIN_REVISION@",
+    "display_name": "External Stateful Blend",
+    "ports": [
+      {"id":"primary", "direction":"input", "type_id":"audio.pcm@1", "required":true},
+      {"id":"reference", "direction":"input", "type_id":"audio.pcm@1", "required":true},
+      {"id":"main", "direction":"output", "type_id":"audio.pcm@1"},
+      {"id":"side", "direction":"output", "type_id":"audio.pcm@1"}
+    ],
+    "parameters": [
+      {"id":"gain", "kind":"float", "default":1.0, "minimum":0.0, "maximum":4.0, "step":0.1, "display_name":"Gain", "unit":"x"},
+      {"id":"bias", "kind":"float", "default":0.0, "minimum":-0.1, "maximum":0.1, "step":0.00001, "display_name":"Per sample ramp", "unit":"FS/sample"}
+    ],
+    "sample_rates_hz":[16000,48000],
+    "channel_counts":[1,2,4],
+    "supports_variable_block_size":true
+  }]
+}

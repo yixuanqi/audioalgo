@@ -1,11 +1,16 @@
 #include <audio_algorithms/Gain.h>
 #include <audio_algorithms/ChannelSwap.h>
+#include <audio_core/AudioTimeline.h>
 
 #include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <variant>
 #include <vector>
+
+#ifdef AUDIOALGO_CONSUMER_HAS_SPEEXDSP
+int verify_speex_consumer();
+#endif
 
 int main() {
     audioalgo::AudioBuffer input(48000, {"L"}, 2);
@@ -35,5 +40,17 @@ int main() {
     if (stereo.channel(0)[0] != 0.125f || stereo.channel(1)[0] != -0.75f)
         return 5;
     std::cout << "independent ChannelSwap consumer passed\n";
+    audioalgo::SampleFrameClock clock(48000,16000);
+    for(std::uint64_t remaining=48000*600;remaining!=0;) {
+        const auto count=std::min<std::uint64_t>(remaining,127);
+        if(!clock.advance(count))return 6;
+        remaining-=count;
+    }
+    if(clock.target_frames()!=16000*600 || clock.remainder()!=0)return 7;
+    std::cout << "independent integer timeline consumer passed\n";
+#ifdef AUDIOALGO_CONSUMER_HAS_SPEEXDSP
+    return verify_speex_consumer();
+#else
     return 0;
+#endif
 }

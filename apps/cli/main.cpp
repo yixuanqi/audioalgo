@@ -7,6 +7,7 @@
 
 #include "audio_node_sdk/NodeSDK.h"
 #include "plugins/builtin/registration.h"
+#include "plugins/host/registration.h"
 #include "audio_project/ProjectFileIO.h"
 #include "audio_run_service/RunService.h"
 
@@ -19,6 +20,22 @@ std::string path_to_utf8(const std::filesystem::path& path) {
 }
 
 int run_cli(int argc, const char* const* argv) {
+    std::vector<const char*> arguments;
+    std::vector<std::filesystem::path> plugin_roots;
+    for(int i=0;i<argc;++i) {
+        if(std::string_view(argv[i])=="--plugin-dir") {
+            if(++i>=argc) { std::cerr<<"--plugin-dir requires a directory\n"; return 2; }
+            plugin_roots.push_back(std::filesystem::u8path(argv[i]));
+        } else arguments.push_back(argv[i]);
+    }
+    argc=static_cast<int>(arguments.size()); argv=arguments.data();
+    if(plugin_roots.empty()) plugin_roots=audioalgo::configured_plugin_roots();
+    if(argc==2 && std::string_view(argv[1])=="--list-nodes") {
+        audioalgo::NodeRegistry nodes;
+        const auto discovery=audioalgo::register_host_nodes(nodes,plugin_roots);
+        std::cout<<audioalgo::node_catalog_json(nodes,discovery)<<'\n';
+        return discovery.diagnostics.empty()?0:1;
+    }
     if (argc == 2 && std::string_view(argv[1]) == "--version") {
         std::cout << "AudioAlgo " << AUDIOALGO_VERSION << '\n';
         return 0;
@@ -43,10 +60,9 @@ int run_cli(int argc, const char* const* argv) {
         }
 
         audioalgo::NodeRegistry nodes;
-        if (!audioalgo::register_builtin_nodes(nodes)) {
-            std::cerr << "builtin_node_registration_failed\n";
-            return 1;
-        }
+        const auto discovery=audioalgo::register_host_nodes(nodes,plugin_roots);
+        for(auto& e:discovery.diagnostics)
+            std::cerr<<e.code<<" ["<<e.plugin_id<<"]: "<<e.message<<'\n';
         audioalgo::RunService service(nodes);
         const auto outcome = service.run({std::get<audioalgo::ProjectModel>(loaded), project_file, output_directory, block_size});
         if (const auto* error = std::get_if<audioalgo::Diagnostic>(&outcome)) {
@@ -63,7 +79,9 @@ int run_cli(int argc, const char* const* argv) {
 
     std::cout << "AudioAlgo command line runner " << AUDIOALGO_VERSION << "\n"
               << "Usage: audio_cli run <project.aaproj> <new-output-directory> <block-size>\n"
-              << "       audio_cli --version\n";
+              << "       audio_cli --list-nodes [--plugin-dir <directory>]\n"
+              << "       audio_cli --version\n"
+              << "Plugin roots: --plugin-dir (repeatable), or AUDIOALGO_PLUGIN_PATH.\n";
     return argc == 1 ? 0 : 2;
 }
 } // namespace

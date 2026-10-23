@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "generator": "create_speex_demo.py",
+  "seed": 20261022,
+  "sample_rate_hz": 16000,
+  "channels": 2,
+  "frames": 32037,
+  "input_sha256": "ba318a3e7e176b7cf1382a5c6cc6e5b1a863bfa434c18ad6cce7b60c76bf1e92",
+  "algorithm": "SpeexDSP 1.2.1, float SmallFT, frame480, AGC/VAD/dereverb off",
+  "limitation": "Synthetic tones/noise only; not F04 licensed speech, quality or listening acceptance."
+}

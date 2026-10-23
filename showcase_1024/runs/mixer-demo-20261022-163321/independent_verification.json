@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "oracle": "out = 10^(primary_db/20)*A + 10^(secondary_db/20)*B",
+  "primary_gain_db": 0.0,
+  "secondary_gain_db": -6.0,
+  "output_sha256": "aee80dff539f8f19d06685465b1d84418b258e65173d5d247f230e77d105a0ad",
+  "sample_count": 96000,
+  "channels": 2,
+  "max_abs_error": 1.4765031863817057e-08,
+  "worst_sample_index": 148,
+  "failures": []
+}

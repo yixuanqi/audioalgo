@@ -1,20 +1,22 @@
 # Development status
 
-## 唯一当前摘要（2026-10-22，交付约束修订）
+## 唯一当前摘要（2026-10-23，P1自动化出口；P2逐端口帧内进展已验证）
 
 执行入口：[交付收口、必要验证与独立原生节点](plan_delivery_convergence.md)。旧R2任务卡、下面历史“下一条”及旧数量不作为当前恢复起点。M21/P0 已于2026-10-22定向收口；文档hash修订不使旧报告自动成为累计passed，复用项均已在 `build/reports/loops/RF0006/M21-r5-graph-milestone/milestone-summary.json` 中列明差异与理由。
 
 | 用户能力/事项 | 实现与已读取证据 | 当前缺口与下一步 |
 | --- | --- | --- |
 | Gain/ChannelSwap、参数表单与controller | 已实现，历史M20及后续组件/CLI有真实记录 | 桌面/设备证据仍未齐全，不重做已完成代码 |
-| 双独立源、Mixer、命名端口及所选输出裁剪 | A0～A3切片证据齐备；M21收口：当前源 Debug 全量 ctest **242/242**（debug-full-current，JUnit已登记）；双源 Mixer oracle 2.94e-08 与所选端口裁剪 oracle 1.48e-08 均在当前二进制通过；manifest AR-14.b（6测试）/AR-14.c（5测试）/AR-07.e（F1+既有未映射）精确映射后 R5 阶段报告 **69 passed**，AR-14.a/b/c、AR-16.a passed | AR-14.d/e（注册IO/非PCM）、AR-15（时序/FIFO）未实现属P2/P3/P4排程；headless 239/241、Runtime OFF 82/85、Release 239/242 按差异复用（唯一失败均为文档波AR-01绑定过期，已刷新并定向复测绿，见里程碑摘要复用声明） |
+| 双独立源、Mixer、命名端口及所选输出裁剪 | A0～A3切片证据齐备；M21冻结快照 Debug 全量 **242/242**（并非当前P1/P2源码全量）；双源 Mixer oracle 2.94e-08、所选端口裁剪1.48e-08，AR-14.b/c及AR-07.e精确映射，历史R5报告69 passed | 本轮未重做M21产品行为或全矩阵；历史headless/Runtime OFF/Release复用仅适用于M21差异声明。当前新增P1/P2只按下面定向记录判定，注册IO/非PCM及累计验收仍未闭合 |
 | M21基线刷新 | mapping（文档波后重scaffold）、environment、debug/headless 绑定构建记录均已刷新；AR-01.a/c/d 定向全绿（ar01-post-rebind-check）；验证器基础设施 **14/14**（含110用例覆盖与验收文档hash）；R5阶段报告 sha `2928fa3…` 绑定源hash `68ad0831…` | AR-02.g 探针未按新规则无收益重跑，保留 not_verified；AR-05.b 证据缺、AR-12.d 桌面暂停同M20诚实状态 |
-| 用户C++节点独立编译/加载 | 新增必需UPN-01～06，当前not_implemented/not_run；已有静态ChannelSwap不替代 | P1发布Node SDK、外部DLL示例、共用发现/加载及宿主EXE不变证明；热卸载后置 |
-| 固定帧/延迟尾部、队列取消与真实降噪 | R5部分未实现；真实Speex接入尚缺 | P2按单行为补执行契约，尽早贯通真实SpeexDenoise文件→节点→输出 |
+| 用户C++节点独立编译/加载 | P1已实现可安装纯C ABI v1 SDK、仓库外有状态2入2出DLL模板、GUI/CLI同一启动装配、参数/端口表单、插件版本/hash报告。真实外部工程：`build/reports/loops/P1-native-sdk/20261022T080519.989296Z/report.json`；组件2用例与CLI块1/127/512逐样本oracle最大误差 **1.49e-08**，ABI/架构/缺DLL/缺入口/重复ID/描述不匹配拒绝，内置Gain恢复；两并发实例在catalog销毁后继续处理，插件v1→v2仅重建DLL并重启，原CLI/编辑器EXE hash不变。直接回归见同目录`direct-regression.json` | UPN-01/04/05自动化证据已具备；UPN-02/03组件/CLI通过但真实桌面暂停；UPN-06受控安装目录/禁代理构建通过，正式OS禁网干净环境仍not_verified。原110 AR不变，新增6项接入同一AR验收入口的R6累计。使用说明：`native_node_sdk.md`；热卸载后置 |
+| 固定帧与已知延迟 | F480→F512真实图host1/127/256/480/512/1024及固定seed随机划分，8种短尾/长输入逐样本一致；容量/峰值F有界、重置脉冲、回调零分配通过。`P2-fixed-fifo/focused-regression.json` **27/27**（含UPN消费者）。AR-15.b精确映射；AR-15.d真实37样本延迟分支脉冲合流、未知延迟零实例拒绝、实际raw550/aligned513/offset37 WAV通过，见`P2-latency/green.json`；run.json记录原始/对齐长度、offset、hash/版本，旧未声明补零节点仍拒绝短尾 | AR-15.c帧内逐端口部分消费/产出、NeedMoreInput、无进展预算与回调零分配已实现，P2-stream-progress/focused-green.json 10/10（含真实Speex新驱动）；有限尾部已实现：FIR480→FIR512保留6帧、短分支结束静音、未知/flush/预算前置拒绝、实际WAV/报告；P2-finite-tail/focused-green.json 14/14。逐端口EOS/完成及空流/错误完成/回调零分配已实现，P2-eos/focused-green.json 18/18（含真实UPN消费者）；空有效区间尾部扩展缺陷已修复；整数时间映射16↔48k十分钟全部指定/随机划分误差0，实际报告纳秒及安装纯消费者通过（P2-time-map/green.json 7/7）。不同输出独立尾长/有效区间、通用异步跨帧及CORE-02借用视图完整组合证据未闭合；整个AR-15/R5未通过 |
+| 真实Speex降噪 | 已实现独立core、薄节点、GUI/CLI共享注册。Debug preset现为Speex ON。`P2-speex/focused-green.json` **8/8**，16/48kHz×1/2/4通道×静音/脉冲/噪声×host1/127/512原库一致；两实例/reset/失败/实际生成控件调参通过。独立Python RIFF复核13产物，最大误差0，raw偏移959。`install-consumer.json` AR-04.a **1/1**，安装后Speex纯算法调用无JUCE/SDK/项目依赖。实际示例：`examples/speex_denoise_demo/speex_denoise.aaproj`，输出`build/runs/speex-demo-first/output.wav`，32037帧 | AR-19.a已映射3精确测试，但profile-OFF/缺依赖、未支持flush/动态更新诊断验收仍单列，verifier保持not_verified（partial-mapping Red→Green3/3）。F04授权语音/质量/听评/桌面仍缺；取消及最新队列见下一行；当前下一片为有限尾部与EOS |
+| 取消发布与最新请求队列 | 原生首块/末块/预取消、目录清理、旧成功不变及实际Gain恢复通过（`P2-cancel/green.json`）；旧关闭用例依方案取消契约强化后45断言通过，活跃分支原oracle保留（ADR0024）。新队列真实Red曾排51/执行51；现在只保留一个执行与最新pending，取消旧active，49个中间快照无目录，第50个Gain oracle通过。`P2-latest-queue/focused-green.json` **11/11**，含载荷最多2个、代次隔离、未启动关闭、新工程接续和生产路由；New/Open/关闭已转发取消 | AR-17.a/b自动化证据具备，AR-17.c还有完整宿主New/Open顺序验收缺项；AR-16.d异常及真实文件发布故障100断言首次通过（P2-publication-failure/behavior-check.json），故无额外产品修复；旧成功保持且每个故障后实际Gain恢复。AR-17.d/e完整50周期/心跳、AR-16.c完整发布验收和剩余流/时间组合证据仍未闭合。桌面不恢复，不把这些子集当P2/R5全过 |
 | Python、AEC/DAS、指标/工作台/打包 | 剩余R5/R6尚未闭合 | P3/P4按实际依赖继续，完整Release累计及隔离交付在最终出口执行 |
 | 外部验收 | 桌面继续暂停；F04授权语音、F07真实同步阵列证据缺失 | 保留not_verified，不重试桌面；不阻挡无此依赖的代码开发 |
 
-下一行为：P1独立用户DLL插件→P2固定帧/取消及真实降噪→P3 Python/剩余算法→P4完整交付。测试、精确需求映射与本摘要同片更新，已有记录保持原hash。新增UPN当前未被现有AR/G验证器覆盖，后续须接入，不能凭原验证器退出0称新增范围完成。
+下一行为：P3 Python manifest/独立runner真实执行；剩余P2组合与累计验收按依赖继续。P1精细参数显示已修复；历史M21不重做，未执行新全矩阵。UPN及部分契约fail-closed3/3、原验证器基础设施14/14通过；R6累计仍需6项UPN逐项判定。SDK包：`build/releases/AudioAlgoNodeSDK-1.0.0.zip`；外部证据校验副本见`P1-native-sdk/preserved-20261022T133337Z/preservation.json`，旧日志/hash未改写。最近新功能构型仅Debug，其他构型未继承passed。收口文档初始状态的时间语义澄清不改契约；仅重绑UPN文档hash，不因此编译或重跑产品。
 
 ## 历史切片记录（以下“当前/下一条”均仅适用于各自快照）
 

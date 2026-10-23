@@ -17,6 +17,9 @@ struct NativePlanNode {
     std::string node_id;
     NodeDescriptor descriptor;
     NodeParameters parameters;
+    std::size_t input_latency_frames = 0, output_latency_frames = 0, output_tail_frames = 0;
+    struct InputEnd { std::string port_id; std::size_t frame = 0; };
+    std::vector<InputEnd> input_ends;
 };
 
 struct NativePlanTask {
@@ -40,6 +43,7 @@ struct NativeAudioRoute {
 struct NativePlan {
     AudioFormat format;
     std::size_t source_frames = 0;
+    std::size_t latency_frames = 0, retained_tail_frames = 0;
     int maximum_block_frames = 0;
     std::vector<NativePlanNode> nodes;
     std::vector<NativePlanTask> tasks;

@@ -1602,10 +1602,15 @@
       "id": "AR-15.b",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
-      "test_methods": [],
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-15.b fixed 480 and 512 frames preserve samples in the real JUCE graph",
+        "AR-15.b fixed FIFO is bounded under seeded random host partitions"
+      ],
+      "test_methods": [
+        "FixedIdentity; analytic channel-distinct sine oracle; deterministic 20261022 host partitions; bounded FIFO capacity/peak and reprepare impulse"
+      ],
       "evidence_requirements": [
         "F=480/512串联，所有规定host块及固定seed随机划分通过 GRAPH-05；不丢样/重样/漂移，FIFO峰值与容量有界。"
       ],
@@ -1618,10 +1623,20 @@
       "id": "AR-15.c",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
+      "layer": "unit",
+      "runner": "ctest",
+      "test_names": [
+        "AR-15.c partial named port consumption and production retains every sample",
+        "AR-15.c invalid per port counts and no progress fail with bounded diagnostics then recover",
+        "AR-15.c partial stream callbacks allocate no memory after prepare",
+        "AR-15.c EOS follows each compensated input and independently finishes every output",
+        "AR-15.c empty streams acknowledge EOS without inventing a padded algorithm frame",
+        "AR-15.c premature invalid and missing output EOS cannot publish success"
+      ],
       "test_methods": [],
+      "remaining_contracts": [
+        "General cross-frame asynchronous streams and unequal per-output tail/valid-interval declarations are outside the current bounded PCM frame profile."
+      ],
       "evidence_requirements": [
         "NeedMoreInput携带每端口consumed/produced；部分消费、部分输出、EOS和无进展预算符合 GRAPH-07，不按一次调用丢弃全部输入。"
       ],
@@ -1634,10 +1649,14 @@
       "id": "AR-15.d",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
-      "test_methods": [],
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-15.d known algorithm delay aligns a real JUCE branch and unknown delay is refused"
+      ],
+      "test_methods": [
+        "KnownDelay37 impulse branch merge; raw550/aligned513 WAV artifacts with offset37; unknown delay zero factories"
+      ],
       "evidence_requirements": [
         "已知延迟分支在真实JUCE图合并后脉冲对齐，只裁剪一次；原始/对齐产物长度/offset符合 GRAPH-06，未知延迟不进入区域。"
       ],
@@ -1650,10 +1669,18 @@
       "id": "AR-15.e",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-15.e finite FIR tails survive fixed frames chain and compensated branch with bounded padding",
+        "AR-15.e unknown tails flush-only algorithms and insufficient padding budgets fail before factory",
+        "AR-15.e completed shorter branch stays silent while another branch drains",
+        "AR-15.e finite tail never invents valid samples from an empty or truncated valid interval"
+      ],
       "test_methods": [],
+      "remaining_contracts": [
+        "Unequal per-output tail/valid-interval declarations and nonzero-tail variable-block profiles remain unsupported; bounded fixed-frame zero-padding tails and stream EOS are the verified subset."
+      ],
       "evidence_requirements": [
         "尾帧补齐、有限drain及不支持flush按算法声明验证，有效区间与报告一致，无假flush或无限循环。"
       ],
@@ -1666,10 +1693,16 @@
       "id": "AR-15.f",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
+      "layer": "unit",
+      "runner": "ctest",
+      "test_names": [
+        "AR-15.f integer sample clocks map ten minutes across 16 and 48 kHz without drift",
+        "AR-15.f invalid rates overflow and interval endpoints fail transactionally"
+      ],
       "test_methods": [],
+      "remaining_contracts": [
+        "Complete CORE-02 borrowed-view lifetime and stable-channel-ID acceptance still needs exact composition evidence; the integer-clock subset is verified."
+      ],
       "evidence_requirements": [
         "整数时间映射与稳定通道ID满足 CORE-02，10分钟采样映射误差不超过1个目标样本，借用视图不逃逸调用有效期。"
       ],
@@ -1733,17 +1766,22 @@
       "id": "AR-16.d",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
-      "test_methods": [],
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+          "AR-17.b native cancellation stops at a block boundary without success publication then recovers",
+          "AR-16.d exceptions and actual filesystem publication faults leave no success and recover"
+      ],
+      "test_methods": [
+        "Real native block handshake; first/final/pre-cancel; no complete/fresh-directory cleanup; <=5s controlled cancellation; valid builtin Gain and unchanged existing success"
+      ],
       "evidence_requirements": [
         "取消、异常、磁盘故障均不发布complete，不覆盖旧成功产物；临时数据有可验证清理/隔离，诊断仍保留。"
       ],
       "legacy_requirements": [
         "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
       ],
-      "desktop_required": false
+        "desktop_required": false
     },
     {
       "id": "AR-16.e",
@@ -1765,10 +1803,16 @@
       "id": "AR-17.a",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
-      "test_methods": [],
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-17.a production run queue retains one active and only the latest pending snapshot",
+        "AR-17.a mailbox releases replaced payloads and ignores stale worker cleanup",
+        "AR-17.a mailbox cancels an old session while accepting the new latest snapshot"
+      ],
+      "test_methods": [
+        "Actual production worker queue: 51 submissions -> 2 prepared snapshots, latest +6dB oracle and obsolete directories absent; independent weak_ptr payload bound and stale ticket/new session checks"
+      ],
       "evidence_requirements": [
         "每项目至多一个执行+一个最新待执行请求，连续提交会替换旧排队请求，旧身份失效；实例/载荷/队列数量有界。"
       ],
@@ -1781,10 +1825,14 @@
       "id": "AR-17.b",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
-      "test_methods": [],
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-17.b native cancellation stops at a block boundary without success publication then recovers"
+      ],
+      "test_methods": [
+        "Real native block handshake; first/final/pre-cancel; no complete/fresh-directory cleanup; <=5s controlled cancellation; valid builtin Gain and unchanged existing success"
+      ],
       "evidence_requirements": [
         "原生受控可取消节点在块边界响应，受控fixture从取消到稳定状态≤5秒，且随后有效Gain成功；不把该预算推广到无响应原生第三方调用。"
       ],
@@ -1797,17 +1845,24 @@
       "id": "AR-17.c",
       "stage": "R5",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
-      "test_methods": [],
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "AR-17.c closing a queued render releases its reservation before the worker starts"
+      ],
+      "test_methods": [
+        "Actual ThreadPool queued DrainJob destruction before startup; no callbacks/payload/worker reservation; close rejects later submissions"
+      ],
       "evidence_requirements": [
         "关闭View、New/Open、宿主退出顺序正确，无悬空回调或遗留worker；不用强杀线程回收实例。"
       ],
       "legacy_requirements": [
         "G2 全部必需项；原生 RUN-04、RUN-06 对应行为"
       ],
-      "desktop_required": false
+      "desktop_required": false,
+      "remaining_contracts": [
+        "Complete production View New/Open/host-exit ordering acceptance remains to be composed with the existing lifecycle/identity evidence."
+      ]
     },
     {
       "id": "AR-17.d",
@@ -1925,17 +1980,26 @@
       "id": "AR-19.a",
       "stage": "R6",
       "required": true,
-      "layer": "unassigned",
-      "runner": "unassigned",
-      "test_names": [],
-      "test_methods": [],
+      "layer": "native_integration",
+      "runner": "ctest",
+      "test_names": [
+        "ALG-01 real Speex denoise matches original library through graph run service and CLI",
+        "ALG-04 Speex core instances reset and reject invalid blocks without corrupting output",
+        "ALG-01 generated Speex parameter control drives the original algorithm"
+      ],
+      "test_methods": [
+        "Original SpeexDSP 1.2.1 direct calls, PCM16 conversion and overlap alignment; 16/48kHz x 1/2/4 channels x silence/impulse/noise x host1/127/512; actual generated control to controller to core/CLI; two independent core instances, repeat/reset and bad parameters/format/NaN/short blocks"
+      ],
       "evidence_requirements": [
         "SpeexDenoise原库直调→core→节点→backend→CLI符合 ALG-01及ALG-04相关全部边界。"
       ],
       "legacy_requirements": [
         "G3～G6 全部必需项，以及所有前序 Gate、NED 与 AR 累积项"
       ],
-      "desktop_required": false
+      "desktop_required": false,
+      "remaining_contracts": [
+        "Explicit missing-dependency/profile-OFF acceptance and unsupported flush/dynamic-update diagnostic coverage remain to be executed; current source has no arbitrary flush/dynamic update contract."
+      ]
     },
     {
       "id": "AR-19.b",
@@ -2107,6 +2171,128 @@
         "AR-12.d"
       ],
       "fact": "Native/CLI samples and format/parameter refusals share an oracle; AR-12.d still separately requires desktop evidence."
+    },
+    {
+      "test_name": "AR-17.b native cancellation stops at a block boundary without success publication then recovers",
+      "requirement_ids": [
+        "AR-16.d",
+        "AR-17.b"
+      ],
+      "fact": "One real cancellation/cleanup/Gain-recovery observation supports both rows; AR-16.d retains explicit remaining exception/disk-failure contracts and cannot pass from this subset."
     }
-  ]
+  ],
+  "user_native_plugins": {
+    "acceptance_source": "doc/plan_delivery_convergence.md",
+    "acceptance_document_sha256": "f05d2e0f9dac67186d4bc7a7e39d59f689695e3df0565e01d07f8b3b7093cf81",
+    "requirements": [
+      {
+        "id": "UPN-01",
+        "stage": "R6",
+        "required": true,
+        "layer": "build_consumer/native_integration",
+        "runner": "ctest",
+        "test_names": [
+          "UPN_external_sdk_pipeline"
+        ],
+        "test_methods": [
+          "verify_native_plugin.main"
+        ],
+        "evidence_requirements": [
+          "Installed header-only C ABI SDK and shipped template build outside repository without host/JUCE imports; host EXE hashes stay unchanged."
+        ],
+        "desktop_required": false,
+        "offline_installation_required": false
+      },
+      {
+        "id": "UPN-02",
+        "stage": "R6",
+        "required": true,
+        "layer": "build_consumer/native_integration",
+        "runner": "ctest",
+        "test_names": [
+          "UPN_external_sdk_pipeline"
+        ],
+        "test_methods": [
+          "UPN external DLL drives generated controls controller and real run service"
+        ],
+        "evidence_requirements": [
+          "GUI host assembly and CLI share startup manifest discovery; identical catalog, generated ports/parameters and no algorithm branch; real desktop remains required."
+        ],
+        "desktop_required": true,
+        "offline_installation_required": false
+      },
+      {
+        "id": "UPN-03",
+        "stage": "R6",
+        "required": true,
+        "layer": "build_consumer/native_integration",
+        "runner": "ctest",
+        "test_names": [
+          "UPN_external_sdk_pipeline"
+        ],
+        "test_methods": [
+          "UPN external DLL drives generated controls controller and real run service"
+        ],
+        "evidence_requirements": [
+          "Generated controls drive controller and actual DLL PCM processing; component/CLI outputs match independent oracle and plugin provenance; desktop remains required."
+        ],
+        "desktop_required": true,
+        "offline_installation_required": false
+      },
+      {
+        "id": "UPN-04",
+        "stage": "R6",
+        "required": true,
+        "layer": "build_consumer/native_integration",
+        "runner": "ctest",
+        "test_names": [
+          "UPN_external_sdk_pipeline"
+        ],
+        "test_methods": [
+          "verify_native_plugin.main"
+        ],
+        "evidence_requirements": [
+          "ABI/architecture/missing DLL/missing export/duplicate ID/descriptor mismatch reject atomically; builtin Gain still executes."
+        ],
+        "desktop_required": false,
+        "offline_installation_required": false
+      },
+      {
+        "id": "UPN-05",
+        "stage": "R6",
+        "required": true,
+        "layer": "build_consumer/native_integration",
+        "runner": "ctest",
+        "test_names": [
+          "UPN_external_sdk_pipeline"
+        ],
+        "test_methods": [
+          "UPN instances retain their DLL after catalog destruction and isolate state"
+        ],
+        "evidence_requirements": [
+          "Two concurrent stateful instances isolate configuration and state; processors outlive registry; module-owned destroy precedes unload; only plugin rebuild/restart updates behavior, EXE and old manifests unchanged."
+        ],
+        "desktop_required": false,
+        "offline_installation_required": false
+      },
+      {
+        "id": "UPN-06",
+        "stage": "R6",
+        "required": true,
+        "layer": "build_consumer/native_integration",
+        "runner": "ctest",
+        "test_names": [
+          "UPN_external_sdk_pipeline"
+        ],
+        "test_methods": [
+          "verify_native_plugin.main"
+        ],
+        "evidence_requirements": [
+          "Controlled external directory contains installed SDK/template, published host, plugin package and declared toolchain/runtime; formal OS network-isolated clean installation remains required."
+        ],
+        "desktop_required": false,
+        "offline_installation_required": true
+      }
+    ]
+  }
 }

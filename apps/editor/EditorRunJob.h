@@ -38,6 +38,10 @@ public:
           completion_(std::move(completion)) {}
 
     JobStatus runJob() override {
+        auto caller_cancelled = std::move(request_.is_cancelled);
+        request_.is_cancelled = [this, caller_cancelled = std::move(caller_cancelled)] {
+            return shouldExit() || (caller_cancelled && caller_cancelled());
+        };
         std::error_code filesystem_error;
         std::filesystem::create_directories(request_.output_directory.parent_path(), filesystem_error);
         RunService service(descriptors_, resources_);

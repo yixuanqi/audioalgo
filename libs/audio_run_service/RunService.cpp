@@ -140,13 +140,15 @@ private:
     std::size_t total_bytes_ = 0;
 };
 
-std::variant<std::string, Diagnostic> sha256_file(const std::filesystem::path& path) {
+std::variant<std::string, Diagnostic> sha256_file(const std::filesystem::path& path,
+                                                const std::function<bool()>& cancelled = {}) {
     std::ifstream stream(path, std::ios::binary);
     if (!stream)
         return Diagnostic{"input_hash_failed", "Could not open audio file for hashing"};
     Sha256 digest;
     std::array<std::uint8_t, 64 * 1024> block{};
     while (stream) {
+        if (cancelled && cancelled()) return Diagnostic{"run_cancelled", "File hashing was cancelled"};
         stream.read(reinterpret_cast<char*>(block.data()), static_cast<std::streamsize>(block.size()));
         const auto count = stream.gcount();
         if (count > 0)
@@ -184,6 +186,10 @@ RunService::RunService(std::shared_ptr<const NodeRegistry> nodes,
       resources_(resources ? std::move(resources) : std::make_shared<ProjectResourceService>()) {}
 
 RunOutcome RunService::run(const RunRequest& request) const {
+    const auto cancelled = [&] { return request.is_cancelled && request.is_cancelled(); };
+    const auto cancellation = [] { return Diagnostic{"run_cancelled", "Offline run cancelled; no successful result was published"}; };
+    const auto file_hash = [&](const std::filesystem::path& path) { return sha256_file(path, request.is_cancelled); };
+    if (cancelled()) return cancellation();
     if (nodes_ == nullptr)
         return Diagnostic{"node_registry_missing", "The run service has no node registry"};
     auto identity = request.identity;
@@ -259,7 +265,7 @@ RunOutcome RunService::run(const RunRequest& request) const {
         const auto error = [&](std::string code, std::string message) {
             return Diagnostic{std::move(code), std::move(message), node_id, parameter_id};
         };
-        const auto before = sha256_file(path);
+        const auto before = file_hash(path);
         if (const auto* failure = std::get_if<Diagnostic>(&before))
             return error(failure->code, failure->message);
         const auto relative = std::filesystem::path("resources") /
@@ -277,6 +283,7 @@ RunOutcome RunService::run(const RunRequest& request) const {
                 return error("resource_snapshot_copy_failed", "Could not open resource snapshot streams");
             std::array<char, 64 * 1024> bytes{};
             while (source) {
+                if (cancelled()) return error("run_cancelled", "Resource snapshot copy was cancelled");
                 source.read(bytes.data(), static_cast<std::streamsize>(bytes.size()));
                 if (source.gcount() > 0)
                     destination.write(bytes.data(), source.gcount());
@@ -287,9 +294,9 @@ RunOutcome RunService::run(const RunRequest& request) const {
             if (!source.eof() || source.bad() || !destination)
                 return error("resource_snapshot_copy_failed", "Could not close complete resource snapshot");
         }
-        const auto copied = sha256_file(destination_path);
-        if (!std::holds_alternative<std::string>(copied) ||
-            std::get<std::string>(copied) != std::get<std::string>(before))
+        const auto copied = file_hash(destination_path);
+        if (const auto* diagnostic = std::get_if<Diagnostic>(&copied)) return error(diagnostic->code, diagnostic->message);
+        if (std::get<std::string>(copied) != std::get<std::string>(before))
             return error("resource_modified_during_snapshot", "Resource capture did not match the fixed input version");
         return ResourceRecord{node_id, parameter_id, path, relative, std::get<std::string>(copied)};
     };
@@ -351,16 +358,21 @@ RunOutcome RunService::run(const RunRequest& request) const {
     // Reject changes while capture is in progress. Once this boundary is crossed,
     // original paths may change or disappear; execution and publication use copies.
     for (const auto& resource : resource_records) {
-        const auto digest = sha256_file(resource.path);
+        const auto digest = file_hash(resource.path);
+        if (const auto* error = std::get_if<Diagnostic>(&digest)) return *error;
         if (!std::holds_alternative<std::string>(digest) || std::get<std::string>(digest) != resource.sha256)
             return Diagnostic{"resource_modified_during_snapshot", "Input resource changed before capture completed",
                               resource.node_id, resource.parameter_id};
     }
-    const auto rendered_result = render_audio_graph(rendering_project, *nodes_, std::move(source_bindings), request.block_size);
+    NativeRenderStatistics render_statistics;
+    const auto rendered_result = render_audio_graph(rendering_project, *nodes_, std::move(source_bindings), request.block_size,
+                                                    {{}, &render_statistics, true, request.is_cancelled});
     if (const auto* error = std::get_if<Diagnostic>(&rendered_result))
         return *error;
+    if (cancelled()) return cancellation();
     for (const auto& resource : resource_records) {
-        const auto digest = sha256_file(request.output_directory / resource.snapshot_path);
+        const auto digest = file_hash(request.output_directory / resource.snapshot_path);
+        if (const auto* error = std::get_if<Diagnostic>(&digest)) return *error;
         if (!std::holds_alternative<std::string>(digest) || std::get<std::string>(digest) != resource.sha256)
             return Diagnostic{"resource_snapshot_modified", "Captured resource changed while the run was executing",
                               resource.node_id, resource.parameter_id};
@@ -371,9 +383,20 @@ RunOutcome RunService::run(const RunRequest& request) const {
     const auto write_result = write_wav_file(output_file, std::get<AudioBuffer>(rendered_result), WavEncoding::float32);
     if (const auto* error = std::get_if<Diagnostic>(&write_result))
         return *error;
-    const auto output_hash_result = sha256_file(output_file);
+    const auto output_hash_result = file_hash(output_file);
     if (const auto* error = std::get_if<Diagnostic>(&output_hash_result))
         return *error;
+    std::string raw_output_name = "output.wav";
+    std::string raw_output_hash = std::get<std::string>(output_hash_result);
+    if (render_statistics.raw_audio) {
+        raw_output_name = "output.raw.wav";
+        const auto raw_file = request.output_directory / raw_output_name;
+        const auto written = write_wav_file(raw_file, *render_statistics.raw_audio, WavEncoding::float32);
+        if (const auto* error = std::get_if<Diagnostic>(&written)) return *error;
+        const auto digest = file_hash(raw_file);
+        if (const auto* error = std::get_if<Diagnostic>(&digest)) return *error;
+        raw_output_hash = std::get<std::string>(digest);
+    }
 
     // Keep the executed parameter values with each run, including descriptor defaults.
     // The caller's editable project and original project file remain untouched.
@@ -381,7 +404,7 @@ RunOutcome RunService::run(const RunRequest& request) const {
     const auto snapshot_result = save_project_file(snapshot_file, executed_project);
     if (const auto* error = std::get_if<Diagnostic>(&snapshot_result))
         return *error;
-    const auto snapshot_hash = sha256_file(snapshot_file);
+    const auto snapshot_hash = file_hash(snapshot_file);
     if (const auto* error = std::get_if<Diagnostic>(&snapshot_hash))
         return *error;
 
@@ -398,7 +421,7 @@ RunOutcome RunService::run(const RunRequest& request) const {
     const auto replay_saved = save_project_file(replay_file, replay_project);
     if (const auto* error = std::get_if<Diagnostic>(&replay_saved))
         return *error;
-    const auto replay_hash = sha256_file(replay_file);
+    const auto replay_hash = file_hash(replay_file);
     if (const auto* error = std::get_if<Diagnostic>(&replay_hash))
         return *error;
 
@@ -423,6 +446,31 @@ RunOutcome RunService::run(const RunRequest& request) const {
         resource_manifest.add(juce::var(item.get()));
     }
     manifest->setProperty("resources", resource_manifest);
+    juce::Array<juce::var> plugin_manifest;
+    juce::Array<juce::var> node_versions;
+    for(const auto& node:executed_project.nodes) {
+        if(!selection.closure.contains(node.id)) continue;
+        const auto* descriptor=nodes_->find(node.type_id);
+        if(!descriptor) continue;
+        juce::DynamicObject::Ptr version=new juce::DynamicObject;
+        version->setProperty("node_id",json_string(node.id));
+        version->setProperty("type_id",json_string(node.type_id));
+        version->setProperty("version",json_string(descriptor->version));
+        node_versions.add(juce::var(version.get()));
+        if(!descriptor->plugin_origin) continue;
+        const auto& origin=*descriptor->plugin_origin;
+        juce::DynamicObject::Ptr item=new juce::DynamicObject;
+        item->setProperty("node_id",json_string(node.id));
+        item->setProperty("type_id",json_string(node.type_id));
+        item->setProperty("node_version",json_string(descriptor->version));
+        item->setProperty("plugin_id",json_string(origin.plugin_id));
+        item->setProperty("plugin_version",json_string(origin.version));
+        item->setProperty("library_sha256",json_string(origin.library_sha256));
+        item->setProperty("manifest_sha256",json_string(origin.manifest_sha256));
+        plugin_manifest.add(juce::var(item.get()));
+    }
+    manifest->setProperty("plugins",plugin_manifest);
+    manifest->setProperty("node_versions",node_versions);
     manifest->setProperty("session_epoch", static_cast<juce::int64>(identity.session_epoch));
     manifest->setProperty("request_id", json_string(identity.request_id));
     manifest->setProperty("sample_rate_hz", static_cast<int>(std::get<AudioBuffer>(rendered_result).sample_rate_hz()));
@@ -431,12 +479,28 @@ RunOutcome RunService::run(const RunRequest& request) const {
     manifest->setProperty("valid_start_frame", static_cast<juce::int64>(std::get<AudioBuffer>(rendered_result).valid_interval().first_frame));
     manifest->setProperty("valid_frame_count", static_cast<juce::int64>(std::get<AudioBuffer>(rendered_result).valid_interval().frame_count));
     manifest->setProperty("block_size", request.block_size);
+    manifest->setProperty("raw_frames", static_cast<juce::int64>(render_statistics.raw_frames));
+    manifest->setProperty("raw_duration_ns", static_cast<juce::int64>(render_statistics.raw_duration_ns));
+    manifest->setProperty("aligned_duration_ns", static_cast<juce::int64>(render_statistics.aligned_duration_ns));
+    manifest->setProperty("alignment_offset_ns", static_cast<juce::int64>(render_statistics.alignment_offset_ns));
+    manifest->setProperty("time_rounding", "floor_absolute_sample_position");
+    manifest->setProperty("aligned_frames", static_cast<juce::int64>(render_statistics.aligned_frames));
+    manifest->setProperty("source_frames", static_cast<juce::int64>(render_statistics.source_frames));
+    manifest->setProperty("retained_tail_frames", static_cast<juce::int64>(render_statistics.retained_tail_frames));
+    manifest->setProperty("zero_padding_frames", static_cast<juce::int64>(render_statistics.zero_padding_frames));
+    manifest->setProperty("raw_valid_frame_count", static_cast<juce::int64>(std::get<AudioBuffer>(rendered_result).valid_interval().frame_count));
+    manifest->setProperty("alignment_offset_frames", static_cast<juce::int64>(render_statistics.alignment_offset_frames));
+    manifest->setProperty("raw_output_file", json_string(raw_output_name));
+    manifest->setProperty("raw_output_sha256", json_string(raw_output_hash));
+    manifest->setProperty("raw_valid_start_frame", static_cast<juce::int64>(render_statistics.alignment_offset_frames +
+        std::get<AudioBuffer>(rendered_result).valid_interval().first_frame));
     manifest->setProperty("input_sha256", json_string(input_hash));
     manifest->setProperty("output_sha256", json_string(std::get<std::string>(output_hash_result)));
     const auto input_filename = input_path.filename().u8string();
     const std::string input_filename_utf8(reinterpret_cast<const char*>(input_filename.data()), input_filename.size());
     manifest->setProperty("input_file", json_string(input_filename_utf8));
     manifest->setProperty("output_file", "output.wav");
+    if (cancelled()) return cancellation();
     if (!write_json_atomically(request.output_directory / "run.json", juce::var(manifest.get())))
         return Diagnostic{"run_manifest_write_failed", "Could not publish the run manifest"};
 
@@ -445,6 +509,9 @@ RunOutcome RunService::run(const RunRequest& request) const {
     completion->setProperty("run_id", json_string(run_id));
     completion->setProperty("manifest", "run.json");
     completion->setProperty("output_sha256", json_string(std::get<std::string>(output_hash_result)));
+    // Last cooperative cancellation/commit boundary. Once this final check has
+    // passed, publishing the completion marker is the terminal successful action.
+    if (cancelled()) return cancellation();
     if (!write_json_atomically(request.output_directory / "complete.json", juce::var(completion.get())))
         return Diagnostic{"run_complete_write_failed", "Could not publish the completion marker"};
     output_guard.commit();

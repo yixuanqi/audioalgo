@@ -1,0 +1,9 @@
+# 每项目一个执行和一个最新待执行快照
+
+2026-10-22。生产提交入口先提取为EditorRunQueue保持原行为。真实Red：首任务在真实处理块内等待时连续提交50次，ThreadPool保留51项、创建51个处理器并为49个过期请求产生目录（P2-latest-queue/behavior-red.json）。这不是人工破坏后端制造Red。
+
+LatestRequestMailbox是无JUCE/项目/I/O依赖的值容器，只保留active取消token和一个pending载荷。新提交取消旧active并替换旧pending；旧pending立即释放，UI结果身份仍由已有RunReception严格验证。worker使用代次ticket，防止结束中的旧worker清除新worker的预留。生产DrainJob在原线程池中复用EditorRunJob的实际运行/波形/通知路径，不新增第二个RunService。
+
+New/Open的epoch失效先于queue.cancel和展示清理；宿主关闭先queue.close拒绝新请求，再停止/回收线程池。共享State独立于View存活，回调仍只持有弱组件状态，注册表/模块待worker/实例结束后释放。尚未启动的DrainJob也会在析构时abandon自己的代次；pending-close-red.json证明缺少该清理会遗留worker_claimed状态，修复后实际关闭回收通过。
+
+验证真实Gain参数快照：只准备第0与第50请求，最终输出符合+6dB oracle，旧active取消且49个中间目录从未创建；独立弱引用观察证明50次替换始终最多2个载荷，新工程可在旧worker回收后接续。11项目标及直接路由回归通过。不把50次突发提交替代AR-17.d的50次完整编辑/运行/取消/重开，也不宣称完整PERF心跳或桌面验收通过。

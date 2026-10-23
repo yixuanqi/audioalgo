@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "project_id": "speex-denoise-demo",
+  "name": "Speex Denoise (synthetic)",
+  "revision": 1,
+  "selected_output_node_id": "output",
+  "nodes": [
+    {
+      "id": "file",
+      "type_id": "builtin.file_source",
+      "parameters": {
+        "path": "input.wav"
+      },
+      "x": 30,
+      "y": 80
+    },
+    {
+      "id": "denoise",
+      "type_id": "speex.denoise",
+      "parameters": {
+        "noise_suppress_db": -25
+      },
+      "x": 280,
+      "y": 80
+    },
+    {
+      "id": "output",
+      "type_id": "builtin.output",
+      "parameters": {},
+      "x": 530,
+      "y": 80
+    }
+  ],
+  "connections": [
+    {
+      "from_node": "file",
+      "from_port": "audio",
+      "to_node": "denoise",
+      "to_port": "audio_in"
+    },
+    {
+      "from_node": "denoise",
+      "from_port": "audio_out",
+      "to_node": "output",
+      "to_port": "audio"
+    }
+  ]
+}

@@ -73,6 +73,25 @@ struct NodeExecutionCapabilities {
     bool supports_variable_block_size = true;
     std::size_t fixed_block_frames = 0;
     bool supports_named_audio_ports = false;
+    // Opt in only if processing a zero-padded final frame is algorithmically valid.
+    // The wrapper declares its buffering latency and clips that delay once at region output.
+    enum class FixedFrameEndPolicy { reject_partial, zero_pad };
+    FixedFrameEndPolicy fixed_frame_end_policy = FixedFrameEndPolicy::reject_partial;
+    // Algorithm delay, separate from the wrapper's F-1 FIFO buffering delay.
+    // nullopt means unknown: such a node cannot enter a synchronous native region.
+    std::optional<std::size_t> latency_frames = 0;
+    // Internal bounded-frame streaming profile (distinct from the published C ABI v1).
+    // The wrapper retains each port's unconsumed input until the complete frame is done.
+    bool uses_streaming_frame_api = false;
+    std::size_t maximum_no_progress_calls = 8;
+    // Finite post-input signal to preserve, independent of deterministic latency.
+    // Unknown tails and algorithms requiring a flush API cannot enter this profile.
+    enum class TailProcessing { none, zero_padding, requires_flush };
+    TailProcessing tail_processing = TailProcessing::none;
+    std::optional<std::size_t> tail_frames = 0;
+    // Additional input timeline after EOS; includes latency recovery and frame padding.
+    // Required for zero_padding tails. No calls to a fictitious algorithm flush API.
+    std::optional<std::size_t> maximum_zero_padding_frames;
 };
 
 struct NodeDescriptor {
@@ -84,6 +103,10 @@ struct NodeDescriptor {
     NodeExecutionKind execution_kind = NodeExecutionKind::block;
     NodeAudioFormatConstraint audio_format;
     NodeExecutionCapabilities capabilities;
+    struct PluginOrigin {
+        std::string plugin_id, version, library_sha256, manifest_sha256;
+    };
+    std::optional<PluginOrigin> plugin_origin;
 };
 
 struct NodeRegistrationDiagnostic {
@@ -162,6 +185,40 @@ struct NamedAudioBlockView {
     std::span<const AudioOutputPortBlock> outputs;
 };
 
+struct AudioStreamInputPortBlock {
+    std::string_view id;
+    std::span<const float* const> channels;
+    std::size_t frame_count = 0;
+    // Prefix belonging to the finite input timeline; remaining samples are declared zero padding.
+    // EOS means this offered span reaches the end, not that nothing was consumed.
+    std::size_t frames_before_eos = 0;
+    bool end_of_stream = false;
+};
+struct AudioStreamOutputPortBlock {
+    std::string_view id;
+    std::span<float* const> channels;
+    std::size_t frame_capacity = 0;
+    std::size_t frames_before_eos = 0;
+    bool end_of_stream = false;
+};
+struct AudioStreamBlockView {
+    std::uint32_t sample_rate_hz = 0;
+    std::span<const AudioStreamInputPortBlock> inputs;
+    std::span<const AudioStreamOutputPortBlock> outputs;
+};
+// Caller-owned, zeroed before each call. Counts are independent for every port;
+// a node may consume/produce only part of the offered data. Views are borrowed
+// for this call only. Normal processing may not allocate or perform I/O.
+struct AudioStreamProgress {
+    std::span<std::size_t> consumed;
+    std::span<std::size_t> produced;
+    // Independent output EOS acknowledgement. Values must be 0 or 1, only after
+    // producing the planned logical prefix. A completed output is never offered again.
+    std::span<std::uint8_t> finished;
+};
+enum class AudioStreamStatus { progress, need_more_input };
+using AudioStreamOutcome = std::variant<AudioStreamStatus, Diagnostic>;
+
 class AudioNodeProcessor {
 public:
     virtual ~AudioNodeProcessor() = default;
@@ -188,6 +245,8 @@ public:
 
     // Released between runs (new run, discontinuity, parameter change). Must not allocate.
     virtual void reset() noexcept {}
+    [[nodiscard]] virtual bool supports_stream_processing() const noexcept { return false; }
+    [[nodiscard]] virtual AudioStreamOutcome process_stream(const AudioStreamBlockView&, AudioStreamProgress);
 };
 
 using NodeFactory = std::function<std::unique_ptr<AudioNodeProcessor>()>;

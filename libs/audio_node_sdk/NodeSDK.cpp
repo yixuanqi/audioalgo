@@ -8,6 +8,10 @@
 
 namespace audioalgo {
 
+AudioStreamOutcome AudioNodeProcessor::process_stream(const AudioStreamBlockView&, AudioStreamProgress) {
+    return Diagnostic{"stream_processing_unsupported", "Node does not implement the streaming frame protocol"};
+}
+
 namespace {
 
 NodeRegistrationDiagnostic invalid(std::string code, std::string field, std::string message) {
@@ -159,6 +163,18 @@ std::optional<NodeRegistrationDiagnostic> validate_descriptor(const NodeDescript
         return error;
 
     const auto& capabilities = descriptor.capabilities;
+    if (capabilities.uses_streaming_frame_api && (capabilities.supports_variable_block_size ||
+        capabilities.fixed_block_frames == 0 ||
+        capabilities.fixed_frame_end_policy != NodeExecutionCapabilities::FixedFrameEndPolicy::zero_pad))
+        return invalid("stream_frame_profile_required", "capabilities.uses_streaming_frame_api", "Streaming frame API requires an explicit zero-padded fixed frame");
+    if (capabilities.uses_streaming_frame_api && (capabilities.maximum_no_progress_calls == 0 || capabilities.maximum_no_progress_calls > 1024))
+        return invalid("stream_progress_budget_invalid", "capabilities.maximum_no_progress_calls", "No-progress budget must be 1..1024");
+    if (capabilities.fixed_frame_end_policy != NodeExecutionCapabilities::FixedFrameEndPolicy::reject_partial &&
+        capabilities.fixed_frame_end_policy != NodeExecutionCapabilities::FixedFrameEndPolicy::zero_pad)
+        return invalid("capability_eos_policy_invalid", "capabilities.fixed_frame_end_policy", "Unknown fixed-frame EOS policy");
+    if (capabilities.supports_variable_block_size &&
+        capabilities.fixed_frame_end_policy != NodeExecutionCapabilities::FixedFrameEndPolicy::reject_partial)
+        return invalid("capability_eos_policy_conflict", "capabilities.fixed_frame_end_policy", "Padding policy requires an explicitly fixed frame size");
     if (capabilities.maximum_audio_inputs && capabilities.minimum_audio_inputs > *capabilities.maximum_audio_inputs)
         return invalid("capability_range_invalid", "capabilities.minimum_audio_inputs", "Minimum input count must not exceed maximum input count");
     if (capabilities.maximum_audio_outputs && capabilities.minimum_audio_outputs > *capabilities.maximum_audio_outputs)

@@ -19,6 +19,50 @@ ACCEPTANCE = ROOT / "doc" / "testing_architecture_refactor.md"
 ALLOWED = {"passed", "failed", "not_run", "not_verified", "blocked", "skipped", "timeout"}
 
 
+def validate_upn_manifest(manifest: dict[str, Any]) -> list[str]:
+    """UPN supplements, never replaces or changes the 110 AR cases."""
+    block = manifest.get("user_native_plugins", {})
+    rows = block.get("requirements", [])
+    errors = []
+    if {r.get("id") for r in rows} != {f"UPN-{i:02}" for i in range(1, 7)} or len(rows) != 6:
+        errors.append("UPN requires exactly UPN-01..06")
+    source = ROOT / "doc/plan_delivery_convergence.md"
+    if block.get("acceptance_source") != "doc/plan_delivery_convergence.md" or block.get("acceptance_document_sha256") != sha(source):
+        errors.append("UPN acceptance document binding mismatch")
+    for row in rows:
+        if row.get("stage") != "R6" or row.get("required") is not True or not row.get("test_names") or not row.get("evidence_requirements"):
+            errors.append(f"invalid UPN mapping: {row.get('id')}")
+        if not isinstance(row.get("test_names"), list) or not all(isinstance(n, str) and n.strip() for n in row.get("test_names", [])):
+            errors.append(f"invalid UPN test names: {row.get('id')}")
+    return errors
+
+
+def evaluate_upn_cases(manifest: dict[str, Any], registered: set[str], executed: dict[str, str], stage: str,
+                       evidence: dict[str, Any] | None = None, current_source_hash: str | None = None) -> list[dict[str, str]]:
+    if stage != "R6":
+        return []
+    rows = []
+    for item in manifest.get("user_native_plugins", {}).get("requirements", []):
+        names = item.get("test_names", [])
+        state, reason = "passed", "all mapped native SDK/DLL tests executed and passed"
+        missing = [n for n in names if n not in registered or n not in executed]
+        failures = [executed[n] for n in names if n in executed and executed[n] != "passed"]
+        if not names or missing:
+            state, reason = "not_run", "missing UPN registration/execution: " + ", ".join(missing)
+        elif failures:
+            state, reason = failures[0], "UPN mapped test did not pass"
+        elif item.get("desktop_required"):
+            error = verify_desktop_record((evidence or {}).get(item["id"]), source_tree_hash=current_source_hash)
+            if error:
+                state, reason = "not_verified", error
+        elif item.get("offline_installation_required"):
+            # No OS network-isolation/clean-user acceptance importer exists yet. A
+            # proxy-only development run must never satisfy the formal requirement.
+            state, reason = "not_verified", "formal clean/offline installation evidence has not been collected"
+        rows.append({"id": item["id"], "stage": "R6", "status": state, "reason": reason})
+    return rows
+
+
 def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -170,6 +214,8 @@ def evaluate_cases(manifest: dict[str, Any], registered: set[str], executed: dic
             nonpassing = next((value for value in ("failed", "skipped", "timeout") if value in states), None)
             if nonpassing is not None:
                 state, reason = nonpassing, "mapped test did not pass"
+            elif item.get("remaining_contracts"):
+                state, reason = "not_verified", "unimplemented/unverified contract: " + "; ".join(item["remaining_contracts"])
             elif item.get("desktop_required"):
                 record = (evidence or {}).get(item["id"])
                 failure = verify_desktop_record(record, source_tree_hash=current_source_hash)
@@ -422,7 +468,7 @@ def main() -> int:
     invocation_started = dt.datetime.now(dt.timezone.utc)
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     document = ACCEPTANCE.read_text(encoding="utf-8")
-    errors = validate_manifest(manifest, document)
+    errors = validate_manifest(manifest, document) + validate_upn_manifest(manifest)
     inventory_started = dt.datetime.now(dt.timezone.utc)
     inventory_rows, inventory_command, inventory_stdout, inventory_stderr = inventory(args.build_dir.resolve(), args.config)
     inventory_ended = dt.datetime.now(dt.timezone.utc)
@@ -440,6 +486,7 @@ def main() -> int:
         errors.append(f"JUnit/inventory test count mismatch: inventory={len(registered)}, executed={len(executed)}")
     evidence = json.loads(args.evidence.read_text(encoding="utf-8")) if args.evidence else {}
     cases = evaluate_cases(manifest, registered, executed, args.stage, args.pure, evidence, current_source_hash)
+    cases.extend(evaluate_upn_cases(manifest, registered, executed, args.stage, evidence, current_source_hash))
     if runner_errors or set(executed) != registered:
         suite_error = "; ".join(runner_errors) if runner_errors else "JUnit did not execute the complete registered inventory"
         for row in cases:
@@ -449,6 +496,8 @@ def main() -> int:
     status_counts = {state: sum(row["status"] == state for row in cases) for state in sorted(ALLOWED)}
     full_count = sum(case.get("required") and manifest["stages"].index(case["stage"]) <= manifest["stages"].index(args.stage)
                      for case in manifest["requirements"])
+    if args.stage == "R6":
+        full_count += len(manifest.get("user_native_plugins", {}).get("requirements", []))
     report_status = "passed" if not errors and not args.pure and len(cases) == full_count and all(row["status"] == "passed" for row in cases) else "failed"
     timestamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
     report_dir = ROOT / "build" / "reports" / "architecture_refactor" / timestamp

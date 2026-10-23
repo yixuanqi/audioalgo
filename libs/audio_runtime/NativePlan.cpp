@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <map>
+#include <limits>
 #include <set>
 #include <utility>
 
@@ -115,8 +116,40 @@ NativePlanOutcome compile_native_plan(const ProjectModel& project, const NodeCat
             if (port.type_id != "audio.pcm@1")
                 return plan_error("port_type_unsupported", "Node " + node->id + " port " + port.id + " is typed " +
                     port.type_id + "; the native audio region only accepts audio.pcm@1", node->id, port.id);
+        if (!descriptor.capabilities.latency_frames)
+            return plan_error("latency_unknown", "Unknown algorithm latency cannot enter a synchronous native region", node->id);
+        const auto buffering = !descriptor.capabilities.supports_variable_block_size &&
+            descriptor.capabilities.fixed_frame_end_policy == NodeExecutionCapabilities::FixedFrameEndPolicy::zero_pad &&
+            descriptor.capabilities.fixed_block_frames > 0 ? descriptor.capabilities.fixed_block_frames - 1 : 0;
+        if (*descriptor.capabilities.latency_frames > static_cast<std::size_t>(std::numeric_limits<int>::max()) ||
+            buffering > static_cast<std::size_t>(std::numeric_limits<int>::max()) - *descriptor.capabilities.latency_frames)
+            return plan_error("latency_unsupported", "Declared latency exceeds the native graph sample range", node->id);
+        const auto& caps = descriptor.capabilities;
+        if (!caps.tail_frames)
+            return plan_error("tail_unknown", "Unknown algorithm tails cannot enter a bounded native region", node->id);
+        if (caps.tail_processing == NodeExecutionCapabilities::TailProcessing::requires_flush)
+            return plan_error("flush_unsupported", "This native profile has no algorithm flush API; zero padding cannot be substituted", node->id);
+        if (*caps.tail_frames != 0 && caps.tail_processing != NodeExecutionCapabilities::TailProcessing::zero_padding)
+            return plan_error("tail_policy_unsupported", "A retained tail requires an explicit zero-padding algorithm contract", node->id);
+        if (caps.tail_processing == NodeExecutionCapabilities::TailProcessing::zero_padding) {
+            const auto limit = static_cast<std::size_t>(std::numeric_limits<int>::max());
+            if (caps.supports_variable_block_size || caps.fixed_block_frames == 0 ||
+                caps.fixed_frame_end_policy != NodeExecutionCapabilities::FixedFrameEndPolicy::zero_pad)
+                return plan_error("tail_profile_unsupported", "Explicit zero-padding tails currently require a padded fixed frame", node->id);
+            const auto recovery = buffering + *caps.latency_frames;
+            if (*caps.tail_frames > limit - recovery || !caps.maximum_zero_padding_frames ||
+                *caps.maximum_zero_padding_frames > limit || *caps.maximum_zero_padding_frames < recovery + *caps.tail_frames)
+                return plan_error("tail_padding_budget_invalid", "Finite padding budget must cover algorithm delay, retained tail and at most F-1 padding samples", node->id);
+        }
         if (!descriptor.capabilities.supports_variable_block_size) {
             const auto fixed = descriptor.capabilities.fixed_block_frames;
+            const auto can_pad = descriptor.capabilities.fixed_frame_end_policy ==
+                NodeExecutionCapabilities::FixedFrameEndPolicy::zero_pad;
+            if (can_pad) {
+                if (fixed == 0 || fixed > static_cast<std::size_t>(std::numeric_limits<int>::max()))
+                    return plan_error("capability_unsupported", "Fixed frame length is outside the supported native buffer range", node->id);
+                continue;
+            }
             if (fixed == 0 || static_cast<std::size_t>(maximum_block_frames) != fixed)
                 return plan_error("capability_unsupported", "Node " + node->id + " requires " + std::to_string(fixed) +
                     " frame blocks but the run requested " + std::to_string(maximum_block_frames), node->id);
@@ -146,6 +179,37 @@ NativePlanOutcome compile_native_plan(const ProjectModel& project, const NodeCat
         for (const auto& parameter : descriptor.parameters)
             parameters.try_emplace(parameter.id, parameter.default_value);
         plan.nodes.push_back({id, descriptor, std::move(parameters)});
+        auto& planned = plan.nodes.back();
+        std::size_t incoming_tail = 0;
+        for (const auto& edge : project.connections) if (edge.to_node == id && closure.contains(edge.from_node)) {
+            const auto* upstream = by_id.at(edge.from_node);
+            planned.input_latency_frames = std::max(planned.input_latency_frames, upstream->output_latency_frames);
+            incoming_tail = std::max(incoming_tail, upstream->output_tail_frames);
+        }
+        const auto& caps = descriptor.capabilities;
+        const auto own_latency = *caps.latency_frames +
+            (!caps.supports_variable_block_size && caps.fixed_frame_end_policy == NodeExecutionCapabilities::FixedFrameEndPolicy::zero_pad ? caps.fixed_block_frames - 1 : 0);
+        if (own_latency > static_cast<std::size_t>(std::numeric_limits<int>::max()) - planned.input_latency_frames)
+            return plan_error("latency_path_unsupported", "Cumulative path latency exceeds the native graph sample range", id);
+        planned.output_latency_frames = planned.input_latency_frames + own_latency;
+        if (*caps.tail_frames > std::numeric_limits<std::size_t>::max() - incoming_tail)
+            return plan_error("tail_length_overflow", "Cumulative tail exceeds the sample range", id);
+        planned.output_tail_frames = incoming_tail + *caps.tail_frames;
+        if (source_frames > std::numeric_limits<std::size_t>::max() - planned.output_tail_frames ||
+            source_frames + planned.output_tail_frames > std::numeric_limits<std::size_t>::max() - planned.output_latency_frames)
+            return plan_error("render_length_overflow", "Source, tail and latency exceed the sample range", id);
+        for (const auto& port : descriptor.ports) if (port.direction == PortDirection::input) {
+            std::size_t end = 0; // Unconnected optional input is already an ended silence stream.
+            for (const auto& edge : project.connections) if (edge.to_node == id && edge.to_port == port.id && closure.contains(edge.from_node)) {
+                end = source_frames + planned.input_latency_frames + by_id.at(edge.from_node)->output_tail_frames;
+                break;
+            }
+            planned.input_ends.push_back({port.id, end});
+        }
+        if (id == terminal_node) {
+            plan.latency_frames = planned.output_latency_frames;
+            plan.retained_tail_frames = planned.output_tail_frames;
+        }
         by_id.emplace(id, &plan.nodes.back());
         if (descriptor.execution_kind == NodeExecutionKind::block)
             blocks.push_back(id);

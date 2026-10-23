@@ -37,6 +37,7 @@ elseif(AUDIO_BUILD_EDITOR)
 endif()
 
 add_library(audio_core STATIC libs/audio_core/AudioBuffer.cpp)
+target_sources(audio_core PRIVATE libs/audio_core/AudioTimeline.cpp)
 add_library(AudioAlgo::core ALIAS audio_core)
 set_target_properties(audio_core PROPERTIES EXPORT_NAME core)
 target_include_directories(audio_core PUBLIC
@@ -54,6 +55,32 @@ target_include_directories(audio_algorithms PUBLIC
 )
 target_link_libraries(audio_algorithms PUBLIC audio_core)
 target_compile_features(audio_algorithms PUBLIC cxx_std_20)
+
+if(AUDIO_ENABLE_SPEEXDSP)
+  enable_language(C)
+  include(FetchContent)
+  audio_lock_value(speexdsp url speex_url)
+  audio_lock_value(speexdsp sha512 speex_hash)
+  # Reuse the verified local archive when present; the same mandatory hash applies.
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/build/_downloads/speexdsp-1.2.1.tar.gz")
+    set(speex_url "${CMAKE_CURRENT_SOURCE_DIR}/build/_downloads/speexdsp-1.2.1.tar.gz")
+  endif()
+  FetchContent_Declare(SpeexDSP URL "${speex_url}" URL_HASH "SHA512=${speex_hash}" DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+  FetchContent_MakeAvailable(SpeexDSP)
+  set(speex_src "${speexdsp_SOURCE_DIR}/libspeexdsp")
+  add_library(audio_speexdsp STATIC
+    "${speex_src}/preprocess.c" "${speex_src}/jitter.c" "${speex_src}/mdf.c"
+    "${speex_src}/fftwrap.c" "${speex_src}/filterbank.c" "${speex_src}/resample.c"
+    "${speex_src}/buffer.c" "${speex_src}/scal.c" "${speex_src}/smallft.c")
+  target_include_directories(audio_speexdsp PUBLIC $<BUILD_INTERFACE:${speexdsp_SOURCE_DIR}/include>)
+  target_compile_definitions(audio_speexdsp PRIVATE FLOATING_POINT USE_SMALLFT EXPORT=)
+  set_target_properties(audio_speexdsp PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED YES EXPORT_NAME speexdsp_backend)
+  target_sources(audio_algorithms PRIVATE libs/audio_algorithms/SpeexDenoise.cpp)
+  target_link_libraries(audio_algorithms PRIVATE audio_speexdsp)
+  install(TARGETS audio_speexdsp EXPORT AudioAlgoAlgorithmsTargets
+    ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}" COMPONENT AudioAlgoAlgorithms)
+  install(FILES "${speexdsp_SOURCE_DIR}/COPYING" DESTINATION share/licenses/SpeexDSP COMPONENT AudioAlgoAlgorithms)
+endif()
 
 include(CMakePackageConfigHelpers)
 set(AUDIOALGO_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/AudioAlgo")
@@ -98,6 +125,27 @@ target_include_directories(audio_node_sdk PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/li
 target_link_libraries(audio_node_sdk PUBLIC audio_core)
 target_compile_features(audio_node_sdk PUBLIC cxx_std_20)
 
+# The published DLL SDK is header-only C ABI: no host import library, JUCE or STL ABI.
+add_library(audio_node_abi INTERFACE)
+add_library(AudioAlgo::node_abi ALIAS audio_node_abi)
+set_target_properties(audio_node_abi PROPERTIES EXPORT_NAME node_abi)
+target_include_directories(audio_node_abi INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/sdk/include>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+install(TARGETS audio_node_abi EXPORT AudioAlgoNodeSDKTargets COMPONENT AudioAlgoNodeSDK)
+install(DIRECTORY sdk/include/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}" COMPONENT AudioAlgoNodeSDK)
+set(NODE_SDK_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/AudioAlgoNodeSDK")
+configure_package_config_file(cmake/AudioAlgoNodeSDKConfig.cmake.in
+  "${CMAKE_CURRENT_BINARY_DIR}/AudioAlgoNodeSDKConfig.cmake" INSTALL_DESTINATION "${NODE_SDK_CMAKEDIR}")
+write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/AudioAlgoNodeSDKConfigVersion.cmake"
+  VERSION 1.0.0 COMPATIBILITY SameMajorVersion)
+install(EXPORT AudioAlgoNodeSDKTargets NAMESPACE AudioAlgo:: DESTINATION "${NODE_SDK_CMAKEDIR}" COMPONENT AudioAlgoNodeSDK)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/AudioAlgoNodeSDKConfig.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/AudioAlgoNodeSDKConfigVersion.cmake"
+  DESTINATION "${NODE_SDK_CMAKEDIR}" COMPONENT AudioAlgoNodeSDK)
+install(DIRECTORY examples/plugins/native_stateful/ DESTINATION share/AudioAlgoNodeSDK/native_stateful COMPONENT AudioAlgoNodeSDK)
+install(FILES doc/native_node_sdk.md DESTINATION share/AudioAlgoNodeSDK COMPONENT AudioAlgoNodeSDK)
+
 add_library(audio_project STATIC libs/audio_project/ProjectModel.cpp libs/audio_project/ProjectResourceService.cpp)
 target_include_directories(audio_project PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libs")
 target_link_libraries(audio_project PUBLIC audio_node_sdk)
@@ -140,6 +188,20 @@ target_include_directories(audio_nodes_builtin PUBLIC "${CMAKE_CURRENT_SOURCE_DI
 target_link_libraries(audio_nodes_builtin PUBLIC audio_node_sdk audio_algorithms)
 target_compile_features(audio_nodes_builtin PUBLIC cxx_std_20)
 
+add_library(audio_native_plugins STATIC libs/audio_native_plugins/NativePlugins.cpp)
+target_include_directories(audio_native_plugins PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libs")
+target_link_libraries(audio_native_plugins PUBLIC audio_node_sdk PRIVATE audio_node_abi juce::juce_core juce::juce_cryptography)
+add_library(audio_host_nodes STATIC plugins/host/registration.cpp)
+target_include_directories(audio_host_nodes PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(audio_host_nodes PUBLIC audio_nodes_builtin audio_native_plugins)
+if(AUDIO_ENABLE_SPEEXDSP)
+  add_library(audio_nodes_speex STATIC plugins/speexdsp/DenoiseNode.cpp)
+  target_include_directories(audio_nodes_speex PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+  target_link_libraries(audio_nodes_speex PUBLIC audio_node_sdk audio_algorithms)
+  target_link_libraries(audio_host_nodes PUBLIC audio_nodes_speex)
+  target_compile_definitions(audio_host_nodes PRIVATE AUDIOALGO_HAS_SPEEXDSP=1)
+endif()
+
 endif()
 
 if(AUDIO_BUILD_TESTS)
@@ -177,6 +239,7 @@ if(AUDIO_BUILD_TESTS)
     tests/unit/test_editor_controller.cpp
     tests/unit/test_async_completion_slot.cpp
     tests/unit/test_editor_services.cpp
+    tests/unit/test_latest_mailbox.cpp
   )
   target_include_directories(audio_editor_application_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/libs")
   target_link_libraries(audio_editor_application_tests PRIVATE Catch2::Catch2WithMain audio_editor_application)
@@ -185,11 +248,23 @@ if(AUDIO_BUILD_TESTS)
 
   if(AUDIO_BUILD_RUNTIME)
     add_executable(audioalgo_tests tests/unit/test_environment.cpp tests/unit/test_graph.cpp tests/unit/test_io.cpp tests/unit/test_project.cpp tests/unit/test_project_compatibility.cpp tests/unit/test_juce_graph.cpp tests/unit/test_run_service.cpp tests/unit/test_editor_run_job.cpp tests/unit/test_core.cpp tests/unit/test_editor_geometry.cpp tests/unit/test_editor_commands.cpp tests/unit/test_gain_node_adapter.cpp tests/unit/test_node_registry.cpp tests/unit/test_native_node_audio_processor.cpp tests/unit/test_native_node_contracts.cpp tests/unit/test_editor_parameter_panel.cpp tests/unit/test_editor_parameter_binding.cpp apps/editor/EditorParameterPanel.cpp apps/editor/EditorNodeParameterBinding.cpp)
+    target_sources(audioalgo_tests PRIVATE tests/unit/test_fixed_frame_fifo.cpp)
+    target_sources(audioalgo_tests PRIVATE tests/unit/test_native_cancellation.cpp)
+    target_sources(audioalgo_tests PRIVATE tests/unit/test_latest_run_queue.cpp)
+    target_sources(audioalgo_tests PRIVATE tests/unit/test_stream_progress.cpp)
+    target_sources(audioalgo_tests PRIVATE tests/unit/test_native_tail.cpp)
+    target_sources(audioalgo_tests PRIVATE tests/unit/test_audio_timeline.cpp)
+    target_sources(audioalgo_tests PRIVATE tests/unit/test_native_publication_failure.cpp)
+    if(AUDIO_ENABLE_SPEEXDSP)
+      target_sources(audioalgo_tests PRIVATE tests/integration/test_speex_denoise.cpp)
+      target_link_libraries(audioalgo_tests PRIVATE audio_speexdsp audio_host_nodes)
+    endif()
     target_include_directories(audioalgo_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/apps/editor")
     target_link_libraries(audioalgo_tests PRIVATE Catch2::Catch2WithMain audio_algorithms audio_nodes_builtin audio_project audio_editor_application audio_project_file_io audio_io audio_juce_backend juce::juce_gui_basics)
     target_compile_features(audioalgo_tests PRIVATE cxx_std_20)
     target_compile_definitions(audioalgo_tests PRIVATE
       AUDIOALGO_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+      AUDIOALGO_CLI_EXECUTABLE="$<TARGET_FILE:audio_cli>"
       AUDIOALGO_PYTHON_EXECUTABLE="${Python3_EXECUTABLE}"
     )
     catch_discover_tests(audioalgo_tests TEST_PREFIX "")
@@ -358,6 +433,9 @@ if(AUDIO_BUILD_TESTS)
   add_test(NAME AR-12.b
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/infrastructure/test_channel_swap_extension.py")
   set_tests_properties(AR-12.b PROPERTIES LABELS "R4;infrastructure;extension" TIMEOUT 60)
+  add_test(NAME UPN_mapping_fail_closed
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/infrastructure/test_upn_mapping.py")
+  set_tests_properties(UPN_mapping_fail_closed PROPERTIES LABELS "UPN;infrastructure" TIMEOUT 10)
 
   foreach(case IN ITEMS b c)
     add_test(
@@ -423,11 +501,22 @@ if(MSVC)
   target_compile_options(audio_cli PRIVATE /utf-8)
 endif()
 
-target_link_libraries(audio_cli PRIVATE audio_run_service audio_nodes_builtin juce::juce_gui_basics)
+target_link_libraries(audio_cli PRIVATE audio_run_service audio_host_nodes juce::juce_gui_basics)
 
 if(AUDIO_BUILD_TESTS)
   target_link_libraries(audioalgo_tests PRIVATE audio_run_service juce::juce_gui_basics)
   add_dependencies(audioalgo_tests audio_cli)
+  add_executable(audio_native_plugin_tests tests/integration/test_native_plugin.cpp
+    apps/editor/EditorParameterPanel.cpp apps/editor/EditorNodeParameterBinding.cpp)
+  target_include_directories(audio_native_plugin_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/apps/editor")
+  target_link_libraries(audio_native_plugin_tests PRIVATE Catch2::Catch2WithMain audio_host_nodes
+    audio_run_service audio_editor_application juce::juce_gui_basics)
+  if(AUDIO_BUILD_INFRASTRUCTURE_TESTS)
+    add_test(NAME UPN_external_sdk_pipeline
+      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/integration/verify_native_plugin.py"
+        --build-dir "${CMAKE_BINARY_DIR}" --config "$<CONFIG>" --cmake "${CMAKE_COMMAND}")
+    set_tests_properties(UPN_external_sdk_pipeline PROPERTIES LABELS "UPN;build_consumer;native_integration" TIMEOUT 240)
+  endif()
 endif()
 
 if(AUDIO_BUILD_EDITOR)
@@ -442,7 +531,7 @@ if(AUDIO_BUILD_EDITOR)
   if(MSVC)
     target_compile_options(AudioAlgoEditor PRIVATE /utf-8)
   endif()
-  target_link_libraries(AudioAlgoEditor PRIVATE audio_run_service audio_nodes_builtin audio_io audio_editor_application juce::juce_gui_extra juce::juce_audio_utils)
+  target_link_libraries(AudioAlgoEditor PRIVATE audio_run_service audio_host_nodes audio_io audio_editor_application juce::juce_gui_extra juce::juce_audio_utils)
   if(AUDIO_BUILD_TESTS)
     add_test(
       NAME UI-00_editor_binary_launches_and_quits_smoke
@@ -461,9 +550,27 @@ endif()
 if(AUDIO_ENABLE_PYTHON)
   find_package(Python3 3.11 REQUIRED COMPONENTS Interpreter)
   message(STATUS "AudioAlgo Python 3: ${Python3_EXECUTABLE} (${Python3_VERSION})")
+  if(AUDIO_BUILD_TESTS)
+    set(python_runner_cases
+      "PY-01 manifest discovers metadata without importing user code|test_python_manifest.py|ManifestTests.test_new_directory_discovers_block_clip_and_metadata_without_import"
+      "PY-01 malformed and duplicate packages commit atomically|test_python_manifest.py|ManifestTests.test_invalid_metadata_is_atomic_and_duplicates_never_replace_existing_nodes"
+      "PY-01 schema entrypoint and parameter metadata reject invalid values|test_python_manifest.py|ManifestTests.test_entrypoints_schema_boolean_numbers_and_path_escape_are_rejected"
+      "PY-02 external process Gain and Stateful preserve numeric results and lifecycle|test_python_runner.py|PythonRunnerTests.test_real_process_gain_stateful_two_instances_and_reset"
+      "PY-02 invalid payloads and outputs diagnose and recover|test_python_runner.py|PythonRunnerTests.test_wrong_dtype_shape_nan_exception_and_payload_failures_recover"
+      "PY-05 namespaced modules restart after code changes and preserve history|test_python_runner.py|PythonRunnerTests.test_namespaced_modules_and_restart_update_preserve_history"
+      "PY-05 only frozen hashed source may execute|test_python_runner.py|PythonRunnerTests.test_unhashed_bytecode_cannot_override_the_frozen_source"
+      "PY-06 cooperative cancellation and bounded log drainage recover|test_python_runner.py|PythonRunnerTests.test_cooperative_cancel_and_log_flood_use_separate_bounded_pipes"
+      "PY-07 clip runs once and byte limits precede allocation|test_python_runner.py|PythonRunnerTests.test_clip_runs_once_and_payload_budget_is_checked_before_plugin_import"
+      "PY-08 protocol length version and unknown messages diagnose then recover|test_python_runner.py|PythonRunnerTests.test_protocol_length_version_and_unknown_message_are_diagnosable")
+    foreach(python_case IN LISTS python_runner_cases)
+      string(REPLACE "|" ";" parts "${python_case}")
+      list(GET parts 0 case_name)
+      list(GET parts 1 case_file)
+      list(GET parts 2 case_method)
+      add_test(NAME "${case_name}" COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/integration/${case_file}" "${case_method}")
+      set_tests_properties("${case_name}" PROPERTIES LABELS "python;process_integration;R6" TIMEOUT 30)
+    endforeach()
+  endif()
 endif()
-endif()
-
-if(AUDIO_ENABLE_SPEEXDSP)
-  message(FATAL_ERROR "SpeexDSP is locked but its adapter target is not implemented yet")
 endif()

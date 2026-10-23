@@ -4,6 +4,7 @@
 #include "audio_juce_backend/NativeNodeAudioProcessor.h"
 #include "plugins/builtin/GainNodeAdapter.h"
 #include "plugins/builtin/registration.h"
+#include "tests/fixtures/AllocationCounter.h"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -37,6 +38,15 @@ void note_allocation() {
         g_allocations.fetch_add(1, std::memory_order_relaxed);
 }
 } // namespace
+
+void audioalgo::test::begin_allocation_count() noexcept {
+    g_allocations.store(0, std::memory_order_relaxed);
+    g_armed.store(true, std::memory_order_relaxed);
+}
+std::size_t audioalgo::test::end_allocation_count() noexcept {
+    g_armed.store(false, std::memory_order_relaxed);
+    return g_allocations.load(std::memory_order_relaxed);
+}
 
 void* operator new(std::size_t size) {
     note_allocation();
@@ -708,6 +718,26 @@ TEST_CASE("AR-07.d the prepared callback allocates nothing for generic nodes too
             const AllocationScope scope;
             for (int block = 0; block < 16; ++block)
                 wrapper.processBlock(buffer, midi);
+            allocations = scope.count();
+        }
+        REQUIRE_FALSE(wrapper.processing_diagnostic());
+        CHECK(allocations == 0);
+    }
+
+    // An owned-only node has no allocation-free path, so the native callback must refuse it up front.
+    for (const auto frame : {480, 512}) {
+        auto descriptor = block_descriptor("test.fixed_allocation", "audio_in", "audio_out");
+        descriptor.capabilities.supports_variable_block_size = false;
+        descriptor.capabilities.fixed_block_frames = frame;
+        descriptor.capabilities.fixed_frame_end_policy = audioalgo::NodeExecutionCapabilities::FixedFrameEndPolicy::zero_pad;
+        audioalgo::NativeNodeAudioProcessor wrapper(std::make_unique<PassthroughBlockProcessor>(), "fixed-allocation",
+                                                    descriptor, {}, {}, 2);
+        wrapper.prepareToPlay(48000, 256);
+        REQUIRE_FALSE(wrapper.processing_diagnostic());
+        std::size_t allocations = 0;
+        {
+            const AllocationScope scope;
+            for (int block = 0; block < 64; ++block) wrapper.processBlock(buffer, midi);
             allocations = scope.count();
         }
         REQUIRE_FALSE(wrapper.processing_diagnostic());

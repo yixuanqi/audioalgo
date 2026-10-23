@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MAIN = editor_route_source(ROOT)
 WORK_JOB = (ROOT / "apps" / "editor" / "EditorWorkJob.h").read_text(encoding="utf-8") if (
     ROOT / "apps" / "editor" / "EditorWorkJob.h").exists() else ""
+RUN_QUEUE = (ROOT / "apps/editor/EditorRunQueue.h").read_text(encoding="utf-8")
 
 
 def function_body(signature: str, source: str = MAIN) -> str:
@@ -41,7 +42,12 @@ class EditorWorkRouteTests(unittest.TestCase):
         run = function_body("void run_project()")
         self.assertNotIn("ensure_source_resources_available", run)
         self.assertNotIn("project_resources_->resolve", run)
-        self.assertIn("EditorRunJob<EditorComponent>", run)
+        self.assertIn("EditorRunQueue<EditorComponent>", run)
+        self.assertIn("run_queue_->submit", run)
+        self.assertNotIn(".runJob()", run)
+        self.assertIn("EditorRunJob<ComponentType> one", RUN_QUEUE)
+        self.assertIn("one.runJob()", RUN_QUEUE)
+        self.assertIn("pool_.add_job", RUN_QUEUE)
 
     def test_work_job_runs_io_before_dispatching_completion_to_the_live_component(self):
         self.assertTrue(WORK_JOB, "the editor worker job adapter is missing")

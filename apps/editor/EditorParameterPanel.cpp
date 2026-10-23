@@ -131,7 +131,10 @@ void ParameterPanel::show_parameters(const NodeDescriptor& descriptor, const Nod
             editor->setSliderStyle(juce::Slider::LinearHorizontal);
             editor->setTextBoxStyle(juce::Slider::TextBoxRight, false, 72, 26);
             editor->setTextValueSuffix(parameter.unit.empty() ? juce::String{} : " " + to_juce_string(parameter.unit));
-            editor->setNumDecimalPlacesToDisplay(parameter.kind == ParameterKind::integer ? 0 : 3);
+            // Fine-grained plugin parameters must remain visible/editable at their
+            // declared step, e.g. 0.00001 must not appear as 0.000 in the text box.
+            const auto decimals = interval > 0.0 ? std::max(3, static_cast<int>(std::ceil(-std::log10(interval)))) : 3;
+            editor->setNumDecimalPlacesToDisplay(parameter.kind == ParameterKind::integer ? 0 : std::min(15, decimals));
             editor->setColour(juce::Slider::thumbColourId, juce::Colour(amber));
             editor->setColour(juce::Slider::trackColourId, juce::Colour(signal));
             if (const auto* integer_value = std::get_if<std::int64_t>(&value))

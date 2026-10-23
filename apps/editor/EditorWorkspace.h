@@ -14,6 +14,7 @@
 #include "EditorWorkJob.h"
 #include "EditorRunCompletion.h"
 #include "EditorRunJob.h"
+#include "EditorRunQueue.h"
 #include "EditorNodeParameterBinding.h"
 #include "EditorParameterPanel.h"
 #include "audio_node_sdk/NodeSDK.h"
@@ -138,6 +139,7 @@ public:
             return;
 
         shutdown_started_ = true;
+        if (run_queue_) run_queue_->close();
         completion_dispatch_state_->invalidate();
         advance_project_epoch();
         file_chooser_completion_.close();
@@ -251,6 +253,7 @@ private:
 
     void advance_project_epoch() {
         run_reception_.invalidate();
+        if (run_queue_) run_queue_->cancel();
         ++project_epoch_;
         if (project_epoch_ == 0)
             ++project_epoch_;
@@ -783,14 +786,13 @@ private:
         audioalgo::RunRequest request{project_, project_path_, output_directory, 512};
         request.identity = identity;
         set_status("Rendering revision " + juce::String(static_cast<juce::int64>(revision)) + utf8_literal(" in the background…"), false);
-        auto* job = new audioalgo::editor::EditorRunJob<EditorComponent>(
-            completion_dispatch_state_, descriptors_owner_, std::move(request), identity, project_resources_,
+        if (!run_queue_) run_queue_ = std::make_unique<audioalgo::editor::EditorRunQueue<EditorComponent>>(
+            worker_pool_, completion_dispatch_state_, descriptors_owner_, project_resources_,
             [](EditorComponent& target, audioalgo::RunOutcome outcome,
                WaveformChannels waveform, audioalgo::RunIdentity completed_identity) {
                 target.run_finished(std::move(outcome), std::move(waveform), std::move(completed_identity));
             });
-        if (!worker_pool_.add_job(job, true)) {
-            delete job;
+        if (!run_queue_->submit(std::move(request), identity)) {
             run_reception_.invalidate();
             set_status("The editor is closing; the run was not started.", true);
         }
@@ -920,6 +922,7 @@ private:
     juce::TextButton play_button_{"Play output"};
     juce::TextButton delete_button_{"Delete selected"};
     audioalgo::editor::EditorWorkerPool worker_pool_{1};
+    std::unique_ptr<audioalgo::editor::EditorRunQueue<EditorComponent>> run_queue_;
     audioalgo::AsyncCompletionSlot<std::filesystem::path> file_chooser_completion_;
     std::unique_ptr<juce::FileChooser> active_file_chooser_;
     bool run_after_save_ = false;

@@ -11,7 +11,7 @@
       "cacheVariables": {
         "AUDIO_BUILD_EDITOR": "ON",
         "AUDIO_ENABLE_PYTHON": "ON",
-        "AUDIO_ENABLE_SPEEXDSP": "OFF",
+        "AUDIO_ENABLE_SPEEXDSP": "ON",
         "AUDIO_BUILD_TESTS": "ON",
         "Python3_EXECUTABLE": "E:/0qyx/res/miniconda/python.exe"
       }

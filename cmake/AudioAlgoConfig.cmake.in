@@ -1,4 +1,5 @@
 @PACKAGE_INIT@
+set(AudioAlgo_SPEEXDSP_ENABLED @AUDIO_ENABLE_SPEEXDSP@)
 
 include("${CMAKE_CURRENT_LIST_DIR}/AudioAlgoAlgorithmsTargets.cmake")
 check_required_components(AudioAlgo)

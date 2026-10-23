@@ -8,6 +8,7 @@
 
 #include <cstddef>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <string>
 #include <variant>
@@ -20,6 +21,9 @@ struct RunRequest {
     std::filesystem::path output_directory;
     int block_size = 512;
     RunIdentity identity;
+    // Worker-side, nonblocking predicate, valid through this synchronous run.
+    // Once true it must remain true; the callback must not throw.
+    std::function<bool()> is_cancelled;
 };
 
 struct RunSuccess {

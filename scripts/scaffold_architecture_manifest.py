@@ -126,6 +126,12 @@ def main() -> None:
         "legacy_sources": ["doc/testing_audio_pipeline_editor.md", "doc/testing_editor_node_interaction.md"],
         "requirements": cases,
     }
+    # Supplemental acceptance is maintained alongside its implementing slice;
+    # regenerating the historical 110 AR cases must never erase UPN coverage.
+    if OUTPUT.is_file():
+        previous = json.loads(OUTPUT.read_text(encoding="utf-8"))
+        if "user_native_plugins" in previous:
+            manifest["user_native_plugins"] = previous["user_native_plugins"]
     OUTPUT.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {len(cases)} required subcases: {OUTPUT}")
 

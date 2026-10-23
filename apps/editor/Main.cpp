@@ -1,6 +1,7 @@
 #include "EditorWorkspace.h"
 #include "EditorHostServices.h"
 #include "plugins/builtin/registration.h"
+#include "plugins/host/registration.h"
 #include <stdexcept>
 namespace {
 using namespace audioalgo::editor;
@@ -9,8 +10,15 @@ public:
     MainWindow() : DocumentWindow("AudioAlgo Editor", background, DocumentWindow::allButtons) {
         setUsingNativeTitleBar(true);
         auto descriptors = std::make_shared<audioalgo::NodeRegistry>();
-        if (!audioalgo::register_builtin_nodes(*descriptors))
-            throw std::runtime_error("Builtin node registration failed");
+        const auto discovery=audioalgo::register_host_nodes(*descriptors);
+        juce::String plugin_errors;
+        for(auto& e:discovery.diagnostics)
+            plugin_errors += juce::String::fromUTF8((e.code+" ["+e.plugin_id+"]: "+e.message+"\n").c_str());
+        if(plugin_errors.isNotEmpty()) {
+            juce::Logger::writeToLog(plugin_errors);
+            juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,
+                "Node plugin diagnostics",plugin_errors);
+        }
         setContentOwned(new EditorComponent(
             std::move(descriptors),
             std::make_shared<ProjectFileDocumentService>(),

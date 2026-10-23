@@ -30,6 +30,15 @@ public:
     void processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) override;
 
     [[nodiscard]] const std::optional<Diagnostic>& processing_diagnostic() const noexcept { return diagnostic_; }
+    struct FixedFrameBufferStats {
+        std::size_t input_capacity = 0, output_capacity = 0, peak_input = 0, peak_output = 0;
+    };
+    [[nodiscard]] FixedFrameBufferStats fixed_frame_buffer_stats() const noexcept { return fixed_stats_; }
+    // Absolute compensated output timeline. Configure before prepare; absent for live/test hosts.
+    void set_finite_output_frames(std::size_t frames) noexcept { finite_output_frames_ = frames; }
+    void set_finite_input_ends(std::vector<std::size_t> frames) { finite_input_ends_ = std::move(frames); }
+    // Worker-side terminal handshake, also used by a truly empty finite stream.
+    void complete_finite_stream();
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
@@ -48,6 +57,8 @@ protected:
 
 private:
     [[nodiscard]] static BusesProperties buses_for(const NodeDescriptor& descriptor, int channel_count);
+    void process_fixed_block(juce::AudioBuffer<float>& buffer);
+    [[nodiscard]] bool process_stream_frame(std::size_t frame_start, std::size_t extent);
 
     std::unique_ptr<AudioNodeProcessor> processor_;
     std::string node_id_;
@@ -68,6 +79,20 @@ private:
     std::vector<float*> output_channels_;
     std::vector<AudioInputPortBlock> named_inputs_;
     std::vector<AudioOutputPortBlock> named_outputs_;
+    std::size_t fixed_frames_ = 0, fixed_fill_ = 0, fixed_pending_ = 0, fixed_read_ = 0, fixed_leading_ = 0;
+    std::vector<float> fixed_input_, fixed_output_;
+    FixedFrameBufferStats fixed_stats_;
+    std::optional<std::size_t> finite_output_frames_;
+    std::size_t timeline_cursor_ = 0;
+    std::vector<std::size_t> finite_input_ends_;
+    bool streaming_processing_ = false;
+    std::size_t maximum_no_progress_calls_ = 8;
+    std::vector<std::size_t> stream_input_totals_, stream_output_totals_, stream_consumed_, stream_produced_;
+    std::vector<std::uint8_t> stream_finished_, stream_output_finished_;
+    std::vector<const float*> stream_input_channels_;
+    std::vector<float*> stream_output_channels_;
+    std::vector<AudioStreamInputPortBlock> stream_inputs_;
+    std::vector<AudioStreamOutputPortBlock> stream_outputs_;
     std::optional<Diagnostic> diagnostic_;
 };
 

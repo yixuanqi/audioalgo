@@ -119,6 +119,9 @@ def main() -> int:
                          "exit_code": run_code, "log_path": str(run_log), "log_sha256": sha(run_log)})
         overall = 0 if (run_code == 0 and "independent Gain consumer passed" in run_output
                         and "independent ChannelSwap consumer passed" in run_output) else (run_code or 1)
+        enabled = "set(AudioAlgo_SPEEXDSP_ENABLED ON)" in (prefix / "lib/cmake/AudioAlgo/AudioAlgoConfig.cmake").read_text(encoding="utf-8")
+        if enabled and "independent SpeexDenoise consumer passed" not in run_output:
+            overall = overall or 1
 
     report = {"schema_version": 1, "status": "passed" if overall == 0 else "failed",
               "source_tree_hash": hashlib.sha256(json.dumps(source_manifest(root), sort_keys=True).encode()).hexdigest(),

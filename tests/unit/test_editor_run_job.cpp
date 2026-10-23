@@ -71,7 +71,8 @@ struct DeliveryTarget final : juce::Component {
     }
 };
 
-struct RunGate {
+struct RunGate : juce::Thread::Listener {
+    void exitSignalSent() override { exit_signal.store(true); }
     void block_once() {
         std::unique_lock lock(mutex);
         entered = true;
@@ -101,6 +102,8 @@ struct RunGate {
     std::condition_variable condition;
     bool entered = false;
     bool released = false;
+    std::atomic<bool> exit_signal{false};
+    std::atomic<std::size_t> completed_blocks{0};
 };
 
 class RunGateProcessor final : public audioalgo::AudioNodeProcessor {
@@ -118,6 +121,7 @@ public:
             gate_->block_once();
         for (std::size_t channel = 0; channel < block.channel_count; ++channel)
             std::copy_n(block.input_channels[channel], block.frame_count, block.output_channels[channel]);
+        gate_->completed_blocks.fetch_add(1);
         return audioalgo::AudioBlockResult{block.frame_count};
     }
 
@@ -413,14 +417,16 @@ TEST_CASE("AR-09.d production RunJob publishes a real run and drops delivery aft
     bool shutdown_callback_on_message_thread = false;
     bool shutdown_started = false;
     bool closed_view_destroyed = false;
-    bool runs_published = false;
+    bool live_published_closed_cancelled = false;
     bool jobs_drained = false;
     {
         audioalgo::editor::EditorWorkerPool pool(1);
         REQUIRE(pool.add_job(new audioalgo::editor::EditorRunJob<DeliveryTarget>(
             weak_live_state, registry, std::move(live_request), live_identity, deliver), true));
-        REQUIRE(pool.add_job(new audioalgo::editor::EditorRunJob<DeliveryTarget>(
-            weak_closed_state, registry, std::move(closed_request), closed_identity, deliver), true));
+        auto* closed_job = new audioalgo::editor::EditorRunJob<DeliveryTarget>(
+            weak_closed_state, registry, std::move(closed_request), closed_identity, deliver);
+        closed_job->addListener(run_gate.get());
+        REQUIRE(pool.add_job(closed_job, true));
         registry.reset();
 
         struct DrainAfterRuns final : juce::Timer {
@@ -449,7 +455,7 @@ TEST_CASE("AR-09.d production RunJob publishes a real run and drops delivery aft
                     std::chrono::steady_clock::now() - close_started_at >= std::chrono::milliseconds(100))
                     run_gate->release();
                 if (pool.get_num_jobs() != 0 ||
-                    !std::filesystem::exists(closed_output / "complete.json") ||
+                    std::filesystem::exists(closed_output) ||
                     !std::filesystem::exists(live_output / "complete.json"))
                     return;
                 stopTimer();
@@ -478,11 +484,15 @@ TEST_CASE("AR-09.d production RunJob publishes a real run and drops delivery aft
         drain_after_runs.stopTimer();
         pool.join_shutdown();
         jobs_drained = pool.get_num_jobs() == 0;
-        runs_published = std::filesystem::exists(temporary.path / "runs" / "closed" / "complete.json") &&
+        live_published_closed_cancelled = !std::filesystem::exists(temporary.path / "runs" / "closed") &&
                          std::filesystem::exists(temporary.path / "runs" / "live" / "complete.json");
     }
 
-    CHECK(runs_published);
+    // P2 cancellation now honors the shutdown exit signal. The independent live
+    // branch below retains all of its original numerical output assertions.
+    CHECK(live_published_closed_cancelled);
+    CHECK(run_gate->exit_signal.load());
+    CHECK(run_gate->completed_blocks.load() == 1);
     CHECK(jobs_drained);
     CHECK(shutdown_started);
     CHECK(run_gate->has_entered());
@@ -492,8 +502,8 @@ TEST_CASE("AR-09.d production RunJob publishes a real run and drops delivery aft
     CHECK(shutdown_callback_on_message_thread);
     CHECK(weak_closed_state.expired());
     CHECK(registry_lifetime.expired());
-    CHECK(std::filesystem::exists(temporary.path / "runs" / "closed" / "run.json"));
-    CHECK(std::filesystem::exists(temporary.path / "runs" / "closed" / "complete.json"));
+    CHECK_FALSE(std::filesystem::exists(temporary.path / "runs" / "closed" / "run.json"));
+    CHECK_FALSE(std::filesystem::exists(temporary.path / "runs" / "closed" / "complete.json"));
     CHECK(live_target->deliveries == 1);
     CHECK(live_target->delivery_thread == message_thread);
     REQUIRE(live_target->outcome.has_value());
@@ -521,27 +531,26 @@ TEST_CASE("AR-09.d production RunJob publishes a real run and drops delivery aft
     }
     CHECK(std::filesystem::exists(result.manifest_file));
     CHECK(std::filesystem::exists(result.complete_file));
-    CHECK(std::filesystem::exists(temporary.path / "runs" / "closed" / "output.wav"));
-    const auto closed_rendered = audioalgo::read_wav_file(temporary.path / "runs" / "closed" / "output.wav");
-    REQUIRE(std::holds_alternative<audioalgo::AudioBuffer>(closed_rendered));
-    const auto& closed_output = std::get<audioalgo::AudioBuffer>(closed_rendered);
-    REQUIRE(closed_output.frame_count() == input.frame_count());
-    for (const auto frame : {std::size_t{1}, std::size_t{128}, std::size_t{512}}) {
-        CHECK(closed_output.channel(0)[frame] == Catch::Approx(input.channel(0)[frame] * gain).margin(2.0e-6));
-        CHECK(closed_output.channel(1)[frame] == Catch::Approx(input.channel(1)[frame] * gain).margin(2.0e-6));
-    }
+    CHECK_FALSE(std::filesystem::exists(temporary.path / "runs" / "closed" / "output.wav"));
+    CHECK_FALSE(std::filesystem::exists(temporary.path / "runs" / "closed"));
 
     if (const auto* artifact_path = std::getenv("AUDIOALGO_T05E_ARTIFACT_OUTPUT");
         artifact_path != nullptr && artifact_path[0] != '\0') {
         const auto artifact_directory = std::filesystem::u8path(artifact_path);
         REQUIRE_FALSE(std::filesystem::exists(artifact_directory));
         REQUIRE(std::filesystem::create_directories(artifact_directory));
-        for (const auto* run_name : {"closed", "live"}) {
+        for (const auto* run_name : {"live"}) {
             const auto source = temporary.path / "runs" / run_name;
             const auto destination = artifact_directory / run_name;
             REQUIRE(std::filesystem::create_directories(destination));
             for (const auto* filename : {"output.wav", "run.json", "complete.json"})
                 CHECK(std::filesystem::copy_file(source / filename, destination / filename));
         }
+        juce::DynamicObject::Ptr observation = new juce::DynamicObject;
+        observation->setProperty("closed_run_id", juce::String(closed_identity.request_id));
+        observation->setProperty("shutdown_exit_signal_observed", run_gate->exit_signal.load());
+        observation->setProperty("completed_blocks", static_cast<int>(run_gate->completed_blocks.load()));
+        observation->setProperty("closed_directory_exists", std::filesystem::exists(temporary.path / "runs" / "closed"));
+        CHECK(juce::File((artifact_directory / "closed-cancellation.json").string()).replaceWithText(juce::JSON::toString(juce::var(observation.get()))));
     }
 }

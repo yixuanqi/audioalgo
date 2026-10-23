@@ -1,9 +1,11 @@
 #include "audio_juce_backend/JuceGraph.h"
 #include "audio_juce_backend/NativeNodeAudioProcessor.h"
 #include "audio_runtime/NativePlan.h"
+#include "audio_core/AudioTimeline.h"
 
 #include <algorithm>
 #include <map>
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -79,7 +81,13 @@ std::vector<std::string> source_node_ids(const ProjectModel& project, const Node
 AudioGraphOutcome render_audio_graph(const ProjectModel& project,
                                     const NodeRegistry& node_registry,
                                     std::vector<AudioSourceBinding> sources,
-                                    int block_size) {
+                                    int block_size, NativeRenderOptions options) {
+    if (options.statistics) *options.statistics = {};
+    const auto cancelled = [&] { return options.is_cancelled && options.is_cancelled(); };
+    if (cancelled()) return graph_error("run_cancelled", "Native rendering was cancelled before preparation");
+    for (auto partition : options.host_partitions)
+        if (partition <= 0 || partition > block_size)
+            return graph_error("invalid_host_partition", "Host partitions must be positive and fit the declared maximum block");
     if (sources.empty())
         return graph_error("source_binding_missing", "The native render path needs at least one bound audio source");
     const auto& reference = sources.front();
@@ -169,6 +177,10 @@ AudioGraphOutcome render_audio_graph(const ProjectModel& project,
                 std::move(planned->second.processor), node.node_id, *descriptor,
                 std::move(planned->second.parameters), NodeExecutionContext{}, channel_count);
             auto* wrapper_view = wrapper.get();
+            wrapper_view->set_finite_output_frames(execution_plan.source_frames + node.output_tail_frames + node.output_latency_frames);
+            std::vector<std::size_t> input_ends;
+            for (const auto& end : node.input_ends) input_ends.push_back(end.frame);
+            wrapper_view->set_finite_input_ends(std::move(input_ends));
             processor = std::move(wrapper);
             diagnostic_sources.emplace_back(node.node_id, wrapper_view);
         }
@@ -246,33 +258,80 @@ AudioGraphOutcome render_audio_graph(const ProjectModel& project,
         return *error;
     }
 
-    AudioBuffer output(reference.audio.sample_rate_hz(), reference.audio.channel_ids(), execution_plan.source_frames,
-                       reference.audio.valid_interval());
+    const auto aligned_frames = execution_plan.source_frames + execution_plan.retained_tail_frames;
+    auto valid = reference.audio.valid_interval();
+    if (valid.frame_count != 0 && valid.first_frame + valid.frame_count == execution_plan.source_frames)
+        valid.frame_count += execution_plan.retained_tail_frames;
+    AudioBuffer output(reference.audio.sample_rate_hz(), reference.audio.channel_ids(), aligned_frames, valid);
     juce::MidiBuffer midi;
-    std::vector<float*> channels(static_cast<std::size_t>(channel_count));
+    const auto latency = static_cast<std::size_t>(std::max(0, graph.getLatencySamples()));
+    if (latency != execution_plan.latency_frames)
+        return graph_error("latency_projection_mismatch", "JUCE graph latency disagrees with the compiled native timeline");
+    if (aligned_frames > std::numeric_limits<std::size_t>::max() - latency)
+        return graph_error("render_length_overflow", "Source plus buffering latency exceeds the sample range");
+    const auto render_frames = aligned_frames + latency;
+    if (options.capture_raw_audio && options.statistics && latency != 0)
+        options.statistics->raw_audio.emplace(reference.audio.sample_rate_hz(), reference.audio.channel_ids(), render_frames,
+            AudioInterval{latency + valid.first_frame, valid.frame_count});
     std::size_t offset = 0;
-    while (offset < execution_plan.source_frames) {
-        const auto count = std::min<std::size_t>(static_cast<std::size_t>(block_size), execution_plan.source_frames - offset);
+    std::size_t partition_index = 0;
+    SampleFrameClock raw_clock(reference.audio.sample_rate_hz(), 1000000000);
+    while (offset < render_frames) {
+        if (cancelled()) return graph_error("run_cancelled", "Native rendering was cancelled at a block boundary");
+        const auto host_count = options.host_partitions.empty() ? block_size :
+            options.host_partitions[partition_index++ % options.host_partitions.size()];
+        const auto count = std::min<std::size_t>(static_cast<std::size_t>(host_count), render_frames - offset);
         juce::AudioBuffer<float> block(channel_count, static_cast<int>(count));
         block.clear();
-        for (int channel = 0; channel < channel_count; ++channel)
-            channels[static_cast<std::size_t>(channel)] = output.mutable_channel(static_cast<std::size_t>(channel)).data() + offset;
         graph.processBlock(block, midi);
+        if (cancelled()) return graph_error("run_cancelled", "Native rendering was cancelled after its processing block");
         if (const auto error = find_processing_error()) {
             return *error;
         }
-        for (int channel = 0; channel < channel_count; ++channel)
-            std::copy_n(block.getReadPointer(channel), count, channels[static_cast<std::size_t>(channel)]);
+        if (options.statistics && options.statistics->raw_audio)
+            for (int channel = 0; channel < channel_count; ++channel)
+                std::copy_n(block.getReadPointer(channel), count,
+                    options.statistics->raw_audio->mutable_channel(static_cast<std::size_t>(channel)).data() + offset);
+        // Compensated graph output is cropped exactly once. Drain with zero source
+        // samples to include the last valid input even for a partial algorithm frame.
+        const auto first = std::max(offset, latency);
+        const auto end = std::min(offset + count, latency + aligned_frames);
+        if (first < end) for (int channel = 0; channel < channel_count; ++channel)
+            std::copy_n(block.getReadPointer(channel) + (first - offset), end - first,
+                        output.mutable_channel(static_cast<std::size_t>(channel)).data() + (first - latency));
         offset += count;
+        if (!raw_clock.advance(count))
+            return graph_error("time_mapping_overflow", "Raw sample timeline cannot be represented in nanoseconds");
     }
+    if (cancelled()) return graph_error("run_cancelled", "Native rendering was cancelled before terminal stream completion");
+    for (const auto& [node_id, processor] : diagnostic_sources) {
+        (void)node_id;processor->complete_finite_stream();
+    }
+    if (const auto error = find_processing_error()) return *error;
+    if (cancelled()) return graph_error("run_cancelled", "Native rendering was cancelled after terminal stream completion");
     graph.releaseResources();
+    if (options.statistics) {
+        const auto aligned_time = map_sample_frame(aligned_frames, reference.audio.sample_rate_hz(), 1000000000);
+        const auto offset_time = map_sample_frame(latency, reference.audio.sample_rate_hz(), 1000000000);
+        if (!aligned_time || !offset_time)
+            return graph_error("time_mapping_overflow", "Aligned sample timeline cannot be represented in nanoseconds");
+        options.statistics->raw_frames = render_frames;
+        options.statistics->aligned_frames = aligned_frames;
+        options.statistics->alignment_offset_frames = latency;
+        options.statistics->source_frames = execution_plan.source_frames;
+        options.statistics->retained_tail_frames = execution_plan.retained_tail_frames;
+        options.statistics->zero_padding_frames = render_frames - execution_plan.source_frames;
+        options.statistics->raw_duration_ns = raw_clock.target_frames();
+        options.statistics->aligned_duration_ns = *aligned_time;
+        options.statistics->alignment_offset_ns = *offset_time;
+    }
     return output;
 }
 
 AudioGraphOutcome render_audio_graph(const ProjectModel& project,
                                     const NodeRegistry& node_registry,
                                     const AudioBuffer& source_audio,
-                                    int block_size) {
+                                    int block_size, NativeRenderOptions options) {
     if (const auto error = source_audio.format_error(); !error.empty())
         return graph_error("invalid_audio_format", error);
     const auto sources = source_node_ids(project, node_registry);
@@ -283,7 +342,7 @@ AudioGraphOutcome render_audio_graph(const ProjectModel& project,
     if (sources.empty())
         return graph_error("graph_shape_unsupported", "This render path requires at least one audio source and one output sink");
     return render_audio_graph(project, node_registry,
-                              std::vector<AudioSourceBinding>{{sources.front(), source_audio}}, block_size);
+                              std::vector<AudioSourceBinding>{{sources.front(), source_audio}}, block_size, options);
 }
 
 } // namespace audioalgo

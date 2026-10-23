@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "status": "passed",
+  "run_id": "2238c1ce38204c2d8dc050aa35a56112",
+  "input_sha256": "156b5229f494b119bc604d0736ae89149e5665bb96cd00da015efd2df1df4c3e",
+  "output_sha256": "99c4d00fdb3811b3872af162d204fc9040ea3705b845549d1bc14086261aa031",
+  "gain_db": 6.0,
+  "sample_count": 192000,
+  "channels": 2,
+  "max_abs_error": 1.477156069684682e-08,
+  "worst_sample_index": 25,
+  "failures": []
+}
