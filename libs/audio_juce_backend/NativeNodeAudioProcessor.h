@@ -37,6 +37,7 @@ public:
     // Absolute compensated output timeline. Configure before prepare; absent for live/test hosts.
     void set_finite_output_frames(std::size_t frames) noexcept { finite_output_frames_ = frames; }
     void set_finite_input_ends(std::vector<std::size_t> frames) { finite_input_ends_ = std::move(frames); }
+    void set_finite_output_ends(std::vector<std::size_t> frames) { finite_output_ends_ = std::move(frames); }
     // Worker-side terminal handshake, also used by a truly empty finite stream.
     void complete_finite_stream();
     bool acceptsMidi() const override { return false; }
@@ -85,6 +86,7 @@ private:
     std::optional<std::size_t> finite_output_frames_;
     std::size_t timeline_cursor_ = 0;
     std::vector<std::size_t> finite_input_ends_;
+    std::vector<std::size_t> finite_output_ends_;
     bool streaming_processing_ = false;
     std::size_t maximum_no_progress_calls_ = 8;
     std::vector<std::size_t> stream_input_totals_, stream_output_totals_, stream_consumed_, stream_produced_;

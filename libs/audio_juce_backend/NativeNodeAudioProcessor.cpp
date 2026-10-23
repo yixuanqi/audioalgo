@@ -151,6 +151,11 @@ void NativeNodeAudioProcessor::prepareToPlay(double sample_rate_hz, int maximum_
     const auto channels = static_cast<std::size_t>(channel_count_);
     const auto input_count = input_port_ids_.size() * channels;
     const auto output_count = output_port_ids_.size() * channels;
+    if ((!finite_output_ends_.empty() && finite_output_ends_.size() != output_port_ids_.size()) ||
+        (!finite_input_ends_.empty() && finite_input_ends_.size() != input_port_ids_.size())) {
+        diagnostic_ = node_error("stream_timeline_invalid", node_id_, {}, "Finite end declarations must cover the actual port groups");
+        return;
+    }
     input_channels_.assign(input_count, nullptr);
     output_channels_.assign(output_count, nullptr);
     if (fixed_frames_ != 0) {
@@ -163,10 +168,6 @@ void NativeNodeAudioProcessor::prepareToPlay(double sample_rate_hz, int maximum_
         for (std::size_t i = 0; i < output_count; ++i) output_channels_[i] = fixed_output_.data() + i * fixed_frames_;
     }
     if (streaming_processing_) {
-        if (!finite_input_ends_.empty() && finite_input_ends_.size() != input_port_ids_.size()) {
-            diagnostic_ = node_error("stream_timeline_invalid", node_id_, {}, "Finite timeline does not cover every named input");
-            return;
-        }
         stream_input_totals_.assign(input_port_ids_.size(), 0);
         stream_output_totals_.assign(output_port_ids_.size(), 0);
         stream_consumed_.assign(input_port_ids_.size(), 0);
@@ -289,8 +290,10 @@ void NativeNodeAudioProcessor::process_fixed_block(juce::AudioBuffer<float>& buf
                 diagnostic_ = node_error("fixed_fifo_underflow", node_id_, output_port_id_, "No complete frame is available after buffering latency");
                 buffer.clear(); return;
             }
-            for (std::size_t channel = 0; channel < output_count; ++channel)
-                buffer.setSample(static_cast<int>(channel), sample, fixed_output_[channel * fixed_frames_ + fixed_read_]);
+            for (std::size_t channel = 0; channel < output_count; ++channel) {
+                const auto ended = !finite_output_ends_.empty() && timeline_cursor_ > finite_output_ends_[channel / channels];
+                buffer.setSample(static_cast<int>(channel), sample, ended ? 0.0f : fixed_output_[channel * fixed_frames_ + fixed_read_]);
+            }
             ++fixed_read_; --fixed_pending_;
         }
     }
@@ -300,7 +303,9 @@ void NativeNodeAudioProcessor::complete_finite_stream() {
     if (diagnostic_ || !streaming_processing_ || !finite_output_frames_) return;
     if (std::all_of(stream_output_finished_.begin(), stream_output_finished_.end(), [](auto done) { return done != 0; })) return;
     if (*finite_output_frames_ != fixed_frames_ - 1) {
-        diagnostic_ = node_error("stream_eos_missing", node_id_, {}, "Finite rendering ended without every output EOS acknowledgement");
+        const auto unfinished=std::find(stream_output_finished_.begin(),stream_output_finished_.end(),0);
+        const auto port=static_cast<std::size_t>(std::distance(stream_output_finished_.begin(),unfinished));
+        diagnostic_ = node_error("stream_eos_missing", node_id_, output_port_ids_[port], "Finite rendering ended without every output EOS acknowledgement");
         return;
     }
     try {
@@ -317,9 +322,14 @@ bool NativeNodeAudioProcessor::process_stream_frame(std::size_t frame_start, std
     std::fill(stream_input_totals_.begin(), stream_input_totals_.end(), 0);
     std::fill(stream_output_totals_.begin(), stream_output_totals_.end(), 0);
     std::size_t stalled = 0;
-    const auto output_end = finite_output_frames_
-        ? *finite_output_frames_ - std::min(*finite_output_frames_, fixed_frames_ - 1) : std::numeric_limits<std::size_t>::max();
-    const bool last_output_frame = finite_output_frames_ && output_end <= frame_start + extent;
+    const auto output_end = [&](std::size_t port) {
+        const auto end = !finite_output_ends_.empty() ? finite_output_ends_[port] :
+            finite_output_frames_.value_or(std::numeric_limits<std::size_t>::max());
+        return end - std::min(end, fixed_frames_ - 1);
+    };
+    const auto last_output_frame = [&](std::size_t port) {
+        return (finite_output_frames_ || !finite_output_ends_.empty()) && output_end(port) <= frame_start + extent;
+    };
     const auto before_end = [](std::size_t end, std::size_t cursor, std::size_t capacity) {
         return std::min(capacity, end - std::min(end, cursor));
     };
@@ -329,7 +339,7 @@ bool NativeNodeAudioProcessor::process_stream_frame(std::size_t frame_start, std
         };
         bool outputs_complete = true;
         for (std::size_t p = 0; p < stream_output_totals_.size(); ++p)
-            outputs_complete &= last_output_frame ? stream_output_finished_[p] != 0 : stream_output_totals_[p] == extent;
+            outputs_complete &= last_output_frame(p) ? stream_output_finished_[p] != 0 : stream_output_totals_[p] == extent;
         if (complete(stream_input_totals_) && outputs_complete) return true;
         for (std::size_t p = 0; p < stream_inputs_.size(); ++p) {
             stream_inputs_[p].frame_count = extent - stream_input_totals_[p];
@@ -341,8 +351,8 @@ bool NativeNodeAudioProcessor::process_stream_frame(std::size_t frame_start, std
         }
         for (std::size_t p = 0; p < stream_outputs_.size(); ++p) {
             stream_outputs_[p].frame_capacity = stream_output_finished_[p] ? 0 : extent - stream_output_totals_[p];
-            stream_outputs_[p].frames_before_eos = before_end(output_end, frame_start + stream_output_totals_[p], stream_outputs_[p].frame_capacity);
-            stream_outputs_[p].end_of_stream = last_output_frame;
+            stream_outputs_[p].frames_before_eos = before_end(output_end(p), frame_start + stream_output_totals_[p], stream_outputs_[p].frame_capacity);
+            stream_outputs_[p].end_of_stream = last_output_frame(p);
             for (std::size_t c = 0; c < channels; ++c)
                 stream_output_channels_[p * channels + c] = output_channels_[p * channels + c] + stream_output_totals_[p];
         }
@@ -384,7 +394,11 @@ bool NativeNodeAudioProcessor::process_stream_frame(std::size_t frame_start, std
         }
         if (advanced) stalled = 0;
         else if (++stalled >= maximum_no_progress_calls_) {
-            diagnostic_ = node_error("stream_no_progress", node_id_, {}, "No consumed/produced progress within budget " + std::to_string(maximum_no_progress_calls_));
+            std::string blocked_port;
+            for(std::size_t p=0;p<stream_input_totals_.size();++p)if(stream_input_totals_[p]<extent){blocked_port=input_port_ids_[p];break;}
+            if(blocked_port.empty())for(std::size_t p=0;p<stream_output_totals_.size();++p)
+                if(last_output_frame(p)?!stream_output_finished_[p]:stream_output_totals_[p]<extent){blocked_port=output_port_ids_[p];break;}
+            diagnostic_ = node_error("stream_no_progress", node_id_, blocked_port, "No consumed/produced progress within budget " + std::to_string(maximum_no_progress_calls_));
             return false;
         }
         // Each advancing call increases bounded integer totals. Empty calls are

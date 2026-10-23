@@ -27,6 +27,9 @@ struct NativeRenderStatistics {
     std::size_t raw_frames = 0, aligned_frames = 0, alignment_offset_frames = 0;
     std::optional<AudioBuffer> raw_audio;
     std::size_t source_frames = 0, retained_tail_frames = 0, zero_padding_frames = 0;
+    // Extra bounded graph processing after the selected raw prefix, for EOS on
+    // longer unselected output ports. Never added to the selected valid interval.
+    std::size_t drain_padding_frames = 0;
     std::uint64_t raw_duration_ns = 0, aligned_duration_ns = 0, alignment_offset_ns = 0;
 };
 struct NativeRenderOptions {

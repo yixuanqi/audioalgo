@@ -2,6 +2,10 @@
 #include "audio_juce_backend/NativeNodeAudioProcessor.h"
 #include "plugins/builtin/registration.h"
 #include "tests/fixtures/AllocationCounter.h"
+#include "tests/fixtures/IndependentTailStream.h"
+#include "audio_io/WavFile.h"
+#include <filesystem>
+#include <random>
 #include <catch2/catch_test_macros.hpp>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <array>
@@ -230,5 +234,58 @@ TEST_CASE("AR-15.c premature invalid and missing output EOS cannot publish succe
         if(failure==Failure::missing_finish)CHECK(error.code=="stream_no_progress");
         else {CHECK(error.code=="stream_eos_invalid");CHECK(error.port_id=="side");}
         CHECK(probe.calls<300);
+    }
+}
+
+TEST_CASE("AR-15.c independent output EOS drains the longer stream when selecting the shorter port","[AR-15.c][stream-port-eos]") {
+    using namespace audioalgo;juce::ScopedJuceInitialiser_GUI messages;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/runs"/("stream-port-eos-"+juce::Uuid().toString().toStdString());
+    REQUIRE(std::filesystem::create_directories(root));
+    for(const std::size_t frame:{480,512})for(const std::size_t frames:{frame-4,std::size_t{1025}})
+    for(const std::string selected:{"main","side"})for(const int host:{1,127,256,480,512,1024,0}) {
+        INFO(frame);INFO(frames);INFO(selected);INFO(host);
+        NodeRegistry nodes;REQUIRE(register_builtin_nodes(nodes));test::TailStreamProbe probe;
+        const auto d=test::independent_tail_stream_descriptor(frame);
+        REQUIRE(nodes.register_node(d,[&]{return std::make_unique<test::IndependentTailStream>(frame,probe);}).registered);
+        ProjectModel project;project.project_id="stream-port-eos";project.selected_output_node_id="stream";project.selected_output_port_id=selected;
+        project.nodes={{"file","builtin.file_source",{{"path",std::string("unused.wav")}}},{"stream",d.type_id,{}}};
+        project.connections={{"file","audio","stream","audio_in"}};
+        AudioBuffer input(48000,{"left","right"},frames);for(std::size_t c=0;c<2;++c)for(std::size_t i=0;i<frames;++i)
+            input.mutable_channel(c)[i]=static_cast<float>(.125*std::sin((i+1)*(c+1)*.03));
+        std::vector<int> partitions;
+        if(host==0){partitions={127,1};std::mt19937 random(20261023);for(int i=0;i<173;++i)partitions.push_back(1+static_cast<int>(random()%1024));}
+        NativeRenderStatistics statistics;const auto result=render_audio_graph(project,nodes,input,host==0?1024:host,{partitions,&statistics,true});
+        const auto* error=std::get_if<Diagnostic>(&result);INFO((error?error->code:"success"));INFO((error?error->message:""));
+        REQUIRE(std::holds_alternative<AudioBuffer>(result));const auto& output=std::get<AudioBuffer>(result);
+        const auto tail=selected=="main"?2u:5u;REQUIRE(output.frame_count()==frames+tail);
+        CHECK(output.valid_interval()==(AudioInterval{0,frames+tail}));
+        CHECK(probe.prepares==1);CHECK(probe.finished==(std::array<std::size_t,2>{1,1}));CHECK(probe.input_end==frames);
+        CHECK(probe.output_ends[0]==frames+2);CHECK(probe.output_ends[1]==frames+5);
+        CHECK(probe.produced==(std::array<std::size_t,2>{frames+2,frames+5}));
+        for(std::size_t c=0;c<2;++c)for(std::size_t i=0;i<output.frame_count();++i) {
+            const auto x=[&](std::size_t n){return n<frames?input.channel(c)[n]:0.f;};const auto delay=selected=="main"?2u:5u;
+            const float expected=x(i)*(selected=="main"?1.f:2.f)+(i>=delay?x(i-delay)*(selected=="main"?.25f:.125f):0.f);
+            REQUIRE(output.channel(c)[i]==expected);
+        }
+        REQUIRE(statistics.raw_audio.has_value());CHECK(statistics.raw_frames==frames+tail+frame-1);
+        CHECK(statistics.raw_audio->frame_count()==statistics.raw_frames);
+        CHECK(statistics.drain_padding_frames==(selected=="main"?3u:0u));
+        CHECK(statistics.raw_duration_ns==statistics.raw_frames*1000000000ull/48000);
+        CHECK(probe.frames==((frames+5+frame-1)/frame)*frame);
+        CHECK(probe.calls<=((frames+5+frame-1)/frame)*((frame+6)/7));
+        const auto run=root/(std::to_string(frame)+"-"+std::to_string(frames)+"-"+selected+"-"+std::to_string(host));REQUIRE(std::filesystem::create_directory(run));
+        REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(run/"input.wav",input,WavEncoding::float32)));
+        REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(run/"output.wav",output,WavEncoding::float32)));
+        REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(run/"raw.wav",*statistics.raw_audio,WavEncoding::float32)));
+        juce::DynamicObject::Ptr report=new juce::DynamicObject;
+        report->setProperty("frame",static_cast<int>(frame));report->setProperty("input_frames",static_cast<int>(frames));report->setProperty("selected",selected.c_str());report->setProperty("host",host);
+        juce::Array<juce::var> ends,produced,finished;for(std::size_t p=0;p<2;++p) {
+            ends.add(static_cast<int>(*probe.output_ends[p]));produced.add(static_cast<int>(probe.produced[p]));finished.add(static_cast<int>(probe.finished[p]));
+        }
+        report->setProperty("output_ends",ends);report->setProperty("produced",produced);report->setProperty("finished",finished);
+        report->setProperty("callback_calls",static_cast<int>(probe.calls));report->setProperty("algorithm_input_frames",static_cast<int>(probe.frames));
+        report->setProperty("drain_padding_frames",static_cast<int>(statistics.drain_padding_frames));report->setProperty("raw_frames",static_cast<int>(statistics.raw_frames));
+        juce::Array<juce::var> pattern;for(const auto n:partitions)pattern.add(n);report->setProperty("host_partitions",pattern);
+        REQUIRE(juce::File((run/"probe.json").string()).replaceWithText(juce::JSON::toString(juce::var(report.get()))));
     }
 }

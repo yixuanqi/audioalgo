@@ -11,6 +11,7 @@
 #include <random>
 #include <filesystem>
 #include <iostream>
+#include <future>
 
 namespace {
 struct Probe {std::size_t prepares=0,resets=0,calls=0,frames=0;};
@@ -228,4 +229,26 @@ TEST_CASE("AR-15.b fixed FIFO is bounded under seeded random host partitions","[
         for(int i=0;i<frame-1;++i) { CHECK(impulse.getSample(0,i)==0);CHECK(impulse.getSample(1,i)==0); }
         CHECK(impulse.getSample(0,frame-1)==0.25f);CHECK(impulse.getSample(1,frame-1)==-0.25f);
     }
+}
+
+TEST_CASE("AR-15.d worker waits for message-thread graph preparation before reading latency","[AR-15.d][worker-prepare]") {
+    juce::ScopedJuceInitialiser_GUI messages;
+    audioalgo::NodeRegistry nodes;REQUIRE(audioalgo::register_builtin_nodes(nodes));Probe probe;
+    auto descriptor=fixed_descriptor(480);std::promise<void> constructed;auto started=constructed.get_future();
+    REQUIRE(nodes.register_node(descriptor,[&]{constructed.set_value();return std::make_unique<FixedIdentity>(480,probe);}).registered);
+    audioalgo::ProjectModel project;project.project_id="worker-prepare";project.selected_output_node_id="output";
+    project.nodes={{"file","builtin.file_source",{}},{"fixed",descriptor.type_id,{}},{"output","builtin.output",{}}};
+    project.connections={{"file","audio","fixed","in"},{"fixed","out","output","audio"}};
+    audioalgo::AudioBuffer input(48000,{"left","right"},513);input.mutable_channel(0)[0]=.125f;input.mutable_channel(1)[512]=-.25f;
+    auto future=std::async(std::launch::async,[&]{auto result=audioalgo::render_audio_graph(project,nodes,input,127);
+        juce::MessageManager::callAsync([]{juce::MessageManager::getInstance()->stopDispatchLoop();});return result;});
+    // The factory handshake fixes ordering. Hold the real message queue until the
+    // worker has had an opportunity to query the as-yet unprepared graph.
+    started.wait();const bool completed_without_pumping=future.wait_for(std::chrono::milliseconds(50))==std::future_status::ready;
+    juce::MessageManager::getInstance()->runDispatchLoop();const auto result=future.get();
+    CHECK_FALSE(completed_without_pumping);
+    if(const auto* e=std::get_if<audioalgo::Diagnostic>(&result))INFO(e->code+": "+e->message);
+    REQUIRE(std::holds_alternative<audioalgo::AudioBuffer>(result));
+    const auto& actual=std::get<audioalgo::AudioBuffer>(result);REQUIRE(actual.frame_count()==513);
+    for(std::size_t c=0;c<2;++c)CHECK(std::equal(actual.channel(c).begin(),actual.channel(c).end(),input.channel(c).begin()));
 }

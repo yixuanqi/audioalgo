@@ -181,6 +181,10 @@ AudioGraphOutcome render_audio_graph(const ProjectModel& project,
             std::vector<std::size_t> input_ends;
             for (const auto& end : node.input_ends) input_ends.push_back(end.frame);
             wrapper_view->set_finite_input_ends(std::move(input_ends));
+            std::vector<std::size_t> output_ends;
+            for (const auto& port : descriptor->ports) if (port.direction == PortDirection::output)
+                output_ends.push_back(execution_plan.source_frames + node.output_latency_frames + node.output_tails.at(port.id));
+            wrapper_view->set_finite_output_ends(std::move(output_ends));
             processor = std::move(wrapper);
             diagnostic_sources.emplace_back(node.node_id, wrapper_view);
         }
@@ -246,6 +250,18 @@ AudioGraphOutcome render_audio_graph(const ProjectModel& project,
     }
 
     graph.prepareToPlay(sample_rate, block_size);
+    // JUCE's sync rebuild is asynchronous when requested from a worker. Fence the
+    // real message-thread rebuild before inspecting prepared diagnostics/latency;
+    // otherwise a delayed graph can be mistaken for a zero-latency graph.
+    auto* messages = juce::MessageManager::getInstance();
+    if (!messages->isThisTheMessageThread()) {
+        const auto prepared = messages->callFunctionOnMessageThread([](void* pointer) -> void* {
+            static_cast<juce::AudioProcessorGraph*>(pointer)->rebuild();
+            return pointer;
+        }, &graph);
+        if (prepared != &graph)
+            return graph_error("graph_prepare_dispatch_failed", "Could not finish native graph preparation on its message thread");
+    }
     const auto find_processing_error = [&]() -> std::optional<Diagnostic> {
         for (const auto& [node_id, processor] : diagnostic_sources) {
             (void)node_id;
@@ -270,17 +286,20 @@ AudioGraphOutcome render_audio_graph(const ProjectModel& project,
     if (aligned_frames > std::numeric_limits<std::size_t>::max() - latency)
         return graph_error("render_length_overflow", "Source plus buffering latency exceeds the sample range");
     const auto render_frames = aligned_frames + latency;
+    auto processing_frames = render_frames;
+    for (const auto& node : execution_plan.nodes) if (node.descriptor.capabilities.uses_streaming_frame_api)
+        processing_frames = std::max(processing_frames, execution_plan.source_frames + node.output_latency_frames + node.output_tail_frames);
     if (options.capture_raw_audio && options.statistics && latency != 0)
         options.statistics->raw_audio.emplace(reference.audio.sample_rate_hz(), reference.audio.channel_ids(), render_frames,
             AudioInterval{latency + valid.first_frame, valid.frame_count});
     std::size_t offset = 0;
     std::size_t partition_index = 0;
     SampleFrameClock raw_clock(reference.audio.sample_rate_hz(), 1000000000);
-    while (offset < render_frames) {
+    while (offset < processing_frames) {
         if (cancelled()) return graph_error("run_cancelled", "Native rendering was cancelled at a block boundary");
         const auto host_count = options.host_partitions.empty() ? block_size :
             options.host_partitions[partition_index++ % options.host_partitions.size()];
-        const auto count = std::min<std::size_t>(static_cast<std::size_t>(host_count), render_frames - offset);
+        const auto count = std::min<std::size_t>(static_cast<std::size_t>(host_count), processing_frames - offset);
         juce::AudioBuffer<float> block(channel_count, static_cast<int>(count));
         block.clear();
         graph.processBlock(block, midi);
@@ -288,9 +307,9 @@ AudioGraphOutcome render_audio_graph(const ProjectModel& project,
         if (const auto error = find_processing_error()) {
             return *error;
         }
-        if (options.statistics && options.statistics->raw_audio)
+        if (options.statistics && options.statistics->raw_audio && offset < render_frames)
             for (int channel = 0; channel < channel_count; ++channel)
-                std::copy_n(block.getReadPointer(channel), count,
+                std::copy_n(block.getReadPointer(channel), std::min(count, render_frames - offset),
                     options.statistics->raw_audio->mutable_channel(static_cast<std::size_t>(channel)).data() + offset);
         // Compensated graph output is cropped exactly once. Drain with zero source
         // samples to include the last valid input even for a partial algorithm frame.
@@ -321,7 +340,8 @@ AudioGraphOutcome render_audio_graph(const ProjectModel& project,
         options.statistics->source_frames = execution_plan.source_frames;
         options.statistics->retained_tail_frames = execution_plan.retained_tail_frames;
         options.statistics->zero_padding_frames = render_frames - execution_plan.source_frames;
-        options.statistics->raw_duration_ns = raw_clock.target_frames();
+        options.statistics->raw_duration_ns = *map_sample_frame(render_frames, reference.audio.sample_rate_hz(), 1000000000);
+        options.statistics->drain_padding_frames = processing_frames - render_frames;
         options.statistics->aligned_duration_ns = *aligned_time;
         options.statistics->alignment_offset_ns = *offset_time;
     }
