@@ -2,6 +2,7 @@
 
 #include "audio_core/AudioBuffer.h"
 #include "audio_core/Diagnostic.h"
+#include "audio_run_api/RunIdentity.h"
 
 #include <functional>
 #include <map>
@@ -92,6 +93,12 @@ struct NodeExecutionCapabilities {
     // Additional input timeline after EOS; includes latency recovery and frame padding.
     // Required for zero_padding tails. No calls to a fictitious algorithm flush API.
     std::optional<std::size_t> maximum_zero_padding_frames;
+    // Owned task boundary; never admitted to a native audio callback region.
+    bool requires_offline_task = false;
+    // Internal named padded fixed-frame profile, including bounded streaming
+    // EOS: complete output-port overrides. The scalar tail remains their maximum
+    // for padding admission. Published C ABI v1 does not expose these overrides.
+    std::map<std::string, std::size_t, std::less<>> output_tail_frames;
 };
 
 struct NodeDescriptor {
@@ -105,8 +112,10 @@ struct NodeDescriptor {
     NodeExecutionCapabilities capabilities;
     struct PluginOrigin {
         std::string plugin_id, version, library_sha256, manifest_sha256;
+        std::string runtime = "native";
     };
     std::optional<PluginOrigin> plugin_origin;
+    std::string backend_metadata_json;
 };
 
 struct NodeRegistrationDiagnostic {
@@ -132,6 +141,16 @@ using AudioPorts = std::map<std::string, AudioBuffer, std::less<>>;
 struct NodeExecutionContext {
     std::string project_file;
     std::string output_directory;
+    std::string node_id;
+    RunIdentity identity;
+    std::function<bool()> is_cancelled;
+    // Worker-only value transfer; no UI observer or borrowed sample pointer escapes.
+    std::function<void(std::string,std::string)> record_task_artifact;
+    int maximum_block_frames=512;
+    std::size_t maximum_task_payload_bytes=64*1024*1024;
+    // One worker-owned cache shared by all task instances in this run. Backends
+    // use opaque package keys and immutable snapshot directories, never live UI state.
+    std::shared_ptr<std::map<std::string,std::string>> frozen_task_packages;
 };
 
 struct NodeProcessRequest {
@@ -224,6 +243,9 @@ public:
     virtual ~AudioNodeProcessor() = default;
     // Owned-block entry point used by tasks that need whole ports (source/sink, file I/O, geometry).
     [[nodiscard]] virtual NodeProcessOutcome process(const NodeProcessRequest& request) = 0;
+    // Called for every owned task before any execution task. Native block nodes
+    // need no package snapshot; code-owning backends override this worker-only hook.
+    [[nodiscard]] virtual std::optional<Diagnostic> freeze_task(const NodeExecutionContext&) { return {}; }
 
     // True only when process_block() runs without allocating, copying whole buffers or doing I/O.
     [[nodiscard]] virtual bool supports_block_processing() const noexcept { return false; }
