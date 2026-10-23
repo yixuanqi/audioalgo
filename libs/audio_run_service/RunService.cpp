@@ -2,6 +2,7 @@
 
 #include "audio_io/WavFile.h"
 #include "audio_runtime/NativePlan.h"
+#include "audio_run_service/MixedExecution.h"
 
 #include <juce_core/juce_core.h>
 
@@ -161,11 +162,19 @@ std::variant<std::string, Diagnostic> sha256_file(const std::filesystem::path& p
 
 class OutputDirectoryGuard {
 public:
-    explicit OutputDirectoryGuard(std::filesystem::path path) : path_(std::move(path)) {}
+    explicit OutputDirectoryGuard(std::filesystem::path path) : path_(std::filesystem::absolute(path).lexically_normal()) {}
     ~OutputDirectoryGuard() {
         if (!committed_) {
             std::error_code ignored;
+            // This guard owns only the new directory reserved by this request.
+            // Extended Windows paths are needed for deeply nested runner payloads.
+#ifdef _WIN32
+            const auto native=path_.wstring();
+            const auto target=native.rfind(L"\\\\?\\",0)==0?native:native.rfind(L"\\\\",0)==0?L"\\\\?\\UNC\\"+native.substr(2):L"\\\\?\\"+native;
+            std::filesystem::remove_all(std::filesystem::path(target), ignored);
+#else
             std::filesystem::remove_all(path_, ignored);
+#endif
         }
     }
     void commit() noexcept { committed_ = true; }
@@ -365,8 +374,16 @@ RunOutcome RunService::run(const RunRequest& request) const {
                               resource.node_id, resource.parameter_id};
     }
     NativeRenderStatistics render_statistics;
-    const auto rendered_result = render_audio_graph(rendering_project, *nodes_, std::move(source_bindings), request.block_size,
-                                                    {{}, &render_statistics, true, request.is_cancelled});
+    std::string task_manifest_json;juce::Array<juce::var> task_artifacts;
+    const bool mixed=std::any_of(rendering_project.nodes.begin(),rendering_project.nodes.end(),[&](const auto& n){return selection.closure.contains(n.id) && nodes_->find(n.type_id)->capabilities.requires_offline_task;});
+    NodeExecutionContext context;context.project_file=to_juce_file(request.project_file).getFullPathName().toStdString();
+    context.output_directory=to_juce_file(request.output_directory).getFullPathName().toStdString();context.identity=identity;context.is_cancelled=request.is_cancelled;
+    context.maximum_task_payload_bytes=request.maximum_task_payload_bytes;
+    context.record_task_artifact=[&](std::string directory,std::string provenance){juce::DynamicObject::Ptr item=new juce::DynamicObject;
+        item->setProperty("directory",to_juce_file(std::filesystem::u8path(directory)).getRelativePathFrom(to_juce_file(request.output_directory)).replaceCharacter('\\','/'));item->setProperty("path_base","run_root");
+        item->setProperty("provenance",juce::JSON::parse(to_juce_string(provenance)));task_artifacts.add(juce::var(item.get()));};
+    const auto rendered_result = mixed?render_prepared_audio_graph(rendering_project,*nodes_,std::move(source_bindings),request.block_size,std::move(context),&render_statistics,&task_manifest_json):
+        render_audio_graph(rendering_project, *nodes_, std::move(source_bindings), request.block_size,{{}, &render_statistics, true, request.is_cancelled});
     if (const auto* error = std::get_if<Diagnostic>(&rendered_result))
         return *error;
     if (cancelled()) return cancellation();
@@ -446,6 +463,11 @@ RunOutcome RunService::run(const RunRequest& request) const {
         resource_manifest.add(juce::var(item.get()));
     }
     manifest->setProperty("resources", resource_manifest);
+    if(mixed){manifest->setProperty("tasks",juce::JSON::parse(to_juce_string(task_manifest_json)));manifest->setProperty("task_artifacts",task_artifacts);
+        juce::Array<juce::var> packages;std::set<std::string> seen;
+        for(const auto& artifact:task_artifacts){const auto path=artifact["provenance"]["frozen_package_root"].toString();if(seen.insert(path.toStdString()).second)packages.add(path);}
+        manifest->setProperty("frozen_python_packages",packages);
+    }
     juce::Array<juce::var> plugin_manifest;
     juce::Array<juce::var> node_versions;
     for(const auto& node:executed_project.nodes) {
@@ -457,7 +479,7 @@ RunOutcome RunService::run(const RunRequest& request) const {
         version->setProperty("type_id",json_string(node.type_id));
         version->setProperty("version",json_string(descriptor->version));
         node_versions.add(juce::var(version.get()));
-        if(!descriptor->plugin_origin) continue;
+        if(!descriptor->plugin_origin || descriptor->plugin_origin->runtime!="native") continue;
         const auto& origin=*descriptor->plugin_origin;
         juce::DynamicObject::Ptr item=new juce::DynamicObject;
         item->setProperty("node_id",json_string(node.id));
@@ -479,6 +501,7 @@ RunOutcome RunService::run(const RunRequest& request) const {
     manifest->setProperty("valid_start_frame", static_cast<juce::int64>(std::get<AudioBuffer>(rendered_result).valid_interval().first_frame));
     manifest->setProperty("valid_frame_count", static_cast<juce::int64>(std::get<AudioBuffer>(rendered_result).valid_interval().frame_count));
     manifest->setProperty("block_size", request.block_size);
+    manifest->setProperty("maximum_task_payload_bytes",static_cast<juce::int64>(request.maximum_task_payload_bytes));
     manifest->setProperty("raw_frames", static_cast<juce::int64>(render_statistics.raw_frames));
     manifest->setProperty("raw_duration_ns", static_cast<juce::int64>(render_statistics.raw_duration_ns));
     manifest->setProperty("aligned_duration_ns", static_cast<juce::int64>(render_statistics.aligned_duration_ns));
@@ -488,6 +511,7 @@ RunOutcome RunService::run(const RunRequest& request) const {
     manifest->setProperty("source_frames", static_cast<juce::int64>(render_statistics.source_frames));
     manifest->setProperty("retained_tail_frames", static_cast<juce::int64>(render_statistics.retained_tail_frames));
     manifest->setProperty("zero_padding_frames", static_cast<juce::int64>(render_statistics.zero_padding_frames));
+    manifest->setProperty("drain_padding_frames", static_cast<juce::int64>(render_statistics.drain_padding_frames));
     manifest->setProperty("raw_valid_frame_count", static_cast<juce::int64>(std::get<AudioBuffer>(rendered_result).valid_interval().frame_count));
     manifest->setProperty("alignment_offset_frames", static_cast<juce::int64>(render_statistics.alignment_offset_frames));
     manifest->setProperty("raw_output_file", json_string(raw_output_name));

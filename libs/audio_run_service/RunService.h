@@ -24,6 +24,7 @@ struct RunRequest {
     // Worker-side, nonblocking predicate, valid through this synchronous run.
     // Once true it must remain true; the callback must not throw.
     std::function<bool()> is_cancelled;
+    std::size_t maximum_task_payload_bytes=64*1024*1024;
 };
 
 struct RunSuccess {
