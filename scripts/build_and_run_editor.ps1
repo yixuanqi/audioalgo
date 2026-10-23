@@ -1,11 +1,12 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
     [ValidateSet('Debug', 'Release')]
-    [string]$Configuration,
+    [string]$Configuration = 'Debug',
 
     [ValidateRange(1, 64)]
-    [int]$Parallel = 4
+    [int]$Parallel = 4,
+
+    [switch]$BuildOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -15,6 +16,13 @@ $preset = if ($Configuration -eq 'Debug') { 'windows-debug' } else { 'windows-re
 $editorPath = Join-Path $repositoryRoot "build/$preset/bin/AudioAlgo Editor.exe"
 $cmakeCommand = Get-Command cmake -CommandType Application -All -ErrorAction Stop | Select-Object -First 1
 $cmakePath = $cmakeCommand.Source
+
+# Check before compiling: a running editor can lock the executable during linking.
+$runningEditors = @(Get-Process -Name 'AudioAlgo Editor' -ErrorAction SilentlyContinue)
+if ($runningEditors.Count -gt 0) {
+    $processIds = ($runningEditors | ForEach-Object { $_.Id }) -join ', '
+    throw "AudioAlgo Editor is already running (PID $processIds). Close the existing editor before building $Configuration."
+}
 
 Push-Location $repositoryRoot
 try {
@@ -38,10 +46,9 @@ if (-not (Test-Path -LiteralPath $editorPath -PathType Leaf)) {
     throw "Build succeeded, but the editor executable was not found: $editorPath"
 }
 
-$runningEditors = @(Get-Process -Name 'AudioAlgo Editor' -ErrorAction SilentlyContinue)
-if ($runningEditors.Count -gt 0) {
-    $processIds = ($runningEditors | ForEach-Object { $_.Id }) -join ', '
-    throw "AudioAlgo Editor is already running (PID $processIds). Close the existing editor before starting $Configuration."
+if ($BuildOnly) {
+    Write-Host "Build completed: $editorPath"
+    return
 }
 
 Write-Host "Starting $editorPath"
