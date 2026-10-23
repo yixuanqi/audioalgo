@@ -21,8 +21,8 @@ public:
                 (void)controller_.cancel_parameter_gesture(snapshot_->session);
             active_gesture_parameter_.reset();
         }
-        const bool selected = selection_.select(controller_.project(), node_id);
-        snapshot_ = selected ? controller_.node_snapshot(node_id) : std::nullopt;
+        // Presentation must not replace the canvas's multi-selection with its primary node.
+        snapshot_ = controller_.node_snapshot(node_id);
         if (!snapshot_) {
             panel_.clear("Inspector", node_id.empty() ? "Select a node to edit its parameters." : "Node not found.");
             return;

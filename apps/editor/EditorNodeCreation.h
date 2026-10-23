@@ -92,22 +92,56 @@ class NodeSelectionState {
 public:
     [[nodiscard]] bool select(const ProjectModel& project, const std::string& node_id) {
         if (node_id.empty()) {
-            selected_node_id_.clear();
+            clear();
             return true;
         }
-        const auto found = std::find_if(project.nodes.begin(), project.nodes.end(), [&](const auto& node) {
-            return node.id == node_id;
-        });
-        if (found == project.nodes.end())
+        if (!exists(project, node_id))
             return false;
         selected_node_id_ = node_id;
+        selected_node_ids_ = {node_id};
+        return true;
+    }
+
+    // Selects several validated nodes at once (rubber-band); the first id in the
+    // given order becomes the primary selection driving the inspector.
+    [[nodiscard]] bool select_many(const ProjectModel& project, const std::vector<std::string>& node_ids) {
+        std::vector<std::string> chosen;
+        for (const auto& node_id : node_ids) {
+            if (node_id.empty() || std::find(chosen.begin(), chosen.end(), node_id) != chosen.end())
+                continue;
+            if (!exists(project, node_id))
+                return false;
+            chosen.push_back(node_id);
+        }
+        if (chosen.empty()) {
+            clear();
+            return true;
+        }
+        selected_node_ids_ = std::move(chosen);
+        selected_node_id_ = selected_node_ids_.front();
         return true;
     }
 
     [[nodiscard]] const std::string& selected_node_id() const noexcept { return selected_node_id_; }
+    [[nodiscard]] const std::vector<std::string>& selected_node_ids() const noexcept { return selected_node_ids_; }
+    [[nodiscard]] bool is_selected(const std::string& node_id) const noexcept {
+        return node_id == selected_node_id_ ||
+               std::find(selected_node_ids_.begin(), selected_node_ids_.end(), node_id) != selected_node_ids_.end();
+    }
 
 private:
+    static bool exists(const ProjectModel& project, const std::string& node_id) {
+        return std::any_of(project.nodes.begin(), project.nodes.end(), [&](const auto& node) {
+            return node.id == node_id;
+        });
+    }
+    void clear() noexcept {
+        selected_node_id_.clear();
+        selected_node_ids_.clear();
+    }
+
     std::string selected_node_id_;
+    std::vector<std::string> selected_node_ids_;
 };
 
 } // namespace audioalgo::editor

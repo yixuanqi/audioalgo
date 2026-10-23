@@ -80,6 +80,8 @@ public:
                                                           const Connection& target_connection, double x, double y,
                                                           std::optional<InsertionPortChoice> port_choice = std::nullopt);
     [[nodiscard]] ProjectEditOutcome delete_node(const std::string& node_id);
+    // One undoable revision removing several nodes together (rubber-band delete).
+    [[nodiscard]] ProjectEditOutcome delete_nodes(const std::vector<std::string>& node_ids);
     [[nodiscard]] ProjectEditOutcome move_node_layout(const std::string& node_id, double x, double y);
     // Port-level output selection (AR-14.c): one undoable revision that revalidates the
     // selected (node_id, port_id) against the descriptor schema before applying.

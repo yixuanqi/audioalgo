@@ -1481,3 +1481,49 @@ TEST_CASE("AR-08.d Layout history rejects edits outside node positions",
     CHECK(history.undo_size() == 0);
     CHECK(history.redo_size() == 0);
 }
+
+TEST_CASE("AR-08.a DeleteNodes removes several nodes in one undoable revision",
+          "[R2][AR-08.a]") {
+    const auto registry = probe_catalog();
+    audioalgo::editor::EditorController controller(registry);
+    const auto initial = probe_project();
+    controller.adopt_project(initial);
+    controller.mark_result_current();
+
+    const auto removed = controller.delete_nodes({"file", "gain"});
+    REQUIRE(removed.status == audioalgo::editor::ProjectEditStatus::applied);
+    REQUIRE(removed.diagnostics.empty());
+    auto expected_removed = initial;
+    expected_removed.nodes.erase(std::remove_if(expected_removed.nodes.begin(), expected_removed.nodes.end(),
+                                     [](const auto& node) { return node.id == "file" || node.id == "gain"; }),
+        expected_removed.nodes.end());
+    expected_removed.connections.clear();
+    expected_removed.revision = initial.revision + 1;
+    CHECK(same_project_state(controller.project(), expected_removed));
+    CHECK(controller.dirty());
+    CHECK(controller.results_stale());
+    CHECK(controller.history().undo_size() == 1);
+    CHECK(controller.history().redo_size() == 0);
+
+    REQUIRE(controller.undo());
+    auto expected_restored = initial;
+    expected_restored.revision = initial.revision + 2;
+    CHECK(same_project_state(controller.project(), expected_restored));
+    CHECK(controller.history().can_redo());
+
+    REQUIRE(controller.redo());
+    auto expected_redone = expected_removed;
+    expected_redone.revision = initial.revision + 3;
+    CHECK(same_project_state(controller.project(), expected_redone));
+
+    const auto before_rejection = controller.project();
+    const auto undo_before_rejection = controller.history().undo_size();
+    const auto redo_before_rejection = controller.history().redo_size();
+    const auto rejected = controller.delete_nodes({"output", "missing"});
+    REQUIRE(rejected.status == audioalgo::editor::ProjectEditStatus::rejected);
+    REQUIRE_FALSE(rejected.diagnostics.empty());
+    CHECK(same_project_state(controller.project(), before_rejection));
+    CHECK(controller.history().undo_size() == undo_before_rejection);
+    CHECK(controller.history().redo_size() == redo_before_rejection);
+    CHECK(controller.delete_nodes({}).status == audioalgo::editor::ProjectEditStatus::unchanged);
+}

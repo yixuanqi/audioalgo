@@ -51,6 +51,7 @@ public:
         node_order_drop_target_.reset();
         connection_gesture_.cancel();
         panning_ = false;
+        cancel_marquee();
         coordinates_.reset_pan();
         setMouseCursor(juce::MouseCursor::NormalCursor);
         selected_connection_index_.reset();
@@ -66,15 +67,16 @@ public:
         g.fillAll(background);
         g.setColour(juce::Colour(0xff18252d));
         const auto pan = coordinates_.pan_offset();
-        const auto grid_phase = [](float offset) {
-            auto phase = std::fmod(offset, 28.0f);
+        const auto spacing = 28.0f * coordinates_.zoom_scale();
+        const auto grid_phase = [&](float offset) {
+            auto phase = std::fmod(offset, spacing);
             if (phase < 0.0f)
-                phase += 28.0f;
-            return static_cast<int>(phase) - 28;
+                phase += spacing;
+            return phase - spacing;
         };
-        for (int x = grid_phase(pan.x); x < getWidth(); x += 28)
-            for (int y = grid_phase(pan.y); y < getHeight(); y += 28)
-                g.fillEllipse(static_cast<float>(x), static_cast<float>(y), 1.5f, 1.5f);
+        for (auto x = grid_phase(pan.x); x < getWidth(); x += spacing)
+            for (auto y = grid_phase(pan.y); y < getHeight(); y += spacing)
+                g.fillEllipse(x, y, 1.5f, 1.5f);
 
         g.setColour(muted);
         g.setFont(juce::FontOptions(12.0f));
@@ -89,7 +91,8 @@ public:
                 juce::Path path;
                 path.startNewSubPath(*start);
                 const auto preview_pointer = to_juce_point(connection_gesture_.pointer_position());
-                path.cubicTo(start->translated(64.0f, 0.0f), preview_pointer.translated(-64.0f, 0.0f), preview_pointer);
+                const auto bend = 64.0f * coordinates_.zoom_scale();
+                path.cubicTo(start->translated(bend, 0.0f), preview_pointer.translated(-bend, 0.0f), preview_pointer);
                 g.setColour(signal.withAlpha(0.75f));
                 g.strokePath(path, juce::PathStrokeType(2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
             }
@@ -104,6 +107,12 @@ public:
                 paint_node(g, node, compatible_target);
             }
         paint_library_drop_preview(g);
+        if (marquee_start_ && marquee_dragged_) {
+            g.setColour(signal.withAlpha(0.12f));
+            g.fillRect(marquee_rect_);
+            g.setColour(signal.withAlpha(0.8f));
+            g.drawRect(marquee_rect_, 1.0f);
+        }
     }
 
     bool isInterestedInDragSource(const SourceDetails& details) override {
@@ -175,6 +184,7 @@ public:
 
     void mouseDown(const juce::MouseEvent& event) override {
         if (event.mods.isMiddleButtonDown()) {
+            cancel_marquee();
             panning_ = true;
             last_pan_position_ = event.position;
             connection_gesture_.cancel();
@@ -182,6 +192,20 @@ public:
             return;
         }
         grabKeyboardFocus();
+        // Right drags always belong to the marquee, even over nodes, sockets or edges.
+        if (event.mods.isRightButtonDown()) {
+            connection_gesture_.cancel();
+            dragging_node_.clear();
+            node_drag_preview_position_.reset();
+            existing_node_insertion_target_.reset();
+            node_order_swap_target_.reset();
+            node_order_drop_target_.reset();
+            selected_connection_index_.reset();
+            begin_marquee(event.position, true);
+            return;
+        }
+        if (!event.mods.isLeftButtonDown())
+            return;
         const auto canvas_point = coordinates_.event_to_canvas({event.position.x, event.position.y});
         const auto canvas_position = to_juce_point(canvas_point);
         mouse_position_ = canvas_position;
@@ -240,12 +264,15 @@ public:
         selected_connection_index_.reset();
         if (connection_gesture_.is_active()) {
             connection_gesture_.cancel();
+            (void)selection_.select(project_, {});
+            dragging_node_.clear();
+            selection_changed_({});
             repaint();
+            return;
         }
-        (void)selection_.select(project_, {});
-        dragging_node_.clear();
-        selection_changed_({});
-        repaint();
+        // Left press on empty canvas starts a rubber-band selection; a click
+        // without dragging clears the selection on release.
+        begin_marquee(event.position, false);
     }
 
     void mouseDrag(const juce::MouseEvent& event) override {
@@ -266,6 +293,11 @@ public:
             repaint();
             return;
         }
+        if (marquee_start_) {
+            update_marquee(event.position);
+            repaint();
+            return;
+        }
         if (dragging_node_.empty())
             return;
         const auto canvas_point = coordinates_.event_to_canvas({event.position.x, event.position.y});
@@ -276,6 +308,27 @@ public:
         if (panning_) {
             panning_ = false;
             setMouseCursor(juce::MouseCursor::NormalCursor);
+            return;
+        }
+        if (marquee_start_) {
+            update_marquee(event.position);
+            const auto band = marquee_rect_;
+            const bool is_click = !marquee_dragged_;
+            const bool preserve_click = marquee_right_button_;
+            cancel_marquee();
+            if (is_click) {
+                if (!preserve_click) {
+                    (void)selection_.select(project_, {});
+                    selection_changed_({});
+                }
+            } else {
+                const auto ids = audioalgo::editor::nodes_intersecting_rect(
+                    project_.nodes, descriptors_,
+                    {band.getX(), band.getY(), band.getWidth(), band.getHeight()}, coordinates_);
+                (void)selection_.select_many(project_, ids);
+                selection_changed_(selection_.selected_node_id());
+            }
+            repaint();
             return;
         }
         if (connection_gesture_.is_dragging()) {
@@ -342,8 +395,25 @@ public:
         repaint();
     }
 
+    // Wheel zoom keeps the model point under the pointer fixed; gesture drags
+    // keep their canvas-space offsets, so zoom is deferred until they finish.
+    void mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override {
+        if (panning_ || !dragging_node_.empty() || connection_gesture_.is_active() || marquee_start_)
+            return;
+        const auto direction = wheel.isReversed ? -wheel.deltaY : wheel.deltaY;
+        coordinates_.zoom_around({event.position.x, event.position.y}, std::pow(1.25f, direction));
+        mouse_position_ = to_juce_point(coordinates_.event_to_canvas({event.position.x, event.position.y}));
+        update_tooltip(mouse_position_);
+        repaint();
+    }
+
     bool keyPressed(const juce::KeyPress& key) override {
         if (connection_gesture_.cancel_on_escape(key.getKeyCode() == juce::KeyPress::escapeKey)) {
+            repaint();
+            return true;
+        }
+        if (marquee_start_ && key.getKeyCode() == juce::KeyPress::escapeKey) {
+            cancel_marquee();
             repaint();
             return true;
         }
@@ -354,6 +424,18 @@ public:
             return true;
         }
         return false;
+    }
+
+    void focusLost(FocusChangeType) override {
+        cancel_marquee();
+        repaint();
+    }
+
+    void visibilityChanged() override {
+        if (!isVisible()) {
+            cancel_marquee();
+            repaint();
+        }
     }
 
     void delete_selected() {
@@ -371,10 +453,10 @@ public:
             }
             return;
         }
-        if (selection_.selected_node_id().empty())
+        const auto selected_ids = selection_.selected_node_ids();
+        if (selected_ids.empty())
             return;
-        const auto removed_id = selection_.selected_node_id();
-        if (controller_.delete_node(removed_id).status != audioalgo::editor::ProjectEditStatus::applied)
+        if (controller_.delete_nodes(selected_ids).status != audioalgo::editor::ProjectEditStatus::applied)
             return;
         selected_connection_index_.reset();
         (void)selection_.select(project_, {});
@@ -384,6 +466,27 @@ public:
     }
 
 private:
+    void begin_marquee(juce::Point<float> position, bool right_button) {
+        marquee_start_ = position;
+        marquee_rect_ = {};
+        marquee_right_button_ = right_button;
+        marquee_dragged_ = false;
+        repaint();
+    }
+
+    void update_marquee(juce::Point<float> position) {
+        if (position.getDistanceFrom(*marquee_start_) > 6.0f)
+            marquee_dragged_ = true;
+        marquee_rect_ = juce::Rectangle<float>(*marquee_start_, position);
+    }
+
+    void cancel_marquee() noexcept {
+        marquee_start_.reset();
+        marquee_rect_ = {};
+        marquee_right_button_ = false;
+        marquee_dragged_ = false;
+    }
+
     void commit_existing_node_insertion(const std::string& node_id, const audioalgo::Connection& target,
                                         audioalgo::editor::EditorPoint position,
                                         const audioalgo::editor::InsertionPortChoice& choice) {
@@ -500,14 +603,14 @@ private:
                                                    position->x, position->y};
         const auto layout = node_geometry(preview_node);
         const auto bounds = layout.bounds;
+        const auto scale = coordinates_.zoom_scale();
         g.setColour(signal.withAlpha(0.16f));
-        g.fillRoundedRectangle(to_juce_rect(bounds), 10.0f);
+        g.fillRoundedRectangle(to_juce_rect(bounds), 10.0f * scale);
         g.setColour(signal.withAlpha(0.9f));
-        g.drawRoundedRectangle(to_juce_rect(bounds), 10.0f, 1.5f);
+        g.drawRoundedRectangle(to_juce_rect(bounds), 10.0f * scale, 1.5f);
         g.setColour(ink.withAlpha(0.85f));
-        g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
-        g.drawText(utf8_string(descriptor->display_name),
-                   bounds.x + 12.0f, bounds.y + 8.0f, bounds.width - 24.0f, 20.0f,
+        g.setFont(juce::FontOptions(12.0f * scale, juce::Font::bold));
+        g.drawText(utf8_string(descriptor->display_name), to_juce_rect(layout.title_bounds),
                    juce::Justification::centredLeft, true);
         const auto choices = library_drop_session_.target_connection()
             ? audioalgo::editor::find_library_insertion_port_choices(
@@ -520,9 +623,10 @@ private:
                     ? choice.input_port_id == port.id : choice.output_port_id == port.id;
             });
             g.setColour(compatible ? compatible_green : signal.withAlpha(0.75f));
-            g.fillEllipse(anchor.x - 6.5f, anchor.y - 6.5f, 13.0f, 13.0f);
+            const auto radius = 6.5f * scale;
+            g.fillEllipse(anchor.x - radius, anchor.y - radius, 2 * radius, 2 * radius);
             g.setColour(muted);
-            g.setFont(juce::FontOptions(9.5f));
+            g.setFont(juce::FontOptions(9.5f * scale));
             g.drawFittedText(utf8_string(port.id), to_juce_rect(port.label_bounds).toNearestInt(),
                              port.direction == audioalgo::PortDirection::input
                                  ? juce::Justification::centredLeft : juce::Justification::centredRight, 1);
@@ -701,10 +805,10 @@ private:
                                                 juce::PathStrokeType::rounded));
     }
 
-    static void paint_connection_curve(juce::Graphics& g,
-                                       juce::Point<float> start, juce::Point<float> finish,
-                                       juce::Colour colour, float width) {
-        const auto control_distance = std::max(48.0f, (finish.x - start.x) * 0.44f);
+    void paint_connection_curve(juce::Graphics& g,
+                                juce::Point<float> start, juce::Point<float> finish,
+                                juce::Colour colour, float width) {
+        const auto control_distance = std::max(48.0f * coordinates_.zoom_scale(), (finish.x - start.x) * 0.44f);
         const audioalgo::editor::CubicConnectionGeometry geometry{
             {start.x, start.y}, {start.x + control_distance, start.y},
             {finish.x - control_distance, finish.y}, {finish.x, finish.y}};
@@ -715,25 +819,26 @@ private:
                     const std::optional<audioalgo::editor::PortHit>& compatible_connection_target) {
         const auto layout = node_geometry(node);
         const auto bounds = to_juce_rect(layout.bounds);
-        const bool selected = node.id == selection_.selected_node_id();
+        const auto scale = coordinates_.zoom_scale();
+        const bool selected = selection_.is_selected(node.id);
         const bool order_swap_target = node_order_swap_target_ && node.id == *node_order_swap_target_;
         const bool order_drop_rejected = node_order_drop_target_ && node.id == *node_order_drop_target_ &&
                                          !order_swap_target;
         g.setColour(selected ? juce::Colour(0xff304852) : panel);
-        g.fillRoundedRectangle(bounds, 9.0f);
+        g.fillRoundedRectangle(bounds, 9.0f * scale);
         g.setColour(order_swap_target ? compatible_green :
                     (order_drop_rejected ? danger : (selected ? amber : raised)));
-        g.drawRoundedRectangle(bounds, 9.0f, selected ? 2.0f : 1.0f);
+        g.drawRoundedRectangle(bounds, 9.0f * scale, selected ? 2.0f : 1.0f);
 
         const auto* descriptor = descriptors_.find(node.type_id);
         const auto title = descriptor == nullptr ? juce::String("Missing node") : utf8_string(descriptor->display_name);
         g.setColour(ink);
-        g.setFont(juce::FontOptions(15.0f, juce::Font::bold));
+        g.setFont(juce::FontOptions(15.0f * scale, juce::Font::bold));
         g.drawFittedText(title, to_juce_rect(layout.title_bounds).toNearestInt(), juce::Justification::centredLeft, 1);
 
         const auto subtitle = summary_for_node(node);
         g.setColour(muted);
-        g.setFont(juce::FontOptions(11.5f));
+        g.setFont(juce::FontOptions(11.5f * scale));
         g.drawFittedText(subtitle, to_juce_rect(layout.summary).toNearestInt(), juce::Justification::centredLeft, 1);
 
         for (const auto& port : layout.ports) {
@@ -744,9 +849,10 @@ private:
                 compatible_connection_target->direction == port.direction;
             g.setColour(compatible_drag_target ? compatible_green :
                         insertion_endpoint_colour(node.id, port.id, port.direction));
-            g.fillEllipse(anchor.x - 6.5f, anchor.y - 6.5f, 13.0f, 13.0f);
+            const auto radius = 6.5f * scale;
+            g.fillEllipse(anchor.x - radius, anchor.y - radius, 2 * radius, 2 * radius);
             g.setColour(muted);
-            g.setFont(juce::FontOptions(9.5f));
+            g.setFont(juce::FontOptions(9.5f * scale));
             g.drawFittedText(utf8_string(port.id), to_juce_rect(port.label_bounds).toNearestInt(),
                              port.direction == audioalgo::PortDirection::input ? juce::Justification::centredLeft : juce::Justification::centredRight, 1);
         }
@@ -822,6 +928,10 @@ private:
     juce::Point<float> mouse_position_;
     juce::Point<float> last_pan_position_;
     bool panning_ = false;
+    std::optional<juce::Point<float>> marquee_start_;
+    juce::Rectangle<float> marquee_rect_;
+    bool marquee_right_button_ = false;
+    bool marquee_dragged_ = false;
 };
 
 

@@ -56,6 +56,46 @@ double parameter_value(const audioalgo::ProjectModel& project, const std::string
 } // namespace
 
 namespace {
+juce::MouseEvent canvas_mouse(juce::Component& component, juce::Point<float> position,
+                             int buttons, juce::Point<float> origin, bool dragged = false) {
+    return {juce::Desktop::getInstance().getMainMouseSource(), position, juce::ModifierKeys(buttons),
+            0.0f, 0.0f, 0.0f, 0.0f, 0.0f, &component, &component,
+            juce::Time(100), origin, juce::Time(0), 1, dragged};
+}
+
+struct CanvasInteractionFixture {
+    audioalgo::NodeRegistry registry;
+    audioalgo::editor::EditorController controller{registry};
+    audioalgo::editor::NodeSelectionState selection;
+    audioalgo::editor::NodeInspector inspector{controller, selection, [] {}};
+    int layout_changes = 0;
+    std::vector<std::string> errors;
+    audioalgo::editor::GraphCanvas canvas{controller.project(), registry, selection, controller,
+        [this](std::string id) { inspector.show_node(id); }, [this] { ++layout_changes; },
+        [this](std::string message) { errors.push_back(std::move(message)); }, {}, {}};
+
+    CanvasInteractionFixture() {
+        REQUIRE(audioalgo::register_builtin_nodes(registry));
+        audioalgo::ProjectModel project;
+        project.project_id = "canvas-interaction-regression";
+        project.nodes = {{"file", "builtin.file_source", {{"path", std::string("input.wav")}}, 40, 100},
+                         {"gain", "builtin.gain", {{"gain_db", 0.0}}, 340, 100},
+                         {"output", "builtin.output", {}, 640, 100}};
+        project.connections = {{"file", "audio", "gain", "audio_in"},
+                               {"gain", "audio_out", "output", "audio"}};
+        project.selected_output_node_id = "output";
+        controller.adopt_project(std::move(project));
+        inspector.set_descriptor_registry(registry);
+        canvas.setSize(1000, 600);
+    }
+
+    void drag(juce::Point<float> from, juce::Point<float> to, int button) {
+        canvas.mouseDown(canvas_mouse(canvas, from, button, from));
+        canvas.mouseDrag(canvas_mouse(canvas, to, button, from, true));
+        canvas.mouseUp(canvas_mouse(canvas, to, 0, from, true));
+    }
+};
+
 template <typename T>
 T* descendant(juce::Component& component, const juce::String& id) {
     if (component.getComponentID() == id)
@@ -65,6 +105,148 @@ T* descendant(juce::Component& component, const juce::String& id) {
             return found;
     return nullptr;
 }
+}
+
+TEST_CASE("Canvas marquee keeps multiple nodes after the production inspector callback",
+          "[node_interaction][canvas_regression][NED-06.e]") {
+    juce::ScopedJuceInitialiser_GUI juce_initialiser;
+    CanvasInteractionFixture fixture;
+    fixture.drag({20, 90}, {540, 220}, juce::ModifierKeys::leftButtonModifier);
+    CHECK(fixture.selection.selected_node_ids() == std::vector<std::string>{"file", "gain"});
+    CHECK(fixture.selection.selected_node_id() == "file");
+    fixture.inspector.show_node("file");
+    CHECK(fixture.selection.selected_node_ids().size() == 2);
+    fixture.inspector.show_node("missing");
+    CHECK(fixture.selection.selected_node_ids().size() == 2);
+    CHECK(fixture.controller.revision() == 0);
+    CHECK_FALSE(fixture.controller.dirty());
+    CHECK(fixture.layout_changes == 0);
+    fixture.canvas.delete_selected();
+    REQUIRE(fixture.controller.project().nodes.size() == 1);
+    CHECK(fixture.controller.project().nodes.front().id == "output");
+    REQUIRE(fixture.controller.undo());
+    CHECK(fixture.controller.project().nodes.size() == 3);
+    CHECK(fixture.controller.project().connections.size() == 2);
+}
+
+TEST_CASE("Canvas right drag selects before node socket and connection gestures",
+          "[node_interaction][canvas_regression][NED-06.e]") {
+    juce::ScopedJuceInitialiser_GUI juce_initialiser;
+    CanvasInteractionFixture fixture;
+    juce::Point<float> from{20, 90};
+    juce::Point<float> to{540, 220};
+    std::vector<std::string> expected{"file", "gain"};
+    SECTION("blank") {}
+    SECTION("node title") { from = {80, 115}; }
+    SECTION("output socket") { from = {216, 164}; expected = {"gain"}; }
+    SECTION("input socket") { from = {340, 164}; to = {20, 220}; expected = {"file"}; }
+    SECTION("connection") { from = {278, 164}; to = {20, 90}; expected = {"file"}; }
+    SECTION("reverse both axes") { from = {540, 220}; to = {20, 90}; }
+    SECTION("reverse horizontal") { from = {540, 90}; to = {20, 220}; }
+    SECTION("reverse vertical") { from = {20, 220}; to = {540, 90}; }
+    const auto before = fixture.controller.project();
+    fixture.drag(from, to, juce::ModifierKeys::rightButtonModifier);
+    CHECK(fixture.selection.selected_node_ids() == expected);
+    CHECK(fixture.controller.revision() == 0);
+    CHECK_FALSE(fixture.controller.dirty());
+    CHECK(fixture.controller.project().connections.size() == before.connections.size());
+    for (std::size_t index = 0; index < before.nodes.size(); ++index) {
+        CHECK(fixture.controller.project().nodes[index].x == before.nodes[index].x);
+        CHECK(fixture.controller.project().nodes[index].y == before.nodes[index].y);
+    }
+    CHECK(fixture.layout_changes == 0);
+    CHECK(fixture.errors.empty());
+}
+
+TEST_CASE("Canvas right marquee threshold escape and project switch preserve edit state",
+          "[node_interaction][canvas_regression][NED-06.e]") {
+    juce::ScopedJuceInitialiser_GUI juce_initialiser;
+    CanvasInteractionFixture fixture;
+    fixture.canvas.select("gain");
+    const juce::Point<float> start{20, 90};
+    const auto right = juce::ModifierKeys::rightButtonModifier;
+    SECTION("right click keeps selection") { fixture.drag(start, {23, 92}, right); }
+    SECTION("escape cancels") {
+        fixture.canvas.mouseDown(canvas_mouse(fixture.canvas, start, right, start));
+        fixture.canvas.mouseDrag(canvas_mouse(fixture.canvas, {540, 220}, right, start, true));
+        CHECK(fixture.canvas.keyPressed(juce::KeyPress(juce::KeyPress::escapeKey)));
+        fixture.canvas.mouseUp(canvas_mouse(fixture.canvas, {540, 220}, 0, start, true));
+    }
+    SECTION("project epoch cancels") {
+        fixture.canvas.mouseDown(canvas_mouse(fixture.canvas, start, right, start));
+        fixture.canvas.set_project_epoch(2);
+        fixture.canvas.mouseUp(canvas_mouse(fixture.canvas, {540, 220}, 0, start, true));
+    }
+    SECTION("focus loss cancels") {
+        fixture.canvas.mouseDown(canvas_mouse(fixture.canvas, start, right, start));
+        fixture.canvas.focusLost(juce::Component::focusChangedDirectly);
+        fixture.canvas.mouseUp(canvas_mouse(fixture.canvas, {540, 220}, 0, start, true));
+    }
+    SECTION("hiding cancels") {
+        fixture.canvas.setVisible(true);
+        fixture.canvas.mouseDown(canvas_mouse(fixture.canvas, start, right, start));
+        fixture.canvas.setVisible(false);
+        fixture.canvas.mouseUp(canvas_mouse(fixture.canvas, {540, 220}, 0, start, true));
+    }
+    CHECK(fixture.selection.selected_node_ids() == std::vector<std::string>{"gain"});
+    CHECK(fixture.controller.revision() == 0);
+    CHECK_FALSE(fixture.controller.dirty());
+    CHECK(fixture.layout_changes == 0);
+}
+
+TEST_CASE("Canvas zoomed selection left editing and middle pan share the displayed geometry",
+          "[node_interaction][canvas_regression][NED-06.e][NED-08.a]") {
+    juce::ScopedJuceInitialiser_GUI juce_initialiser;
+    for (const auto scale : {0.4f, 1.0f, 1.25f, 2.5f}) {
+        INFO(scale);
+        CanvasInteractionFixture fixture;
+        fixture.canvas.setSize(2200, 700);
+        juce::MouseWheelDetails wheel{};
+        wheel.deltaY = std::log(scale) / std::log(1.25f);
+        fixture.canvas.mouseWheelMove(canvas_mouse(fixture.canvas, {0, 0}, 0, {0, 0}), wheel);
+        fixture.drag({10, 10}, {40, 30}, juce::ModifierKeys::middleButtonModifier);
+        const auto view = [&](float x, float y) {
+            const auto point = fixture.canvas.coordinate_transform().model_to_canvas({x, y});
+            return juce::Point<float>{point.x, point.y};
+        };
+        fixture.drag(view(20, 90), view(540, 220), juce::ModifierKeys::rightButtonModifier);
+        CHECK(fixture.selection.selected_node_ids() == std::vector<std::string>{"file", "gain"});
+        CHECK(fixture.controller.revision() == 0);
+        CHECK_FALSE(fixture.controller.dirty());
+        CHECK(fixture.layout_changes == 0);
+
+        // Verify the real renderer along the entire visible gap, including the
+        // region previously hidden inside the incorrectly sized source node.
+        juce::Image image(juce::Image::RGB, 2200, 700, true);
+        {
+            // Native drawing finishes when the Graphics context is released.
+            juce::Graphics graphics(image);
+            fixture.canvas.paint(graphics);
+        }
+        const auto first = view(228, 164);
+        const auto last = view(328, 164);
+        for (int x = static_cast<int>(std::ceil(first.x)); x <= static_cast<int>(last.x); ++x)
+            CHECK(image.getPixelAt(x, juce::roundToInt(first.y)).getGreen() > 90);
+        if (const auto* artifact_root = std::getenv("AUDIOALGO_CANVAS_ARTIFACT_OUTPUT")) {
+            const auto file = juce::File(audioalgo::editor::utf8_string(artifact_root))
+                .getChildFile("canvas-" + juce::String(scale, 2) + ".png");
+            REQUIRE(file.getParentDirectory().createDirectory().wasOk());
+            juce::FileOutputStream stream(file);
+            REQUIRE(stream.openedOk());
+            REQUIRE(juce::PNGImageFormat().writeImageToStream(image, stream));
+        }
+
+        fixture.drag(view(350, 110), view(370, 310), juce::ModifierKeys::leftButtonModifier);
+        CHECK(std::abs(fixture.controller.project().nodes[1].x - 360.0) < 0.001);
+        CHECK(std::abs(fixture.controller.project().nodes[1].y - 300.0) < 0.001);
+        CHECK(fixture.controller.revision() == 0);
+        REQUIRE(fixture.controller.disconnect({"file", "audio", "gain", "audio_in"}).status ==
+                audioalgo::editor::ProjectEditStatus::applied);
+        fixture.drag(view(216, 164), view(360, 364), juce::ModifierKeys::leftButtonModifier);
+        CHECK(fixture.controller.project().connections.size() == 2);
+        CHECK(fixture.controller.revision() == 2);
+        CHECK(fixture.errors.empty());
+    }
 }
 
 TEST_CASE("AR-10.c numeric text rejects malformed and out of range input then recovers",

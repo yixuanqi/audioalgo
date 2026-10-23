@@ -1,11 +1,12 @@
 # Development status
 
-## 唯一当前摘要（2026-10-23：内部逐端口流式EOS、有界排空及Python恢复子集已验证）
+## 唯一当前摘要（2026-10-23：画布缩放与右键框选已修复；内部逐端口EOS等既有进展保留）
 
 入口：[交付收口](plan_delivery_convergence.md)、[P3任务卡第0节](plan_agent_next_p3.md)、[时序边界ADR0033](decisions/0033-owned-native-timeline-boundaries.md)。已实现行为按下表直接证据恢复；旧R0/R2/M21起点、历史“下一条”和旧数量均不作为当前起点。完整R5/R6、AR/G/NED/UPN仍未通过。
 
 | 用户能力/事项 | 实现及直接有效证据 | 当前缺口 |
 | --- | --- | --- |
+| 画布缩放与右键框选 | NI0012统一投影节点完整几何/端口/文字，右键优先框选，Inspector刷新保留多选；0.4/1/1.25/2.5倍缩放+平移的真实组件输入、连续连线像素、多端口命中、批量删除/一次撤销、取消路径已验证。Debug宿主已构建；证据 `build/reports/loops/NI0012-canvas-zoom-marquee/summary.json`、`loop.md`。直接CTest首轮85/89，4项仅系统Temp拒绝写入；仅这4项改用工作区临时目录后4/4，原失败保留。 | 属于本次用户指定缺陷切片，完整NED/平台仍未通过；组件渲染图已查看，真实桌面/DPI继续未验证，不自动重启用户应用。 |
 | 基础编辑与原生图 | Gain/ChannelSwap、controller/参数表单、多源Mixer、命名路由、所选端口裁剪已实现。M21冻结候选Debug242/242，仅代表当时快照；旧证据在RF0006/M21-r5-graph-milestone。 | 桌面/设备、注册非PCM任务与工作台尚未闭合；不重做旧Red。 |
 | 独立C++用户节点 | 安装C ABI v1 SDK、仓库外DLL、启动加载、两实例/错误/更新及固定宿主hash已有P1证据。最新后端Python OFF外部SDK消费者 `P3-mixed-timeline/finite-tail/external-consumer-check.json/xml` 1/1。说明 `native_node_sdk.md`；SDK包 `build/releases/AudioAlgoNodeSDK-1.0.0.zip`。 | UPN真实GUI桌面与正式干净OS禁网环境未验证；运行中热卸载后置，原110 AR之外另保留6 UPN。 |
 | 原生时序、快照及队列 | 固定480/512 FIFO、partial progress、有界尾部/延迟、取消/发布与pending均有分片证据；最新 `stream-port-eos/` 新增独立输出EOS，选短输出时长输出仍有界结束，原有EOS严格失败/零分配/恢复回归通过。未知延迟/尾部/flush及零进展预算继续前置拒绝。 | 通用异步跨帧缓存、完整CORE-02借用/通道身份组合与更宽区间组合仍未闭合。 |

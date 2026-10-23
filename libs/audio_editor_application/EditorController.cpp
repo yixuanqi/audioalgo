@@ -332,6 +332,39 @@ ProjectEditOutcome EditorController::delete_node(const std::string& node_id) {
     return {ProjectEditStatus::applied, {}};
 }
 
+ProjectEditOutcome EditorController::delete_nodes(const std::vector<std::string>& node_ids) {
+    if (node_ids.empty())
+        return {ProjectEditStatus::unchanged, {}};
+    if (parameter_gesture_.has_value())
+        return project_edit_rejected("parameter_gesture_active", "Finish or cancel the active parameter gesture",
+                                     node_ids.front());
+    for (const auto& node_id : node_ids) {
+        const auto node_count = std::count_if(project_.nodes.begin(), project_.nodes.end(), [&](const auto& node) {
+            return node.id == node_id;
+        });
+        if (node_count != 1)
+            return project_edit_rejected("node_missing", "A selected node does not exist or is not unique", node_id);
+    }
+    if (project_.revision == std::numeric_limits<std::uint64_t>::max())
+        return project_edit_rejected("revision_exhausted", "The project revision cannot be advanced",
+                                     node_ids.front());
+
+    auto candidate = project_;
+    for (const auto& node_id : node_ids)
+        if (!try_delete_node(candidate, catalog_, node_id))
+            return project_edit_rejected("node_delete_invalid", "A selected node could not be deleted", node_id);
+
+    const auto applied = history_.apply(project_, [&](ProjectModel& edited) {
+        edited = std::move(candidate);
+        return true;
+    });
+    if (!applied)
+        return {ProjectEditStatus::unchanged, {}};
+
+    mark_edited();
+    return {ProjectEditStatus::applied, {}};
+}
+
 ProjectEditOutcome EditorController::move_node_layout(const std::string& node_id, double x, double y) {
     if (parameter_gesture_.has_value())
         return project_edit_rejected("parameter_gesture_active", "Finish or cancel the active parameter gesture",

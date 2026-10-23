@@ -20,20 +20,39 @@ struct EditorPoint {
 struct CanvasCoordinateTransform {
     [[nodiscard]] EditorPoint event_to_canvas(EditorPoint event_local) const noexcept { return event_local; }
     [[nodiscard]] EditorPoint model_to_canvas(EditorPoint model) const noexcept {
-        return {model.x + offset_.x, model.y + offset_.y};
+        return {model.x * scale_ + offset_.x, model.y * scale_ + offset_.y};
     }
     [[nodiscard]] EditorPoint canvas_to_model(EditorPoint canvas) const noexcept {
-        return {canvas.x - offset_.x, canvas.y - offset_.y};
+        return {(canvas.x - offset_.x) / scale_, (canvas.y - offset_.y) / scale_};
     }
     void pan_by(EditorPoint delta) noexcept {
         offset_.x += delta.x;
         offset_.y += delta.y;
     }
-    void reset_pan() noexcept { offset_ = {}; }
+    void reset_pan() noexcept {
+        offset_ = {};
+        scale_ = 1.0f;
+    }
     [[nodiscard]] EditorPoint pan_offset() const noexcept { return offset_; }
+    [[nodiscard]] float zoom_scale() const noexcept { return scale_; }
+
+    // Zooms by a multiplicative factor while keeping the model point under the
+    // given view position fixed, so the pointer stays over the same content.
+    void zoom_around(EditorPoint view_point, float factor) noexcept {
+        constexpr float minimum_zoom = 0.4f;
+        constexpr float maximum_zoom = 2.5f;
+        const auto next = std::clamp(scale_ * factor, minimum_zoom, maximum_zoom);
+        if (next == scale_)
+            return;
+        const auto applied = next / scale_;
+        offset_ = {view_point.x - (view_point.x - offset_.x) * applied,
+                   view_point.y - (view_point.y - offset_.y) * applied};
+        scale_ = next;
+    }
 
 private:
     EditorPoint offset_;
+    float scale_ = 1.0f;
 };
 
 struct EditorRect {
@@ -70,6 +89,12 @@ struct NodeVisualGeometry {
     std::vector<PortVisualGeometry> ports;
 };
 
+[[nodiscard]] inline EditorRect model_rect_to_canvas(
+    const EditorRect& rect, const CanvasCoordinateTransform& transform) noexcept {
+    const auto origin = transform.model_to_canvas({rect.x, rect.y});
+    return {origin.x, origin.y, rect.width * transform.zoom_scale(), rect.height * transform.zoom_scale()};
+}
+
 [[nodiscard]] inline NodeVisualGeometry make_node_geometry(
     const NodeInstance& node, const NodeDescriptor* descriptor,
     const CanvasCoordinateTransform& transform = {}) {
@@ -89,27 +114,34 @@ struct NodeVisualGeometry {
     const auto height = std::max(minimum_height,
         first_port_center_y + (rows == 0 ? 0.0f : static_cast<float>(rows - 1) * port_row_spacing) +
         port_label_height + bottom_padding);
-    const auto origin = transform.model_to_canvas({static_cast<float>(node.x), static_cast<float>(node.y)});
+    // Define every part in model space, then project the complete geometry once.
+    const EditorPoint origin{static_cast<float>(node.x), static_cast<float>(node.y)};
     geometry.bounds = {origin.x, origin.y, width, height};
     geometry.title_bounds = {origin.x + 12.0f, origin.y + 7.0f, width - 24.0f, 25.0f};
     geometry.summary = {origin.x + 12.0f, origin.y + 35.0f, width - 24.0f, 18.0f};
-    if (descriptor == nullptr)
-        return geometry;
-
     unsigned input_row = 0;
     unsigned output_row = 0;
-    for (const auto& port : descriptor->ports) {
-        if (port.direction == PortDirection::input) {
-            const auto center = transform.model_to_canvas({static_cast<float>(node.x),
-                static_cast<float>(node.y) + first_port_center_y + static_cast<float>(input_row++) * port_row_spacing});
-            geometry.ports.push_back({port.id, port.direction, center,
-                                      {center.x + 12.0f, center.y - port_label_height * 0.5f, 58.0f, port_label_height}});
-        } else {
-            const auto center = transform.model_to_canvas({static_cast<float>(node.x) + width,
-                static_cast<float>(node.y) + first_port_center_y + static_cast<float>(output_row++) * port_row_spacing});
-            geometry.ports.push_back({port.id, port.direction, center,
-                                      {center.x - 70.0f, center.y - port_label_height * 0.5f, 58.0f, port_label_height}});
+    if (descriptor != nullptr) {
+        for (const auto& port : descriptor->ports) {
+            if (port.direction == PortDirection::input) {
+                const EditorPoint center{origin.x,
+                    origin.y + first_port_center_y + static_cast<float>(input_row++) * port_row_spacing};
+                geometry.ports.push_back({port.id, port.direction, center,
+                                          {center.x + 12.0f, center.y - port_label_height * 0.5f, 58.0f, port_label_height}});
+            } else {
+                const EditorPoint center{origin.x + width,
+                    origin.y + first_port_center_y + static_cast<float>(output_row++) * port_row_spacing};
+                geometry.ports.push_back({port.id, port.direction, center,
+                                          {center.x - 70.0f, center.y - port_label_height * 0.5f, 58.0f, port_label_height}});
+            }
         }
+    }
+    geometry.bounds = model_rect_to_canvas(geometry.bounds, transform);
+    geometry.title_bounds = model_rect_to_canvas(geometry.title_bounds, transform);
+    geometry.summary = model_rect_to_canvas(geometry.summary, transform);
+    for (auto& port : geometry.ports) {
+        port.anchor = transform.model_to_canvas(port.anchor);
+        port.label_bounds = model_rect_to_canvas(port.label_bounds, transform);
     }
     return geometry;
 }
@@ -127,6 +159,19 @@ struct NodeVisualGeometry {
     return nullptr;
 }
 
+// Node ids intersecting a canvas-space rectangle, in stable project order.
+[[nodiscard]] inline std::vector<std::string> nodes_intersecting_rect(
+    const std::vector<NodeInstance>& nodes, const NodeCatalog& registry, const EditorRect& rect,
+    const CanvasCoordinateTransform& transform = {}) {
+    std::vector<std::string> ids;
+    for (const auto& node : nodes) {
+        const auto geometry = make_node_geometry(node, registry.find(node.type_id), transform);
+        if (rect.intersects(geometry.bounds))
+            ids.push_back(node.id);
+    }
+    return ids;
+}
+
 struct PortHit {
     std::string node_id;
     std::string port_id;
@@ -136,14 +181,20 @@ struct PortHit {
 [[nodiscard]] inline std::optional<PortHit> find_topmost_port_at(
     const std::vector<NodeInstance>& nodes, const NodeCatalog& registry, EditorPoint point,
     const CanvasCoordinateTransform& transform = {}) {
-    constexpr float port_hit_radius = 12.0f;
+    const auto port_hit_radius = std::max(12.0f, 6.5f * transform.zoom_scale());
     for (auto it = nodes.rbegin(); it != nodes.rend(); ++it) {
         const auto geometry = make_node_geometry(*it, registry.find(it->type_id), transform);
+        const PortVisualGeometry* nearest = nullptr;
+        auto nearest_distance = std::numeric_limits<float>::infinity();
         for (const auto& port : geometry.ports) {
-            if (std::hypot(point.x - port.anchor.x, point.y - port.anchor.y) <= port_hit_radius ||
-                port.label_bounds.contains(point))
-                return PortHit{it->id, port.id, port.direction};
+            const auto distance = std::hypot(point.x - port.anchor.x, point.y - port.anchor.y);
+            if ((distance <= port_hit_radius || port.label_bounds.contains(point)) && distance < nearest_distance) {
+                nearest = &port;
+                nearest_distance = distance;
+            }
         }
+        if (nearest != nullptr)
+            return PortHit{it->id, nearest->id, nearest->direction};
         // A socket's visible hit area extends past the node rectangle. Continue to
         // lower nodes only when the topmost node does not cover the pointer.
         if (geometry.bounds.contains(point))
@@ -195,7 +246,7 @@ struct NodePositionPreview {
     if (!start || !finish)
         return std::nullopt;
 
-    const auto control_distance = std::max(48.0f, (finish->x - start->x) * 0.44f);
+    const auto control_distance = std::max(48.0f * transform.zoom_scale(), (finish->x - start->x) * 0.44f);
     return CubicConnectionGeometry{*start, {start->x + control_distance, start->y},
                                    {finish->x - control_distance, finish->y}, *finish};
 }

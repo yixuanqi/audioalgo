@@ -3,6 +3,7 @@
 #include "../../apps/editor/EditorNodeCreation.h"
 #include "plugins/builtin/registration.h"
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
@@ -383,6 +384,168 @@ TEST_CASE("NED-06.e", "[node_interaction][NED-06]") {
     REQUIRE(placed_geometry.bounds.y >= 0.0f);
     REQUIRE(placed_geometry.bounds.x + placed_geometry.bounds.width <= 800.0f);
     REQUIRE(placed_geometry.bounds.y + placed_geometry.bounds.height <= 520.0f);
+}
+
+TEST_CASE("Canvas zoom keeps the anchored model point and coordinate round trip", "[node_interaction][canvas_view]") {
+    audioalgo::editor::CanvasCoordinateTransform transform;
+    const audioalgo::editor::EditorPoint anchor_view{400.0f, 300.0f};
+    const auto anchor_model = transform.canvas_to_model(anchor_view);
+
+    transform.zoom_around(anchor_view, 1.6f);
+    REQUIRE(transform.zoom_scale() == 1.6f);
+    const auto still_under_pointer = transform.canvas_to_model(anchor_view);
+    REQUIRE(still_under_pointer.x == Catch::Approx(anchor_model.x).margin(0.001f));
+    REQUIRE(still_under_pointer.y == Catch::Approx(anchor_model.y).margin(0.001f));
+
+    const audioalgo::editor::EditorPoint model{123.0f, 45.0f};
+    const auto event_position = transform.event_to_canvas(transform.model_to_canvas(model));
+    const auto round_trip = transform.canvas_to_model(event_position);
+    REQUIRE(round_trip.x == Catch::Approx(model.x).margin(0.001f));
+    REQUIRE(round_trip.y == Catch::Approx(model.y).margin(0.001f));
+
+    transform.pan_by({-30.0f, 12.0f});
+    const auto panned_round_trip = transform.canvas_to_model(transform.event_to_canvas(transform.model_to_canvas(model)));
+    REQUIRE(panned_round_trip.x == Catch::Approx(model.x).margin(0.001f));
+    REQUIRE(panned_round_trip.y == Catch::Approx(model.y).margin(0.001f));
+
+    transform.zoom_around(anchor_view, 100.0f);
+    REQUIRE(transform.zoom_scale() == 2.5f);
+    transform.zoom_around(anchor_view, 0.0001f);
+    REQUIRE(transform.zoom_scale() == 0.4f);
+
+    transform.reset_pan();
+    REQUIRE(transform.zoom_scale() == 1.0f);
+    const auto untransformed = transform.model_to_canvas(model);
+    REQUIRE(untransformed.x == model.x);
+    REQUIRE(untransformed.y == model.y);
+}
+
+TEST_CASE("Canvas zoom hit testing and marquee follow scaled geometry", "[node_interaction][canvas_view]") {
+    audioalgo::NodeRegistry registry;
+    audioalgo::register_builtin_nodes(registry);
+    audioalgo::ProjectModel project;
+    project.nodes = {
+        {"file", "builtin.file_source", {{"path", std::string("input.wav")}}, 40.0, 100.0},
+        {"gain", "builtin.gain", {{"gain_db", 0.0}}, 340.0, 100.0},
+        {"output", "builtin.output", {}, 580.0, 100.0},
+    };
+    audioalgo::editor::CanvasCoordinateTransform transform;
+    transform.zoom_around({500.0f, 400.0f}, 2.0f);
+
+    const auto gain_origin = transform.model_to_canvas({340.0f, 100.0f});
+    const auto* hit_node = audioalgo::editor::find_topmost_node_at(
+        project.nodes, registry, {gain_origin.x + 10.0f, gain_origin.y + 10.0f}, transform);
+    REQUIRE(hit_node != nullptr);
+    REQUIRE(hit_node->id == "gain");
+
+    // A canvas-space band covering the gain node only selects exactly that node.
+    const auto gain_geometry = audioalgo::editor::make_node_geometry(project.nodes[1], registry.find("builtin.gain"), transform);
+    const auto band = audioalgo::editor::EditorRect{
+        gain_geometry.bounds.x - 5.0f, gain_geometry.bounds.y - 5.0f,
+        gain_geometry.bounds.width + 10.0f, gain_geometry.bounds.height + 10.0f};
+    const auto ids = audioalgo::editor::nodes_intersecting_rect(project.nodes, registry, band, transform);
+    REQUIRE(ids == std::vector<std::string>{"gain"});
+
+    // A band across file and gain (still zoomed) keeps stable project order.
+    const auto file_geometry = audioalgo::editor::make_node_geometry(project.nodes[0], registry.find("builtin.file_source"), transform);
+    const auto wide_band = audioalgo::editor::EditorRect{
+        file_geometry.bounds.x - 5.0f, file_geometry.bounds.y - 5.0f,
+        gain_geometry.bounds.x - file_geometry.bounds.x + gain_geometry.bounds.width + 10.0f,
+        gain_geometry.bounds.y - file_geometry.bounds.y + gain_geometry.bounds.height + 10.0f};
+    const auto wide_ids = audioalgo::editor::nodes_intersecting_rect(project.nodes, registry, wide_band, transform);
+    REQUIRE(wide_ids == std::vector<std::string>{"file", "gain"});
+}
+
+TEST_CASE("Canvas zoom keeps node borders labels and connected sockets together",
+          "[node_interaction][canvas_view][canvas_regression][NED-06.e]") {
+    audioalgo::NodeRegistry registry;
+    REQUIRE(audioalgo::register_builtin_nodes(registry));
+    audioalgo::ProjectModel project;
+    project.nodes = {{"source", "builtin.gain", {}, 40, 100},
+                     {"target", "builtin.gain", {}, 340, 100}};
+    project.connections = {{"source", "audio_out", "target", "audio_in"}};
+    for (const auto scale : {0.4f, 1.0f, 1.25f, 2.5f}) {
+        INFO(scale);
+        audioalgo::editor::CanvasCoordinateTransform transform;
+        transform.zoom_around({500, 300}, scale);
+        transform.pan_by({37, -19});
+        const auto geometry = audioalgo::editor::make_node_geometry(
+            project.nodes[0], registry.find("builtin.gain"), transform);
+        const auto* input = find_port(geometry, "audio_in");
+        const auto* output = find_port(geometry, "audio_out");
+        REQUIRE(input != nullptr);
+        REQUIRE(output != nullptr);
+        CHECK(geometry.bounds.width == Catch::Approx(176 * scale));
+        CHECK(geometry.bounds.height == Catch::Approx(100 * scale));
+        CHECK(input->anchor.x == Catch::Approx(geometry.bounds.x));
+        CHECK(output->anchor.x == Catch::Approx(geometry.bounds.x + geometry.bounds.width));
+        CHECK(input->anchor.y == Catch::Approx(geometry.bounds.y + 64 * scale));
+        CHECK(geometry.title_bounds.width == Catch::Approx(152 * scale));
+        CHECK(geometry.bounds.contains(geometry.title_bounds));
+        CHECK(geometry.bounds.contains(geometry.summary));
+        for (const auto& port : geometry.ports) {
+            CHECK(geometry.bounds.contains(port.label_bounds));
+            CHECK_FALSE(geometry.summary.intersects(port.label_bounds));
+        }
+        const auto connection = audioalgo::editor::make_connection_geometry(
+            project, registry, project.connections[0], transform);
+        REQUIRE(connection.has_value());
+        CHECK(connection->start.x == output->anchor.x);
+        CHECK(connection->start.y == output->anchor.y);
+        const auto target = audioalgo::editor::make_node_geometry(
+            project.nodes[1], registry.find("builtin.gain"), transform);
+        CHECK(connection->finish.x == Catch::Approx(target.bounds.x));
+        CHECK(connection->finish.y == Catch::Approx(target.bounds.y + 64 * scale));
+    }
+    auto multi = gain_descriptor();
+    multi.type_id = "test.zoomed_multi";
+    multi.ports.insert(multi.ports.begin() + 1, {"second_in", "audio.pcm@1", audioalgo::PortDirection::input, false});
+    multi.ports.insert(multi.ports.begin() + 2, {"third_in", "audio.pcm@1", audioalgo::PortDirection::input, false});
+    REQUIRE(registry.register_descriptor(multi));
+    const std::vector<audioalgo::NodeInstance> nodes{{"multi", multi.type_id, {}, 40, 100}};
+    for (const auto scale : {0.4f, 1.0f, 1.25f, 2.5f}) {
+        audioalgo::editor::CanvasCoordinateTransform transform;
+        transform.zoom_around({0, 0}, scale);
+        const auto geometry = audioalgo::editor::make_node_geometry(nodes[0], &multi, transform);
+        for (const auto& port : geometry.ports) {
+            const auto hit = audioalgo::editor::find_topmost_port_at(nodes, registry, port.anchor, transform);
+            REQUIRE(hit.has_value());
+            CHECK(hit->port_id == port.id);
+            CHECK(geometry.bounds.contains(port.label_bounds));
+        }
+        const auto missing = audioalgo::editor::make_node_geometry(nodes[0], nullptr, transform);
+        CHECK(missing.bounds.width == Catch::Approx(176 * scale));
+    }
+}
+
+TEST_CASE("NED-05.f rubber-band selection state keeps a primary node", "[node_interaction][NED-05][canvas_view]") {
+    audioalgo::ProjectModel project;
+    project.nodes = {
+        {"n1", "builtin.gain", {{"gain_db", 0.0}}, 10.0, 10.0},
+        {"n2", "builtin.gain", {{"gain_db", 0.0}}, 240.0, 10.0},
+        {"n3", "builtin.gain", {{"gain_db", 0.0}}, 470.0, 10.0},
+    };
+    audioalgo::editor::NodeSelectionState selection;
+
+    REQUIRE_FALSE(selection.select_many(project, {"n2", "n1", "missing"}));
+    REQUIRE(selection.selected_node_id().empty());
+    REQUIRE(selection.selected_node_ids().empty());
+
+    REQUIRE(selection.select_many(project, {"n2", "n1", "n2"}));
+    REQUIRE(selection.selected_node_ids() == std::vector<std::string>{"n2", "n1"});
+    REQUIRE(selection.selected_node_id() == "n2");
+    REQUIRE(selection.is_selected("n1"));
+    REQUIRE(selection.is_selected("n2"));
+    REQUIRE_FALSE(selection.is_selected("n3"));
+
+    REQUIRE(selection.select(project, "n3"));
+    REQUIRE(selection.selected_node_ids() == std::vector<std::string>{"n3"});
+    REQUIRE(selection.is_selected("n3"));
+    REQUIRE_FALSE(selection.is_selected("n1"));
+
+    REQUIRE(selection.select_many(project, {}));
+    REQUIRE(selection.selected_node_id().empty());
+    REQUIRE(selection.selected_node_ids().empty());
 }
 
 TEST_CASE("NED-10.e", "[node_interaction][NED-10]") {
