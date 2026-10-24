@@ -1,4 +1,5 @@
 #pragma once
+#include "audio_run_api/NodeLogEvent.h"
 
 #include "audio_core/AudioBuffer.h"
 #include "audio_core/Diagnostic.h"
@@ -113,6 +114,8 @@ struct NodeDescriptor {
     struct PluginOrigin {
         std::string plugin_id, version, library_sha256, manifest_sha256;
         std::string runtime = "native";
+        // Set only by the managed package resolver after content verification.
+        std::string managed_content_sha256, managed_wrapper_version, managed_package_path;
     };
     std::optional<PluginOrigin> plugin_origin;
     std::string backend_metadata_json;
@@ -146,6 +149,8 @@ struct NodeExecutionContext {
     std::function<bool()> is_cancelled;
     // Worker-only value transfer; no UI observer or borrowed sample pointer escapes.
     std::function<void(std::string,std::string)> record_task_artifact;
+    std::function<void(NodeLogEvent)> on_log;
+    std::string diagnostic_directory;
     int maximum_block_frames=512;
     std::size_t maximum_task_payload_bytes=64*1024*1024;
     // One worker-owned cache shared by all task instances in this run. Backends
@@ -312,6 +317,26 @@ public:
 
 class NodeRegistry : public NodeCatalog {
 public:
+    void swap(NodeRegistry& other) noexcept { descriptors_.swap(other.descriptors_); factories_.swap(other.factories_); }
+    [[nodiscard]] NodeRegistry subset(const std::function<bool(const NodeDescriptor&)>& include) const {
+        auto selected = *this;
+        for (auto it = selected.descriptors_.begin(); it != selected.descriptors_.end();) {
+            if (include(it->second)) { ++it; continue; }
+            selected.factories_.erase(it->first);
+            it = selected.descriptors_.erase(it);
+        }
+        return selected;
+    }
+    // Compose complete descriptor/factory pairs without changing either input on conflict.
+    [[nodiscard]] bool merge_disjoint(const NodeRegistry& other) {
+        for (const auto& [type, descriptor] : other.descriptors_)
+            if (descriptors_.contains(type)) return false;
+        auto combined = *this;
+        combined.descriptors_.insert(other.descriptors_.begin(), other.descriptors_.end());
+        combined.factories_.insert(other.factories_.begin(), other.factories_.end());
+        swap(combined);
+        return true;
+    }
     [[nodiscard]] NodeRegistrationResult register_node(NodeDescriptor descriptor, NodeFactory factory);
     [[nodiscard]] bool register_descriptor(NodeDescriptor descriptor);
     [[nodiscard]] bool register_factory(std::string type_id, NodeFactory factory);
