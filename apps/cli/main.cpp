@@ -11,6 +11,8 @@
 #include "plugins/host/registration.h"
 #include "audio_project/ProjectFileIO.h"
 #include "audio_run_service/RunService.h"
+#include "audio_node_authoring/ProjectCatalog.h"
+#include "audio_node_authoring_runtime/PythonAuthoring.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
@@ -52,8 +54,8 @@ int run_cli(int argc, const char* const* argv) {
         }
 
         juce::ScopedJuceInitialiser_GUI message_environment;
-        const auto project_file = std::filesystem::u8path(argv[2]);
-        const auto output_directory = std::filesystem::u8path(argv[3]);
+        const auto project_file = std::filesystem::absolute(std::filesystem::u8path(argv[2])).lexically_normal();
+        const auto output_directory = std::filesystem::absolute(std::filesystem::u8path(argv[3])).lexically_normal();
         const auto loaded = audioalgo::load_project_file(project_file);
         if (const auto* error = std::get_if<audioalgo::Diagnostic>(&loaded)) {
             std::cerr << error->code << ": " << error->message << '\n';
@@ -64,7 +66,15 @@ int run_cli(int argc, const char* const* argv) {
         const auto discovery=audioalgo::register_host_nodes(nodes,plugin_roots);
         for(auto& e:discovery.diagnostics)
             std::cerr<<e.code<<" ["<<e.plugin_id<<"]: "<<e.message<<'\n';
-        audioalgo::RunService service(nodes);
+        const auto resolution = audioalgo::authoring::PythonAuthoring(audioalgo::authoring::configured_authoring_root()).resolve_catalog(
+            std::make_shared<const audioalgo::NodeRegistry>(nodes),
+            audioalgo::authoring::managed_selections(std::get<audioalgo::ProjectModel>(loaded)), project_file.parent_path());
+        if (!resolution.diagnostics.empty()) {
+            for (const auto& error : resolution.diagnostics)
+                std::cerr << error.code << " [node=" << error.node_id << "]: " << error.message << '\n';
+            return 1;
+        }
+        audioalgo::RunService service(resolution.catalog);
         auto worker=std::async(std::launch::async,[&] {
             audioalgo::RunOutcome result;
             try {result=service.run({std::get<audioalgo::ProjectModel>(loaded), project_file, output_directory, block_size});}
