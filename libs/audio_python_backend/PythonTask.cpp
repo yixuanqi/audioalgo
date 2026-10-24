@@ -1,4 +1,5 @@
 #include "PythonTask.h"
+#include "audio_core/Utf8LogDecoder.h"
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -10,6 +11,7 @@
 #include <juce_cryptography/juce_cryptography.h>
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <bit>
 #include <cmath>
 #include <cstring>
@@ -110,9 +112,27 @@ public:
 private:HANDLE value_=nullptr;
 };
 void win_require(bool ok,const char* message){if(!ok)fail("python_process_start_failed",std::string(message)+" (Windows error "+std::to_string(GetLastError())+")");}
+struct LogBudget {
+    static constexpr std::uint64_t limit = 16 * 1024 * 1024;
+    std::atomic<std::uint64_t> total{0};
+    std::atomic<bool> exceeded{false}, write_failed{false};
+    std::size_t claim(std::size_t size) {
+        const auto before = total.fetch_add(size);
+        if (before > limit || size > limit - before) exceeded.store(true);
+        return before >= limit ? 0 : static_cast<std::size_t>(std::min<std::uint64_t>(size, limit - before));
+    }
+};
 struct Ring {
     std::mutex mutex;std::uint64_t total=0;std::string tail;
-    void append(const char* data,std::size_t size){std::scoped_lock lock(mutex);total+=size;tail.append(data,size);if(tail.size()>65536)tail.erase(0,tail.size()-65536);}
+    std::ofstream full;
+    LogBudget* budget = nullptr;
+    Utf8LogDecoder decoder;
+    std::string pending;
+    std::uint64_t dropped_text_bytes=0;
+    bool decoder_finished=false;
+    void append(const char* data,std::size_t size){std::scoped_lock lock(mutex);total+=size;tail.append(data,size);if(tail.size()>65536)tail.erase(0,tail.size()-65536);
+        const auto retained=budget->claim(size);if(retained)full.write(data,static_cast<std::streamsize>(retained));if(!full)budget->write_failed.store(true);
+        pending+=decoder.append(std::string_view(data,size));dropped_text_bytes+=trim_log_text(pending,65536);}
 };
 std::wstring quote(const std::wstring& value) {
     std::wstring result=L"\"";std::size_t slashes=0;
@@ -123,15 +143,48 @@ std::vector<wchar_t> environment(const PythonTaskRequest& r,const std::string& t
     std::vector<std::wstring> entries;auto* block=GetEnvironmentStringsW();win_require(block!=nullptr,"Read process environment");
     for(const wchar_t* p=block;*p;p+=std::wcslen(p)+1){std::wstring value=p;
         if(_wcsnicmp(value.c_str(),L"PYTHONPATH=",11)!=0 && _wcsnicmp(value.c_str(),L"AUDIOALGO_RUNNER_TOKEN=",23)!=0)entries.push_back(std::move(value));}
-    FreeEnvironmentStringsW(block);entries.push_back(L"PYTHONPATH="+r.runner_module_root.wstring());entries.push_back(L"AUDIOALGO_RUNNER_TOKEN="+std::wstring(token.begin(),token.end()));
+    FreeEnvironmentStringsW(block);entries.push_back(L"PYTHONPATH="+io_path(r.runner_module_root).wstring());entries.push_back(L"AUDIOALGO_RUNNER_TOKEN="+std::wstring(token.begin(),token.end()));
     std::sort(entries.begin(),entries.end(),[](auto& a,auto& b){return _wcsicmp(a.c_str(),b.c_str())<0;});std::vector<wchar_t> result;
     for(auto& e:entries){result.insert(result.end(),e.begin(),e.end());result.push_back(0);}result.push_back(0);return result;
 }
 class Process {
 public:
     Handle job,process,out_read,err_read;std::thread out_thread,err_thread;Ring out,err;DWORD id=0,exit_code=0;bool forced=false;
+    std::filesystem::path private_bootstrap_directory;
+    std::filesystem::path log_directory;
+    LogBudget log_budget;
+    std::uint64_t sequence=0;
+    Clock::time_point last_delivery{};
+    void drain_logs(const PythonTaskRequest& request,bool final=false) {
+        if(!request.on_log)return;
+        const auto now=Clock::now();if(!final && now-last_delivery<std::chrono::milliseconds(20))return;
+        last_delivery=now;
+        for(auto [ring,source]:{std::pair{&out,"stdout"},std::pair{&err,"stderr"}}) {
+            NodeLogEvent event;
+            {
+                std::scoped_lock lock(ring->mutex);
+                if(final && !ring->decoder_finished){ring->pending+=ring->decoder.finish();ring->decoder_finished=true;ring->dropped_text_bytes+=trim_log_text(ring->pending,65536);}
+                if(ring->pending.empty() && !ring->dropped_text_bytes)continue;
+                event.text.swap(ring->pending);event.total_bytes=ring->total;
+                event.discarded_bytes=ring->total-ring->tail.size();event.dropped_text_bytes=ring->dropped_text_bytes;ring->dropped_text_bytes=0;
+            }
+            event.identity=request.identity;event.node_id=request.node_id;event.type_id=request.type_id;
+            event.sequence=++sequence;event.received_unix_ms=static_cast<std::uint64_t>(juce::Time::currentTimeMillis());
+            event.source=source;event.level=event.source=="stdout"?"info":"error";
+            event.report_file=file(log_directory/(std::string(source)+".log")).getFullPathName().toStdString();
+            event.raw_log_file=event.report_file;
+            request.on_log(std::move(event));
+        }
+    }
     ~Process(){finish();}
     void start(const PythonTaskRequest& r,const std::filesystem::path& directory,int port,const std::string& token) {
+        const auto parent=r.log_parent.empty()?r.output_parent:r.log_parent;
+        std::filesystem::create_directories(io_path(parent));
+        log_directory=parent/("python-log-"+juce::Uuid().toString().toStdString());
+        require(std::filesystem::create_directory(io_path(log_directory)),"python_log_create_failed","Could not reserve complete log archive");
+        out.budget=&log_budget;err.budget=&log_budget;
+        out.full.open(io_path(log_directory/"stdout.log"),std::ios::binary);err.full.open(io_path(log_directory/"stderr.log"),std::ios::binary);
+        require(static_cast<bool>(out.full) && static_cast<bool>(err.full),"python_log_create_failed","Could not open complete log streams");
         job.reset(CreateJobObjectW(nullptr,nullptr));win_require(static_cast<bool>(job),"Create Python Job Object");
         JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits{};limits.BasicLimitInformation.LimitFlags=JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
         win_require(SetInformationJobObject(job.get(),JobObjectExtendedLimitInformation,&limits,sizeof(limits))!=0,"Set Python Job Object lifetime");
@@ -147,9 +200,23 @@ public:
         STARTUPINFOEXW startup{};startup.StartupInfo.cb=sizeof(startup);startup.StartupInfo.dwFlags=STARTF_USESTDHANDLES|STARTF_USESHOWWINDOW;startup.StartupInfo.wShowWindow=SW_HIDE;
         startup.StartupInfo.hStdInput=input.get();startup.StartupInfo.hStdOutput=out_write.get();startup.StartupInfo.hStdError=err_write.get();startup.lpAttributeList=attributes;
         const std::wstring command=quote(r.python_executable.wstring())+L" -u -m audioalgo_runner --port "+std::to_wstring(port)+L" --run-root "+quote(directory.wstring())+L" --plugin-root "+quote(r.plugin_root.wstring())+L" --max-payload-bytes "+std::to_wstring(r.maximum_payload_bytes);
+        // Windows also rejects long paths in SetCurrentDirectory. Keep all
+        // payloads at their selected absolute paths, with a separate private
+        // scratch cwd only when the task directory cannot be used as a cwd.
+        auto bootstrap_directory = directory;
+        if (bootstrap_directory.native().size() >= MAX_PATH - 1) {
+            const auto candidate = std::filesystem::absolute(std::filesystem::temp_directory_path()).lexically_normal()
+                / ("AudioAlgo-python-" + juce::Uuid().toString().toStdString());
+            require(candidate.native().size() < MAX_PATH - 1,
+                "python_process_start_failed", "Windows TEMP must provide a short private Python working directory");
+            require(std::filesystem::create_directory(io_path(candidate)),
+                "python_process_start_failed", "Could not create private Python working directory");
+            private_bootstrap_directory = candidate; // Own cleanup only after exclusive creation succeeded.
+            bootstrap_directory = private_bootstrap_directory;
+        }
         auto env=environment(r,token);std::vector<wchar_t> mutable_command(command.begin(),command.end());mutable_command.push_back(0);PROCESS_INFORMATION info{};
         win_require(CreateProcessW(r.python_executable.c_str(),mutable_command.data(),nullptr,nullptr,TRUE,
-            CREATE_SUSPENDED|CREATE_NO_WINDOW|CREATE_UNICODE_ENVIRONMENT|EXTENDED_STARTUPINFO_PRESENT,env.data(),directory.c_str(),&startup.StartupInfo,&info)!=0,"Start explicit Python interpreter");
+            CREATE_SUSPENDED|CREATE_NO_WINDOW|CREATE_UNICODE_ENVIRONMENT|EXTENDED_STARTUPINFO_PRESENT,env.data(),bootstrap_directory.c_str(),&startup.StartupInfo,&info)!=0,"Start explicit Python interpreter");
         process.reset(info.hProcess);Handle main_thread;main_thread.reset(info.hThread);id=info.dwProcessId;
         if(!AssignProcessToJobObject(job.get(),process.get())){TerminateProcess(process.get(),1);win_require(false,"Assign suspended Python process to its Job Object");}
         win_require(ResumeThread(main_thread.get())!=static_cast<DWORD>(-1),"Resume Python process");out_write.reset();err_write.reset();
@@ -163,9 +230,24 @@ public:
         // Closing the Job Object also reclaims descendants after a normally exiting parent.
         job.reset();if(process){WaitForSingleObject(process.get(),500);GetExitCodeProcess(process.get(),&exit_code);}
         if(out_thread.joinable())out_thread.join();if(err_thread.joinable())err_thread.join();out_read.reset();err_read.reset();process.reset();
+        for(auto* stream:{&out.full,&err.full})if(stream->is_open()){stream->close();if(!*stream)log_budget.write_failed.store(true);}
+        if (!private_bootstrap_directory.empty()) {
+            std::error_code ignored;
+            const auto expected_parent = std::filesystem::absolute(std::filesystem::temp_directory_path(), ignored).lexically_normal();
+            if (!ignored && private_bootstrap_directory.parent_path() == expected_parent
+                && private_bootstrap_directory.filename().string().starts_with("AudioAlgo-python-"))
+                std::filesystem::remove_all(io_path(private_bootstrap_directory), ignored);
+            private_bootstrap_directory.clear();
+        }
     }
     void statistics(PythonTaskStatistics& stats){stats.process_id=id;stats.exit_code=exit_code;stats.forced_termination=forced;
-        stats.stdout_bytes=out.total;stats.stderr_bytes=err.total;stats.stdout_tail=out.tail;stats.stderr_tail=err.tail;}
+        stats.stdout_bytes=out.total;stats.stderr_bytes=err.total;
+        Utf8LogDecoder stdout_decoder,stderr_decoder;
+        stats.stdout_tail=stdout_decoder.append(out.tail);stats.stdout_tail+=stdout_decoder.finish();
+        stats.stderr_tail=stderr_decoder.append(err.tail);stats.stderr_tail+=stderr_decoder.finish();
+        trim_log_text(stats.stdout_tail,65536);trim_log_text(stats.stderr_tail,65536);
+        stats.stdout_discarded_bytes=out.total-out.tail.size();stats.stderr_discarded_bytes=err.total-err.tail.size();
+        stats.log_directory=log_directory;stats.log_limit_exceeded=log_budget.exceeded.load();}
 };
 
 class Session {
@@ -173,6 +255,9 @@ public:
     Session(Process& p,const PythonTaskRequest& request):process(p),r(request),deadline(Clock::now()+r.execution_timeout){}
     std::unique_ptr<juce::StreamingSocket> socket;bool execute_sent=false;
     void checkpoint(bool allow_cancel=true) {
+        process.drain_logs(r);
+        if(process.log_budget.exceeded.load()){process.kill();fail("log_limit","Python stdout/stderr exceeded the complete 16 MiB log budget");}
+        if(process.log_budget.write_failed.load()){process.kill();fail("python_log_write_failed","Could not persist complete Python log bytes");}
         const auto now=Clock::now();
         if(allow_cancel && r.is_cancelled && r.is_cancelled() && !cancelled_at){
             cancelled_at=now;
@@ -230,10 +315,10 @@ std::variant<std::filesystem::path,Diagnostic> freeze_python_package(const std::
         constexpr std::size_t maximum=8*1024*1024;std::size_t total=0;
         const auto inventory=[&] {
             std::map<std::string,std::filesystem::path> files;
-            for(const auto& item:std::filesystem::recursive_directory_iterator(root)) {
+            for(const auto& item:std::filesystem::recursive_directory_iterator(io_path(root))) {
                 if(item.is_symlink())fail("python_code_path_invalid","Package snapshots cannot include symlinked code or directories");
-                if(item.is_regular_file() && (item.path().extension()==".py" || item.path()==root/"manifest.json")) {
-                    const auto name=item.path().lexically_relative(root).generic_u8string();files.emplace(std::string(reinterpret_cast<const char*>(name.data()),name.size()),item.path());
+                if(item.is_regular_file() && (item.path().extension()==".py" || item.path()==io_path(root/"manifest.json"))) {
+                    const auto name=item.path().lexically_relative(io_path(root)).generic_u8string();files.emplace(std::string(reinterpret_cast<const char*>(name.data()),name.size()),item.path());
                     require(files.size()<=128,"python_code_limit","Package exceeds128 code files");
                 }
             }
@@ -307,10 +392,10 @@ PythonTaskOutcome run_python_task(const PythonTaskRequest& r,PythonTaskStatistic
     return Diagnostic{"python_platform_unsupported","The supervised Python process profile currently requires Windows",r.node_id,{}};
 #else
     std::filesystem::path directory;Process process;std::unique_ptr<Session> session;PythonTaskStatistics collected;
-    const auto close=[&]{if(session)session->shutdown();process.finish();process.statistics(collected);if(statistics)*statistics=collected;};
+    const auto close=[&]{if(session)session->shutdown();process.finish();process.drain_logs(r,true);process.statistics(collected);if(statistics)*statistics=collected;};
     try {
-        require(std::filesystem::is_regular_file(r.python_executable),"python_executable_missing","Configured Python executable is missing");
-        require(std::filesystem::is_regular_file(r.runner_module_root/"audioalgo_runner/__main__.py"),"python_runner_missing","Runner module installation is missing");
+        require(std::filesystem::is_regular_file(io_path(r.python_executable)),"python_executable_missing","Configured Python executable is missing");
+        require(std::filesystem::is_regular_file(io_path(r.runner_module_root/"audioalgo_runner/__main__.py")),"python_runner_missing","Runner module installation is missing");
         require(!r.inputs.empty() && !r.output_ports.empty() && r.output_ports.size()<=64 && r.maximum_block_frames>0 && r.maximum_block_frames<=65536,"python_request_invalid","Invalid task ports/block size");
         require(r.maximum_payload_bytes>0 && r.maximum_payload_bytes<=1024*1024*1024 && r.execution_timeout.count()>0,"python_request_invalid","Invalid task byte/time budget");
         require(!r.node_id.empty() && !r.identity.project_id.empty() && !r.identity.request_id.empty() && r.identity.revision<=INT64_MAX && r.identity.session_epoch<=INT64_MAX,"python_identity_invalid","Task requires a bounded complete identity");
@@ -319,8 +404,8 @@ PythonTaskOutcome run_python_task(const PythonTaskRequest& r,PythonTaskStatistic
         for(auto& [port,audio]:r.inputs){require(audio.format_error().empty() && audio.sample_rate_hz()==reference.sample_rate_hz() && audio.channel_ids()==reference.channel_ids() && audio.frame_count()==reference.frame_count() && audio.valid_interval()==reference.valid_interval(),"python_input_format_invalid","Task PCM inputs differ in clock/channel IDs/interval");
             require(audio.frame_count()<=r.maximum_payload_bytes/(audio.channel_count()*4),"python_payload_limit","Input exceeds task budget");bytes+=audio.frame_count()*audio.channel_count()*4;}
         require(bytes<=r.maximum_payload_bytes && r.output_ports.size()<= (r.maximum_payload_bytes-bytes)/std::max<std::size_t>(1,reference.frame_count()*reference.channel_count()*4),"python_payload_limit","Aggregate task buffers exceed the byte budget");
-        require(std::filesystem::is_directory(r.output_parent),"python_output_parent_missing","Task output parent must exist");
-        directory=std::filesystem::weakly_canonical(r.output_parent)/("python-task-"+juce::Uuid().toString().toStdString());require(std::filesystem::create_directory(directory),"python_output_create_failed","Could not reserve a private task directory");
+        require(std::filesystem::is_directory(io_path(r.output_parent)),"python_output_parent_missing","Task output parent must exist");
+        directory=std::filesystem::weakly_canonical(io_path(r.output_parent))/("python-task-"+juce::Uuid().toString().toStdString());require(std::filesystem::create_directory(io_path(directory)),"python_output_create_failed","Could not reserve a private task directory");
         juce::DynamicObject::Ptr input_json=new juce::DynamicObject;
         for(auto& [port,audio]:r.inputs){if(r.is_cancelled && r.is_cancelled())fail("run_cancelled","Task input materialization cancelled");
             const auto name=juce::Uuid().toString().toStdString()+".npy";const auto path=directory/name;write_npy(path,audio);juce::DynamicObject::Ptr meta=new juce::DynamicObject;
@@ -346,7 +431,10 @@ PythonTaskOutcome run_python_task(const PythonTaskRequest& r,PythonTaskStatistic
         std::vector<std::pair<std::filesystem::path,std::string>> validated;
         for(int i=0;i<outputs->getProperties().size();++i){const auto port=outputs->getProperties().getName(i).toString().toStdString();require(expected.erase(port)!=0,"python_output_ports_invalid","Runner returned an undeclared output");const auto meta=outputs->getProperties().getValueAt(i);
             const auto path=confined(directory,field(meta,"path"));success.outputs.emplace(port,read_npy(path,reference,meta,r.maximum_payload_bytes));validated.emplace_back(path,field(meta,"sha256"));}
-        close();for(auto& [path,digest]:validated)require(hash(path)==digest,"python_output_modified","Python output changed before worker collection completed");
+        close();
+        require(!process.log_budget.exceeded.load(),"log_limit","Python stdout/stderr exceeded the complete 16 MiB log budget");
+        require(!process.log_budget.write_failed.load(),"python_log_write_failed","Could not persist complete Python log bytes");
+        for(auto& [path,digest]:validated)require(hash(path)==digest,"python_output_modified","Python output changed before worker collection completed");
         const auto* code_files=result["code_files"].getDynamicObject();require(code_files && code_files->getProperties().size()<=128,"python_snapshot_modified","Missing executed code inventory");
         for(int i=0;i<code_files->getProperties().size();++i) {
             const auto name=code_files->getProperties().getName(i).toString().toStdString();

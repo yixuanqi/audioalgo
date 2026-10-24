@@ -16,12 +16,18 @@ struct PythonTaskRequest {
     std::size_t maximum_payload_bytes=64*1024*1024;
     std::function<bool()> is_cancelled;
     std::chrono::milliseconds execution_timeout{120000};
+    // Optional owned diagnostic archive parent, independent of disposable PCM.
+    std::filesystem::path log_parent;
+    std::function<void(NodeLogEvent)> on_log;
 };
 struct PythonTaskStatistics {
     std::uint32_t process_id=0,exit_code=0;
     std::uint64_t stdout_bytes=0,stderr_bytes=0;
+    std::uint64_t stdout_discarded_bytes=0,stderr_discarded_bytes=0;
     std::string stdout_tail,stderr_tail;
     bool forced_termination=false;
+    bool log_limit_exceeded=false;
+    std::filesystem::path log_directory;
 };
 struct PythonTaskSuccess {
     AudioPorts outputs;
