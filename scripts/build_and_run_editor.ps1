@@ -6,7 +6,8 @@ param(
     [ValidateRange(1, 64)]
     [int]$Parallel = 4,
 
-    [switch]$BuildOnly
+    [switch]$BuildOnly,
+    [string]$RunDirectory = (Join-Path $env:LOCALAPPDATA 'Programs/AudioAlgo')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -51,10 +52,15 @@ if ($BuildOnly) {
     return
 }
 
-Write-Host "Starting $editorPath"
+. (Join-Path $PSScriptRoot 'editor_runtime.ps1')
+$editorPath = Resolve-AudioAlgoRuntime -SourceDirectory (Split-Path -Parent $editorPath) -RuntimeDirectory (Join-Path $RunDirectory $Configuration)
+Write-Host "Starting verified runtime: $editorPath"
 $process = Start-Process -FilePath $editorPath -WorkingDirectory (Split-Path -Parent $editorPath) -PassThru
 Start-Sleep -Milliseconds 750
 if (-not (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
     throw "AudioAlgo Editor exited immediately after launch (PID $($process.Id)); check its startup diagnostics."
+}
+if ([AudioAlgo.RuntimePermissions]::ProcessIntegrity($process.Id) -lt 0x2000) {
+    throw "Editor PID $($process.Id) has Low Integrity. Save/copy unsaved text and close it before restarting from a normal user session. The process was not killed."
 }
 Write-Host "AudioAlgo Editor started (PID $($process.Id))."
