@@ -10,7 +10,9 @@ updated: 2026-10-23
 
 先按根[AGENTS](../AGENTS.md)读取原平台、重构和相关节点交互文档，再依次读取[工作台方案](plan_node_authoring_workbench.md)、[工作台测试准则](testing_node_authoring_workbench.md)和本文。读[development_status顶部](development_status.md)和直接证据，核对实际源码，不把计划类名/命令当已有接口。
 
-本次用户只要求把方案落地为MD和启动提示词，当前不实施产品。后续Agent收到“开始自定义节点工作台”等启动指令后，按S0～S5持续实施，自验证、自迭代，常规接口/局部重构/分片推进无需反复确认；不因完成面板、脚手架或一个示例就结束。用户新指令优先，实际工具权限和既有真实桌面暂停保持有效；不自动提交、推送、上传、购买、安装依赖或改系统DPI。
+2026-10-23文档编写任务已结束，2026-10-24用户已明确启动产品实施。恢复从唯一当前摘要与NA0008证据接续，不能重新从NA-01.a制造Red。按S0～S5持续实施，自验证、自迭代，常规接口/局部重构/分片推进无需反复确认；不因完成面板、脚手架或一个示例就结束。用户新指令优先，实际工具权限和既有真实桌面暂停保持有效；不自动提交、推送、上传、购买、安装依赖或改系统DPI。
+
+当前用户补充的根路径/跨语言Pipeline闭环以[补充方案](plan_pipeline_execution_closure.md)、[补充测试准则](testing_pipeline_execution_closure.md)与[补充执行规程](agent_loop_pipeline_execution_closure.md)为直接任务入口；先PC-01卷根保存，再PC-02生产Print与后续完整日志/混合链。本文末尾通用提示词不覆盖该最新顺序；当前状态仍以唯一摘要为准。
 
 本专项与既有P3/数据评测的需求并存；启动本专项后当前主线为NA，不顺带同时推进无关算法重构。保留原P3借用/通道ID等恢复入口，NA完成或用户另行指定时再接续。原AR/G/NED/UPN缺项继续挂账，不能用NA或组件证据冲掉。
 
@@ -22,7 +24,7 @@ updated: 2026-10-23
 4. 验证本次需要的工具版本/路径。当前机器曾使用`E:/0qyx/res/miniconda/python.exe`、Visual Studio/CMake presets，恢复时实际检查；Python OFF/无工具链是明确能力状态，不能调用默认旧Python或自动联网补环境。
 5. 创建或接续`build/reports/loops/NAxxxx/`（先查占用，禁止覆盖），写本片几行卡：用户行为、独立期望、第一Red、最小产品路径、精确子项、执行集合、第二观察面和外部缺项。
 
-## 3. 第一条Red与首片可用出口
+## 3. 历史第一条Red与首片可用出口（已实施，不作恢复起点）
 
 **第一条产品Red为NA-01.a：现有编辑器没有“新建自定义节点→正文和定义保存为草稿→关闭重开”的用户流程。**
 
@@ -114,4 +116,4 @@ ctest --test-dir build/windows-debug -C Debug --show-only=json-v1 --no-tests=err
 
 ## 8. 后续Agent启动提示词
 
-> 在当前audioalgo工作区开始实现“自定义节点工作台”。先按AGENTS.md读取原平台/重构/交互约束，再依次读doc/plan_node_authoring_workbench.md、doc/testing_node_authoring_workbench.md、doc/agent_loop_node_authoring_workbench.md及development_status唯一摘要，保留所有已有改动。从NA-01.a的真实生产按钮→编辑面板→草稿保存重开行为Red开始，按S0～S5持续TDD开发；先交付Python编写→检查/隔离试跑→原子应用→节点库刷新→画布运行，再完善精确版本/工程迁移和C++独立SDK构建/probe/保存重启激活。关闭面板默认保存草稿，失败保留旧可用版本，不热卸载DLL，不重编宿主来新增用户节点。一次一个可验收行为，Red→最小实现→同目标Green→直接回归→独立产物验证→证据和下一片；已有正确行为不造假Red，不删断言/放宽阈值/跳过必需项。保留缩放连线、右键多选、负坐标自由拖动、端口/历史/参数、保存兼容与旧运行身份等现有能力；NA共68个字母子项精确映射，原AR/G/NED/UPN缺项保留。Debug增量为主，公共契约变化才扩消费者，完整Release集中出口。更新状态与build/reports，真实桌面仍暂停则准确not_verified并继续独立工作；不得自动提交/推送/发布/安装依赖或覆盖用户文件，不把面板骨架、单个示例或组件子集称为专项/平台完成。
+> 在当前audioalgo工作区继续实现“自定义节点工作台”。先按AGENTS.md和三份工作台文档读取约束，再核对development_status唯一摘要及最新NA原始证据，保留未提交改动；从最新未闭合行为接续，不重做已完成NA-01.a草稿闭环，不把历史Green当当前构建/累计验证。按S0～S5持续TDD：先完成Python编写、模板、隔离检查/试跑、原子Apply、动态库和真实画布Run，再完善精确版本/兼容/携带和C++独立SDK构建/probe/重启激活。一次一个可验收行为，Red→确认根因→最小实现→Green→直接回归→独立产物验证→证据和下一片；已有正确行为验证复用，不造假Red、不删断言/放宽阈值/跳过必需项。保留缩放连线、右键多选、负坐标、历史/参数/保存及旧运行身份；68个NA逐项映射，原AR/G/NED/UPN缺项保留。Debug增量为主，正式Release集中出口。真实桌面仍暂停，缺项保持not_verified并继续独立工作；不自动提交/推送/发布/安装依赖/覆盖用户文件，不把组件子集称为专项完成。

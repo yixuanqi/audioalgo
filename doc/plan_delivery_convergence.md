@@ -1,7 +1,7 @@
 ---
 title: 交付收口、必要验证与独立原生节点补充约束
 status: authorized-for-implementation
-updated: 2026-10-23
+updated: 2026-10-24
 ---
 
 # 当前开发与交付收口入口
@@ -41,7 +41,7 @@ updated: 2026-10-23
 
 ## 4. 当前交付顺序
 
-2026-10-23新增用户需求：[应用内自定义节点工作台](plan_node_authoring_workbench.md)、[测试准则](testing_node_authoring_workbench.md)、[TDD规程](agent_loop_node_authoring_workbench.md)已形成后续实施入口。本次仅写文档；后续明确启动该专项时，优先按S0～S5从NA-01.a继续，先Python实际闭环再版本/工程兼容与C++独立构建/probe/重启激活。下表P0～P4及原P3未完成行为保留为平台需求/恢复入口，不要求专项期间同时推进无关切片。NA共68个必需子项独立验收，不改原110个AR、G/NED/UPN要求。动态热卸载与原生正式执行隔离仍后置；新schema 2/版本锁是待实现契约，不能冒充当前能力。
+2026-10-24工作台已启动实施，当前从[唯一摘要](development_status.md)和最新NA证据接续，不重做NA-01.a草稿闭环。按[方案](plan_node_authoring_workbench.md)、[测试准则](testing_node_authoring_workbench.md)、[TDD规程](agent_loop_node_authoring_workbench.md)持续S0～S5；Python生产编写/检查/Apply/画布Run已有自动化子集，完整版本/兼容/携带与C++构建/probe/重启激活继续推进。下表P0～P4和原P3未完成行为保留，不扩无关切片；68个NA不替代110个AR、G/NED/UPN。真实桌面仍暂停，已有Green只证明各自源码快照，不代表完整专项通过。
 
 阶段R0～R6保留为需求归属，下面按实际依赖安排工作。每个出口结束立即推进下一项，常规技术决策不确认。遇到失败按现有三轮规则改变诊断策略，不停在重复报告或扩大测试中。
 
