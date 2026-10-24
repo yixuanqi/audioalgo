@@ -1,0 +1,21 @@
+{
+  "schema_version": 2,
+  "project_id": "authoring-schema2-independent-fixture",
+  "name": "Managed node exact version",
+  "revision": 17,
+  "selected_output_node_id": "custom",
+  "selected_output_port_id": "audio_out",
+  "nodes": [{
+    "id": "custom", "type_id": "user.fixture", "x": -80, "y": -60,
+    "parameters": {"gain": 0.5},
+    "managed_version": {
+      "package_id": "user.authoring.fixture",
+      "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "package_path": "node_packages/user.authoring.fixture/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "wrapper_version": "python-function-v1"
+    },
+    "unknown_vendor": {"preserve": [1, true, "原字段"]}
+  }],
+  "connections": [],
+  "unknown_project": {"keep": true}
+}

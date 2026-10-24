@@ -1,0 +1,2596 @@
+{
+  "schema_version": 1,
+  "acceptance_source": "doc/testing_node_authoring_workbench.md",
+  "scope": "node_authoring",
+  "required_subcase_count": 68,
+  "requirements": [
+    {
+      "id": "NA-01.a",
+      "title": "草稿与存储",
+      "stage": "S0",
+      "required": true,
+      "layer": "service+component",
+      "runner": "ctest",
+      "test_names": [
+        "NA-01.a production new button opens a persistent draft without editing the graph",
+        "NA-01.a production draft offers a user chosen Save As target",
+        "NA-01.a user file save cancel Save As and reopen use the production workspace"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "component_input",
+        "independent_draft_bytes",
+        "project_invariants",
+        "active_run_invariants"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-01.a production new button opens a persistent draft without editing the graph",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-01.a production draft offers a user chosen Save As target",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-01.a user file save cancel Save As and reopen use the production workspace",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ]
+    },
+    {
+      "id": "NA-01.b",
+      "title": "草稿与存储",
+      "stage": "S0",
+      "required": true,
+      "layer": "service+component",
+      "runner": "ctest",
+      "test_names": [
+        "NA-01.b injected clock coalesces autosaves and stale saves cannot mark new text saved",
+        "NA-01.b write verify and replace failures preserve original bytes and recover",
+        "NA-01.c failed close retains the draft and offers explicit discard",
+        "NA-01.b explicit file failure preserves binding and recovery does not clear unsaved text",
+        "NA-01.b stale user file save and external modification preserve newer edits",
+        "NA-01.b Save As confirmation is revocable and cannot overwrite an externally changed target",
+        "NA-01.b recovery backup never marks the user file saved",
+        "PC-01.a production draft parent preserves volume and UNC roots",
+        "PC-01.b extended long draft save recovery binding and directory probe round trip"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-01.b"
+      ],
+      "related_ids": [],
+      "remaining_clauses": [
+        "UI autosave idle budget and recovery after explicit save"
+      ],
+      "test_results": [
+        {
+          "test_name": "NA-01.b injected clock coalesces autosaves and stale saves cannot mark new text saved",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-01.b write verify and replace failures preserve original bytes and recover",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-01.c failed close retains the draft and offers explicit discard",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-01.b explicit file failure preserves binding and recovery does not clear unsaved text",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-01.b stale user file save and external modification preserve newer edits",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-01.b Save As confirmation is revocable and cannot overwrite an externally changed target",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-01.b recovery backup never marks the user file saved",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-01.a production draft parent preserves volume and UNC roots",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0101-root-save/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0101-root-save/direct-regression.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        },
+        {
+          "test_name": "PC-01.b extended long draft save recovery binding and directory probe round trip",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0101-root-save/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0101-root-save/direct-regression.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "shared_evidence": [
+        "build/reports/loops/PC0101-root-save/summary.json: PC-01 path subset; volume-root actual write not_verified"
+      ]
+    },
+    {
+      "id": "NA-01.c",
+      "title": "草稿与存储",
+      "stage": "S0",
+      "required": true,
+      "layer": "service+component",
+      "runner": "ctest",
+      "test_names": [
+        "NA-01.c failed close retains the draft and offers explicit discard",
+        "NA-01.c application shutdown waits for draft save and failure leaves editing enabled",
+        "NA-01.a production new button opens a persistent draft without editing the graph",
+        "NA-01.c discard after save failure survives an active check and never saves again",
+        "NA-01.c unnamed user draft can discard normally without choosing a save target",
+        "NA-01.c recovered draft remembers its original file and rejects a torn binding",
+        "PC-01.a production draft parent preserves volume and UNC roots",
+        "PC-01.b extended long draft save recovery binding and directory probe round trip"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-01.c"
+      ],
+      "related_ids": [],
+      "remaining_clauses": [
+        "late edit/close/check cancellation combinations"
+      ],
+      "test_results": [
+        {
+          "test_name": "NA-01.c failed close retains the draft and offers explicit discard",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-01.c application shutdown waits for draft save and failure leaves editing enabled",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-01.a production new button opens a persistent draft without editing the graph",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-01.c discard after save failure survives an active check and never saves again",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-01.c unnamed user draft can discard normally without choosing a save target",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-01.c recovered draft remembers its original file and rejects a torn binding",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-01.a production draft parent preserves volume and UNC roots",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0101-root-save/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0101-root-save/direct-regression.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        },
+        {
+          "test_name": "PC-01.b extended long draft save recovery binding and directory probe round trip",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0101-root-save/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0101-root-save/direct-regression.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "shared_evidence": [
+        "build/reports/loops/PC0101-root-save/summary.json: PC-01 path subset; volume-root actual write not_verified"
+      ]
+    },
+    {
+      "id": "NA-01.d",
+      "title": "草稿与存储",
+      "stage": "S0",
+      "required": true,
+      "layer": "service+component",
+      "runner": "ctest",
+      "test_names": [
+        "NA-01.d two drafts stay independent and traversal is rejected",
+        "NA-01.d chosen draft filenames preserve identity and reject conflicts atomically",
+        "PC-01.a production draft parent preserves volume and UNC roots",
+        "PC-01.b extended long draft save recovery binding and directory probe round trip"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-01.d"
+      ],
+      "related_ids": [],
+      "remaining_clauses": [
+        "copy installed/builtin package without modification",
+        "junction/symlink and long-path fixtures"
+      ],
+      "test_results": [
+        {
+          "test_name": "NA-01.d two drafts stay independent and traversal is rejected",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-01.d chosen draft filenames preserve identity and reject conflicts atomically",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-01.a production draft parent preserves volume and UNC roots",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0101-root-save/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0101-root-save/direct-regression.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        },
+        {
+          "test_name": "PC-01.b extended long draft save recovery binding and directory probe round trip",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0101-root-save/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0101-root-save/direct-regression.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "shared_evidence": [
+        "build/reports/loops/PC0101-root-save/summary.json: PC-01 path subset; volume-root actual write not_verified"
+      ]
+    },
+    {
+      "id": "NA-02.a",
+      "title": "节点定义与参数",
+      "stage": "S0",
+      "required": true,
+      "layer": "service+component",
+      "runner": "ctest",
+      "test_names": [
+        "NA-02.a production name and type fields edit one declaration and new nodes have independent identities"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-02.a"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-02.a production name and type fields edit one declaration and new nodes have independent identities",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Six parameter kinds and ports metadata full form/import matrix; name/type fields and single declaration are implemented"
+      ]
+    },
+    {
+      "id": "NA-02.b",
+      "title": "节点定义与参数",
+      "stage": "S0",
+      "required": true,
+      "layer": "service+component",
+      "runner": "ctest",
+      "test_names": [
+        "NA-02.a production name and type fields edit one declaration and new nodes have independent identities"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-02.b"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-02.a production name and type fields edit one declaration and new nodes have independent identities",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; mapped tests cover only explicit assertions"
+      ]
+    },
+    {
+      "id": "NA-02.c",
+      "title": "节点定义与参数",
+      "stage": "S2",
+      "required": true,
+      "layer": "service+component",
+      "runner": "ctest",
+      "test_names": [
+        "NA-03.b production stateful template keeps frame state across probe blocks and resets on rerun"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-02.c"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-03.b production stateful template keeps frame state across probe blocks and resets on rerun",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "All six parameter kinds through generated user code/resource/report; two instances, reset and parameter history; current stateful step control subset only"
+      ]
+    },
+    {
+      "id": "NA-02.d",
+      "title": "节点定义与参数",
+      "stage": "S2",
+      "required": true,
+      "layer": "service+component",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-02.d"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-03.a",
+      "title": "模板生成",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-04.a production panel offers isolated source checking",
+        "NA-02.a production name and type fields edit one declaration and new nodes have independent identities",
+        "PC-02 production Print Apply library drop Canvas Run exposes only this run logs"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-03.a"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-04.a production panel offers isolated source checking",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-02.a production name and type fields edit one declaration and new nodes have independent identities",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-02 production Print Apply library drop Canvas Run exposes only this run logs",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0201-print/green-line-endings.xml",
+          "command_record": "build/reports/loops/PC0201-print/green-line-endings.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ],
+      "shared_evidence": [
+        "build/reports/loops/PC0201-print/summary.json: component subset only; desktop remains not_verified"
+      ]
+    },
+    {
+      "id": "NA-03.b",
+      "title": "模板生成",
+      "stage": "S2",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-03.b production stateful template keeps frame state across probe blocks and resets on rerun"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-03.b"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-03.b production stateful template keeps frame state across probe blocks and resets on rerun",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "48000 stereo 16037-frame host 1/127/512/1024 matrix; dual instances and cancellation/recovery; current 513-frame probe+rereun subset only"
+      ]
+    },
+    {
+      "id": "NA-03.c",
+      "title": "模板生成",
+      "stage": "S2",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-03.c production named template generates both input and output contracts and probes both outputs",
+        "NA-03.c applied named package runs two independent WAV sources and selects each exact output"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-03.c"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-03.c production named template generates both input and output contracts and probes both outputs",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-03.c applied named package runs two independent WAV sources and selects each exact output",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full required rate/channel/frame matrix; shared-upstream execution count and malformed wrapper source diagnostics; current both-probe-ports and selected main/side real WAV subset passed"
+      ]
+    },
+    {
+      "id": "NA-03.d",
+      "title": "模板生成",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-05.b generated Python wrapper rejects invalid outputs and subsequent valid check recovers"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-03.d"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-05.b generated Python wrapper rejects invalid outputs and subsequent valid check recovers",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ]
+    },
+    {
+      "id": "NA-04.a",
+      "title": "源码与依赖诊断",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-04.a production panel offers isolated source checking"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-04.a"
+      ],
+      "related_ids": [],
+      "shared_evidence": [
+        "build/reports/loops/NA0004-python-check/independent-probe.json"
+      ],
+      "test_results": [
+        {
+          "test_name": "NA-04.a production panel offers isolated source checking",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ]
+    },
+    {
+      "id": "NA-04.b",
+      "title": "源码与依赖诊断",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-04.a production panel offers isolated source checking"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-04.b"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-04.a production panel offers isolated source checking",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ]
+    },
+    {
+      "id": "NA-04.c",
+      "title": "源码与依赖诊断",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-04.c Ready retains the exact source that was probed despite mutable candidate edits"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-04.c"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-04.c Ready retains the exact source that was probed despite mutable candidate edits",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ]
+    },
+    {
+      "id": "NA-04.d",
+      "title": "源码与依赖诊断",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-14.b cancelled completed check cannot deliver Ready to the production panel",
+        "PC-03.c production Check cancellation reclaims only its process tree and permits recovery",
+        "NA-04.d chosen work directory checks and applies without moving installed versions"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-04.d"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-14.b cancelled completed check cannot deliver Ready to the production panel",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03.c production Check cancellation reclaims only its process tree and permits recovery",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0303-check-cancel/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0303-check-cancel/direct-regression.json",
+          "snapshot_scope": "Windows Debug, one active production Python Check cancelled at a complete PID barrier; task parent and child exited under five seconds, unrelated ping process survived, raw log retained the entry marker, and edited draft checked successfully; 3 cases/83 assertions including NA-14.b and NA-08.b. NA-04.d and PC-03.c remain partial."
+        },
+        {
+          "test_name": "NA-04.d chosen work directory checks and applies without moving installed versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ]
+    },
+    {
+      "id": "NA-05.a",
+      "title": "隔离契约试跑",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-04.a production panel offers isolated source checking",
+        "PC-02 production Print Apply library drop Canvas Run exposes only this run logs",
+        "PC-03 production check logs bind draft hashes and remain separate from Canvas Run"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-05.a"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-04.a production panel offers isolated source checking",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-02 production Print Apply library drop Canvas Run exposes only this run logs",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0201-print/green-line-endings.xml",
+          "command_record": "build/reports/loops/PC0201-print/green-line-endings.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03 production check logs bind draft hashes and remain separate from Canvas Run",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0302-check-log/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0302-check-log/direct-regression.json",
+          "snapshot_scope": "terminal check log development subset; live and desktop pending"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ],
+      "shared_evidence": [
+        "build/reports/loops/PC0201-print/summary.json: component subset only; desktop remains not_verified"
+      ]
+    },
+    {
+      "id": "NA-05.b",
+      "title": "隔离契约试跑",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-05.b generated Python wrapper rejects invalid outputs and subsequent valid check recovers"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-05.b"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-05.b generated Python wrapper rejects invalid outputs and subsequent valid check recovers",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ]
+    },
+    {
+      "id": "NA-05.c",
+      "title": "隔离契约试跑",
+      "stage": "S2",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-05.b generated Python wrapper rejects invalid outputs and subsequent valid check recovers",
+        "PC-03 production failure logs preserve exact version reject stale identities and recover",
+        "PC-03 production check logs bind draft hashes and remain separate from Canvas Run",
+        "PC-04 supervised logs allow exact sixteen MiB reject one extra byte reclaim floods and preserve archives",
+        "PC-04.a log text decoder preserves split UTF8 and replaces malformed or unfinished bytes",
+        "PC-04.a supervised stdout stderr arrive before terminal and allow callback driven cancellation",
+        "PC-04.a production log text joins partial stream chunks without invented newlines",
+        "PC-04.c twenty success error cancel rounds retain no live Python processes or handles"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-05.c"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-05.b generated Python wrapper rejects invalid outputs and subsequent valid check recovers",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03 production failure logs preserve exact version reject stale identities and recover",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0301-run-log/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0301-run-log/direct-regression.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03 production check logs bind draft hashes and remain separate from Canvas Run",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0302-check-log/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0302-check-log/direct-regression.json",
+          "snapshot_scope": "terminal check log development subset; live and desktop pending"
+        },
+        {
+          "test_name": "PC-04 supervised logs allow exact sixteen MiB reject one extra byte reclaim floods and preserve archives",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0401-log-budget/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0401-log-budget/direct-regression.json",
+          "snapshot_scope": "full raw task-log budget subset only; live/UI and20-round matrix pending"
+        },
+        {
+          "test_name": "PC-04.a log text decoder preserves split UTF8 and replaces malformed or unfinished bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0403-ui-bound/stable-regression.xml",
+          "command_record": "build/reports/loops/PC0403-ui-bound/stable-regression.json",
+          "snapshot_scope": "Individual case passed on recorded Python source snapshot; the 84-case aggregate had a separate heartbeat failure; current final UI regression does not include this test."
+        },
+        {
+          "test_name": "PC-04.a supervised stdout stderr arrive before terminal and allow callback driven cancellation",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0403-ui-bound/stable-regression.xml",
+          "command_record": "build/reports/loops/PC0403-ui-bound/stable-regression.json",
+          "snapshot_scope": "Individual case passed on recorded Python source snapshot; the 84-case aggregate had a separate heartbeat failure."
+        },
+        {
+          "test_name": "PC-04.a production log text joins partial stream chunks without invented newlines",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0403-ui-bound/final-ui-regression.xml",
+          "command_record": "build/reports/loops/PC0403-ui-bound/final-ui-regression.json",
+          "snapshot_scope": "Current product build/source snapshot; final selected regression 79/79."
+        },
+        {
+          "test_name": "PC-04.c twenty success error cancel rounds retain no live Python processes or handles",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0403-ui-bound/stable-regression.xml",
+          "command_record": "build/reports/loops/PC0403-ui-bound/stable-regression.json",
+          "snapshot_scope": "Individual case passed in 84-case aggregate with a separate heartbeat failure; independent 20-round report verifies 60 actual Python tasks and zero remaining processes."
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ],
+      "shared_evidence": [
+        "build/reports/loops/PC0301-run-log/summary.json: partial log identity/failure scope"
+      ]
+    },
+    {
+      "id": "NA-05.d",
+      "title": "隔离契约试跑",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-04.a production panel offers isolated source checking",
+        "PC-02 production Print Apply library drop Canvas Run exposes only this run logs"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-05.d"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-04.a production panel offers isolated source checking",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-02 production Print Apply library drop Canvas Run exposes only this run logs",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0201-print/green-line-endings.xml",
+          "command_record": "build/reports/loops/PC0201-print/green-line-endings.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ],
+      "shared_evidence": [
+        "build/reports/loops/PC0201-print/summary.json: component subset only; desktop remains not_verified"
+      ]
+    },
+    {
+      "id": "NA-06.a",
+      "title": "队列、取消与身份",
+      "stage": "S2",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "PC-03 production failure logs preserve exact version reject stale identities and recover",
+        "PC-03 production check logs bind draft hashes and remain separate from Canvas Run"
+      ],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-06.a"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "PC-03 production failure logs preserve exact version reject stale identities and recover",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0301-run-log/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0301-run-log/direct-regression.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03 production check logs bind draft hashes and remain separate from Canvas Run",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0302-check-log/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0302-check-log/direct-regression.json",
+          "snapshot_scope": "terminal check log development subset; live and desktop pending"
+        }
+      ],
+      "status": "not_verified",
+      "shared_evidence": [
+        "build/reports/loops/PC0301-run-log/summary.json: partial log identity/failure scope"
+      ]
+    },
+    {
+      "id": "NA-06.b",
+      "title": "队列、取消与身份",
+      "stage": "S2",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "PC-03 production failure logs preserve exact version reject stale identities and recover"
+      ],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-06.b"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "PC-03 production failure logs preserve exact version reject stale identities and recover",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0301-run-log/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0301-run-log/direct-regression.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        }
+      ],
+      "status": "not_verified",
+      "shared_evidence": [
+        "build/reports/loops/PC0301-run-log/summary.json: partial log identity/failure scope"
+      ]
+    },
+    {
+      "id": "NA-06.c",
+      "title": "队列、取消与身份",
+      "stage": "S2",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "PC-04 supervised logs allow exact sixteen MiB reject one extra byte reclaim floods and preserve archives"
+      ],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-06.c"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "PC-04 supervised logs allow exact sixteen MiB reject one extra byte reclaim floods and preserve archives",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0401-log-budget/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0401-log-budget/direct-regression.json",
+          "snapshot_scope": "full raw task-log budget subset only; live/UI and20-round matrix pending"
+        }
+      ],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-06.d",
+      "title": "队列、取消与身份",
+      "stage": "S2",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "PC-04 supervised logs allow exact sixteen MiB reject one extra byte reclaim floods and preserve archives",
+        "PC-04.d production live log UI meets twenty ms heartbeat over ten seconds",
+        "PC-04.d pending log delivery bounds owned bytes records and scheduled callbacks",
+        "PC-04 authoring malformed raw logs preserve byte counts without discard underflow",
+        "PC-04.d production run log node filter preserves hidden current run entries"
+      ],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-06.d"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "PC-04 supervised logs allow exact sixteen MiB reject one extra byte reclaim floods and preserve archives",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0401-log-budget/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0401-log-budget/direct-regression.json",
+          "snapshot_scope": "full raw task-log budget subset only; live/UI and20-round matrix pending"
+        },
+        {
+          "test_name": "PC-04.d production live log UI meets twenty ms heartbeat over ten seconds",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0403-ui-bound/final-ui-regression.xml",
+          "command_record": "build/reports/loops/PC0403-ui-bound/final-ui-regression.json",
+          "snapshot_scope": "Current product build/source snapshot; 10-second heartbeat case in final selected regression 79/79."
+        },
+        {
+          "test_name": "PC-04.d pending log delivery bounds owned bytes records and scheduled callbacks",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0403-ui-bound/green.xml",
+          "command_record": "build/reports/loops/PC0403-ui-bound/green.json",
+          "snapshot_scope": "Same-case historical Green on earlier source snapshot; current-source queue case not rerun in the final 79-case selection."
+        },
+        {
+          "test_name": "PC-04 authoring malformed raw logs preserve byte counts without discard underflow",
+          "status": "not_verified",
+          "evidence": "build/reports/loops/PC0403-ui-bound/current-malformed-check.xml",
+          "command_record": "build/reports/loops/PC0403-ui-bound/current-malformed-check.json",
+          "snapshot_scope": "Current-source attempt failed to launch with 0xc0000142 before assertions; historical 2/2 Red-to-Green remains snapshot-scoped."
+        },
+        {
+          "test_name": "PC-04.d production run log node filter preserves hidden current run entries",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0404-node-filter/direct-regression-final.xml",
+          "command_record": "build/reports/loops/PC0404-node-filter/direct-regression-final.json",
+          "snapshot_scope": "Current Debug direct production-component regression; 5/5 selected cases, full PC-04 remains partial."
+        }
+      ],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-07.a",
+      "title": "原子应用与恢复",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-04.c Ready retains the exact source that was probed despite mutable candidate edits",
+        "NA-07.a checked Python draft applies one immutable library version",
+        "PC-02 production Print Apply library drop Canvas Run exposes only this run logs"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-07.a"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-04.c Ready retains the exact source that was probed despite mutable candidate edits",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-07.a checked Python draft applies one immutable library version",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-02 production Print Apply library drop Canvas Run exposes only this run logs",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0201-print/green-line-endings.xml",
+          "command_record": "build/reports/loops/PC0201-print/green-line-endings.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ],
+      "shared_evidence": [
+        "build/reports/loops/PC0201-print/summary.json: component subset only; desktop remains not_verified"
+      ]
+    },
+    {
+      "id": "NA-07.b",
+      "title": "原子应用与恢复",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-07.b Apply publishes verified bytes atomically and failure retains the original catalog",
+        "NA-07.b prepared catalog does not publish before refresh acceptance and cancelled commit is invisible",
+        "NA-07.b production library preparation failure preserves index catalog and graph then retries",
+        "NA-09.a Apply v2 publishes a new default while an owned v1 catalog keeps its exact old code",
+        "PC-02 production Print Apply library drop Canvas Run exposes only this run logs"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-07.b"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-07.b Apply publishes verified bytes atomically and failure retains the original catalog",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-07.b prepared catalog does not publish before refresh acceptance and cancelled commit is invisible",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-07.b production library preparation failure preserves index catalog and graph then retries",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-09.a Apply v2 publishes a new default while an owned v1 catalog keeps its exact old code",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-02 production Print Apply library drop Canvas Run exposes only this run logs",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0201-print/green-line-endings.xml",
+          "command_record": "build/reports/loops/PC0201-print/green-line-endings.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full previous-version Run preservation across all failed update phases; v2 update transaction still outstanding"
+      ],
+      "shared_evidence": [
+        "build/reports/loops/PC0201-print/summary.json: component subset only; desktop remains not_verified"
+      ]
+    },
+    {
+      "id": "NA-07.c",
+      "title": "原子应用与恢复",
+      "stage": "S3",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-07.c"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-07.d",
+      "title": "原子应用与恢复",
+      "stage": "S3",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-11.d managed runtime rejects modified installed code before import and recovers exact bytes",
+        "NA-07.b prepared catalog does not publish before refresh acceptance and cancelled commit is invisible",
+        "NA-11.c production Save carries the exact package and refuses conflicting destination bytes",
+        "NA-07.d library copy preserves both immutable versions and refuses a nonempty destination"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-07.d"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-11.d managed runtime rejects modified installed code before import and recovers exact bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-07.b prepared catalog does not publish before refresh acceptance and cancelled commit is invisible",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-11.c production Save carries the exact package and refuses conflicting destination bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-07.d library copy preserves both immutable versions and refuses a nonempty destination",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ]
+    },
+    {
+      "id": "NA-08.a",
+      "title": "节点库即时刷新",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-07.a checked Python draft applies one immutable library version",
+        "NA-08.a production Apply library insertion Inspector and Run execute the checked Python code",
+        "NA-03.c applied named package runs two independent WAV sources and selects each exact output",
+        "PC-02 production Print Apply library drop Canvas Run exposes only this run logs"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-08.a"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-07.a checked Python draft applies one immutable library version",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-08.a production Apply library insertion Inspector and Run execute the checked Python code",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-03.c applied named package runs two independent WAV sources and selects each exact output",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-02 production Print Apply library drop Canvas Run exposes only this run logs",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0201-print/green-line-endings.xml",
+          "command_record": "build/reports/loops/PC0201-print/green-line-endings.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Real desktop input; complete managed edit/create definition workflow; version-selected library behavior"
+      ],
+      "shared_evidence": [
+        "build/reports/loops/PC0201-print/summary.json: component subset only; desktop remains not_verified"
+      ]
+    },
+    {
+      "id": "NA-08.b",
+      "title": "节点库即时刷新",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-07.b production library preparation failure preserves index catalog and graph then retries",
+        "NA-09.a production Apply v2 leaves the saved graph on v1 and a new graph selects v2",
+        "NA-08.b late committed Apply cannot install an old graph catalog into a new project",
+        "PC-03 production failure logs preserve exact version reject stale identities and recover"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-08.b"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-07.b production library preparation failure preserves index catalog and graph then retries",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-09.a production Apply v2 leaves the saved graph on v1 and a new graph selects v2",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-08.b late committed Apply cannot install an old graph catalog into a new project",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03 production failure logs preserve exact version reject stale identities and recover",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0301-run-log/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0301-run-log/direct-regression.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Explicit scrolling/selection/old asynchronous source matrix and version-update scenarios"
+      ],
+      "shared_evidence": [
+        "build/reports/loops/PC0301-run-log/summary.json: partial log identity/failure scope"
+      ]
+    },
+    {
+      "id": "NA-08.c",
+      "title": "节点库即时刷新",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-08.c queued production run owns its catalog before a directory refresh",
+        "PC-03 production failure logs preserve exact version reject stale identities and recover"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-08.c"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-08.c queued production run owns its catalog before a directory refresh",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03 production failure logs preserve exact version reject stale identities and recover",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0301-run-log/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0301-run-log/direct-regression.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ],
+      "shared_evidence": [
+        "build/reports/loops/PC0301-run-log/summary.json: partial log identity/failure scope"
+      ]
+    },
+    {
+      "id": "NA-08.d",
+      "title": "节点库即时刷新",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-08.d fresh CLI restores the installed exact package and rejects a missing lock",
+        "NA-09.a production Apply v2 leaves the saved graph on v1 and a new graph selects v2",
+        "NA-08.d reopen and fresh CLI resolve the saved v1 after v2 becomes default",
+        "NA-08.d relative CLI project path resolves carried exact code without a global package"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-08.d"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-08.d fresh CLI restores the installed exact package and rejects a missing lock",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-09.a production Apply v2 leaves the saved graph on v1 and a new graph selects v2",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-08.d reopen and fresh CLI resolve the saved v1 after v2 becomes default",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-08.d relative CLI project path resolves carried exact code without a global package",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "CLI exact old-version resolution after default v2; retained external duplicate/default-root full matrix"
+      ]
+    },
+    {
+      "id": "NA-09.a",
+      "title": "精确版本与工程升级",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-09.a an unresolved exact version cannot run a type-only replacement",
+        "NA-08.d fresh CLI restores the installed exact package and rejects a missing lock",
+        "NA-09.a Apply v2 publishes a new default while an owned v1 catalog keeps its exact old code",
+        "NA-09.a production Apply v2 leaves the saved graph on v1 and a new graph selects v2",
+        "NA-08.d reopen and fresh CLI resolve the saved v1 after v2 becomes default",
+        "NA-08.b late committed Apply cannot install an old graph catalog into a new project"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-09.a"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-09.a an unresolved exact version cannot run a type-only replacement",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-08.d fresh CLI restores the installed exact package and rejects a missing lock",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-09.a Apply v2 publishes a new default while an owned v1 catalog keeps its exact old code",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-09.a production Apply v2 leaves the saved graph on v1 and a new graph selects v2",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-08.d reopen and fresh CLI resolve the saved v1 after v2 becomes default",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-08.b late committed Apply cannot install an old graph catalog into a new project",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Apply v2 keeps existing graph v1; new graph selects v2; same-package multi-type version lock"
+      ]
+    },
+    {
+      "id": "NA-09.b",
+      "title": "精确版本与工程升级",
+      "stage": "S3",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-09.b production upgrade preview cancels cleanly and upgrades all package instances once"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-09.b"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-09.b production upgrade preview cancels cleanly and upgrades all package instances once",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Same-package multiple logical types and old result validity across concurrent submissions remain unverified; current component covers two instances of one type and one history item"
+      ]
+    },
+    {
+      "id": "NA-09.c",
+      "title": "精确版本与工程升级",
+      "stage": "S3",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-09.d production upgrade undo redo restores exact factories and real audio"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-09.c"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-09.d production upgrade undo redo restores exact factories and real audio",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Current history test covers sequential actual v1/v2 results only; slow v1 success/error/progress late delivery during upgrade remains unverified"
+      ]
+    },
+    {
+      "id": "NA-09.d",
+      "title": "精确版本与工程升级",
+      "stage": "S3",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-09.d production upgrade undo redo restores exact factories and real audio"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-09.d"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-09.d production upgrade undo redo restores exact factories and real audio",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Happy-path exact upgrade undo/redo and monotonic revisions covered with real audio; missing/corrupt old package GUI history and repair matrix remains"
+      ]
+    },
+    {
+      "id": "NA-10.a",
+      "title": "不兼容定义迁移",
+      "stage": "S3",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-09.b production upgrade preview cancels cleanly and upgrades all package instances once"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-10.a"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-09.b production upgrade preview cancels cleanly and upgrades all package instances once",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Current range shrink rejects one invalid instance atomically; complete removed/changed port/type and connection diagnostic matrix remains"
+      ]
+    },
+    {
+      "id": "NA-10.b",
+      "title": "不兼容定义迁移",
+      "stage": "S3",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-09.b production upgrade preview cancels cleanly and upgrades all package instances once"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-10.b"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-09.b production upgrade preview cancels cleanly and upgrades all package instances once",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial"
+    },
+    {
+      "id": "NA-10.c",
+      "title": "不兼容定义迁移",
+      "stage": "S3",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-10.c"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-10.d",
+      "title": "不兼容定义迁移",
+      "stage": "S3",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-09.b production upgrade preview cancels cleanly and upgrades all package instances once"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-10.d"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-09.b production upgrade preview cancels cleanly and upgrades all package instances once",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial"
+    },
+    {
+      "id": "NA-11.a",
+      "title": "工程格式、携带与重放",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-11.a schema2 preserves exact managed version while schema1 stays legacy",
+        "NA-08.a production Apply library insertion Inspector and Run execute the checked Python code"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-11.a"
+      ],
+      "related_ids": [],
+      "shared_evidence": [
+        "build/reports/loops/NA0005-version-format/legacy-reader-rejection.json",
+        "build/reports/loops/NA0005-version-format/independent-project-read.json"
+      ],
+      "test_results": [
+        {
+          "test_name": "NA-11.a schema2 preserves exact managed version while schema1 stays legacy",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-08.a production Apply library insertion Inspector and Run execute the checked Python code",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ]
+    },
+    {
+      "id": "NA-11.b",
+      "title": "工程格式、携带与重放",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-11.b first schema migration preserves the original bytes in a verified backup",
+        "NA-11.b migration faults and conflicting backups never replace original project bytes"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-11.b"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-11.b first schema migration preserves the original bytes in a verified backup",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-11.b migration faults and conflicting backups never replace original project bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ]
+    },
+    {
+      "id": "NA-11.c",
+      "title": "工程格式、携带与重放",
+      "stage": "S3",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-11.c production Save carries the exact package and refuses conflicting destination bytes",
+        "NA-08.d relative CLI project path resolves carried exact code without a global package"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-11.c"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-11.c production Save carries the exact package and refuses conflicting destination bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-08.d relative CLI project path resolves carried exact code without a global package",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Normal Save then directory relocation with global source renamed unavailable verified in component/CLI; Save As resources/path rewriting, export/replay, deletion and full long-root matrix remain"
+      ]
+    },
+    {
+      "id": "NA-11.d",
+      "title": "工程格式、携带与重放",
+      "stage": "S3",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "NA-08.d fresh CLI restores the installed exact package and rejects a missing lock",
+        "NA-11.d managed runtime rejects modified installed code before import and recovers exact bytes",
+        "NA-08.d reopen and fresh CLI resolve the saved v1 after v2 becomes default",
+        "NA-11.c production Save carries the exact package and refuses conflicting destination bytes"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-11.d"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-08.d fresh CLI restores the installed exact package and rejects a missing lock",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-11.d managed runtime rejects modified installed code before import and recovers exact bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-08.d reopen and fresh CLI resolve the saved v1 after v2 becomes default",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-11.c production Save carries the exact package and refuses conflicting destination bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Portable package/environment failure and repair; old run bytes across version upgrades; GUI+CLI complete matrix"
+      ]
+    },
+    {
+      "id": "NA-12.a",
+      "title": "C++独立构建",
+      "stage": "S4",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-12.a"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-12.b",
+      "title": "C++独立构建",
+      "stage": "S4",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-12.b"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-12.c",
+      "title": "C++独立构建",
+      "stage": "S4",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-12.c"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-12.d",
+      "title": "C++独立构建",
+      "stage": "S4",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-12.d"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-13.a",
+      "title": "原生probe与重启激活",
+      "stage": "S4",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-13.a"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-13.b",
+      "title": "原生probe与重启激活",
+      "stage": "S4",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-13.b"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-13.c",
+      "title": "原生probe与重启激活",
+      "stage": "S4",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-13.c"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-13.d",
+      "title": "原生probe与重启激活",
+      "stage": "S4",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-13.d"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-14.a",
+      "title": "编辑面板交互",
+      "stage": "S0",
+      "required": true,
+      "layer": "component+desktop",
+      "runner": "ctest",
+      "test_names": [
+        "PC-02 production Print Apply library drop Canvas Run exposes only this run logs"
+      ],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-14.a"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "PC-02 production Print Apply library drop Canvas Run exposes only this run logs",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0201-print/green-line-endings.xml",
+          "command_record": "build/reports/loops/PC0201-print/green-line-endings.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        }
+      ],
+      "status": "not_verified",
+      "shared_evidence": [
+        "build/reports/loops/PC0201-print/summary.json: component subset only; desktop remains not_verified"
+      ]
+    },
+    {
+      "id": "NA-14.b",
+      "title": "编辑面板交互",
+      "stage": "S0",
+      "required": true,
+      "layer": "component+desktop",
+      "runner": "ctest",
+      "test_names": [
+        "NA-14.b cancelled completed check cannot deliver Ready to the production panel",
+        "PC-03.c production Check cancellation reclaims only its process tree and permits recovery",
+        "NA-08.b late committed Apply cannot install an old graph catalog into a new project"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-14.b"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-14.b cancelled completed check cannot deliver Ready to the production panel",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03.c production Check cancellation reclaims only its process tree and permits recovery",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0303-check-cancel/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0303-check-cancel/direct-regression.json",
+          "snapshot_scope": "Active Check cancellation does not publish Ready, reclaims its own Python parent/child while preserving an unrelated process, retains raw stdout, and recovers on a new draft generation; broader close/timeout and desktop clauses remain partial."
+        },
+        {
+          "test_name": "NA-08.b late committed Apply cannot install an old graph catalog into a new project",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ]
+    },
+    {
+      "id": "NA-14.c",
+      "title": "编辑面板交互",
+      "stage": "S0",
+      "required": true,
+      "layer": "component+desktop",
+      "runner": "ctest",
+      "test_names": [
+        "NA-01.c discard after save failure survives an active check and never saves again",
+        "NA-14.c changing recovery and work folders preserves text when settings cannot persist",
+        "NA-14.c library folder selection is verified for next startup without changing the live catalog",
+        "NA-14.c location settings round trip and preserve corrupt preferences",
+        "PC-02 production Print Apply library drop Canvas Run exposes only this run logs",
+        "PC-03 production failure logs preserve exact version reject stale identities and recover",
+        "PC-03 production check logs bind draft hashes and remain separate from Canvas Run",
+        "PC-04 supervised logs allow exact sixteen MiB reject one extra byte reclaim floods and preserve archives",
+        "PC-04 production Canvas exposes live node logs before termination and clears them on New",
+        "PC-04.d production filter separates live logs from two real node instances while preserving run identity"
+      ],
+      "coverage": "partial",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-14.c"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "NA-01.c discard after save failure survives an active check and never saves again",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-14.c changing recovery and work folders preserves text when settings cannot persist",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-14.c library folder selection is verified for next startup without changing the live catalog",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "NA-14.c location settings round trip and preserve corrupt preferences",
+          "status": "passed",
+          "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
+          "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+          "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-02 production Print Apply library drop Canvas Run exposes only this run logs",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0201-print/green-line-endings.xml",
+          "command_record": "build/reports/loops/PC0201-print/green-line-endings.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03 production failure logs preserve exact version reject stale identities and recover",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0301-run-log/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0301-run-log/direct-regression.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03 production check logs bind draft hashes and remain separate from Canvas Run",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0302-check-log/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0302-check-log/direct-regression.json",
+          "snapshot_scope": "terminal check log development subset; live and desktop pending"
+        },
+        {
+          "test_name": "PC-04 supervised logs allow exact sixteen MiB reject one extra byte reclaim floods and preserve archives",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0401-log-budget/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0401-log-budget/direct-regression.json",
+          "snapshot_scope": "full raw task-log budget subset only; live/UI and20-round matrix pending"
+        },
+        {
+          "test_name": "PC-04 production Canvas exposes live node logs before termination and clears them on New",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0403-ui-bound/final-ui-regression.xml",
+          "command_record": "build/reports/loops/PC0403-ui-bound/final-ui-regression.json",
+          "snapshot_scope": "Current product build/source snapshot; final selected regression 79/79."
+        },
+        {
+          "test_name": "PC-04.d production filter separates live logs from two real node instances while preserving run identity",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0404-node-filter/direct-regression-final.xml",
+          "command_record": "build/reports/loops/PC0404-node-filter/direct-regression-final.json",
+          "snapshot_scope": "Current production Check/Apply/library-drop/two-instance Run/filter workflow; independent project/audio/log receipt also recorded in PC0404 summary."
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ],
+      "shared_evidence": [
+        "build/reports/loops/PC0201-print/summary.json: component subset only; desktop remains not_verified",
+        "build/reports/loops/PC0301-run-log/summary.json: partial log identity/failure scope"
+      ]
+    },
+    {
+      "id": "NA-14.d",
+      "title": "编辑面板交互",
+      "stage": "S2",
+      "required": true,
+      "layer": "component+desktop",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-14.d"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-15.a",
+      "title": "无功能回退",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-15.a"
+      ],
+      "related_ids": [
+        "NED",
+        "AR",
+        "G",
+        "UPN"
+      ],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-15.b",
+      "title": "无功能回退",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-15.b"
+      ],
+      "related_ids": [
+        "NED",
+        "AR",
+        "G",
+        "UPN"
+      ],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-15.c",
+      "title": "无功能回退",
+      "stage": "S1",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [
+        "PC-01.a production draft parent preserves volume and UNC roots",
+        "PC-01.b extended long draft save recovery binding and directory probe round trip",
+        "PC-03 production failure logs preserve exact version reject stale identities and recover"
+      ],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-15.c"
+      ],
+      "related_ids": [
+        "NED",
+        "AR",
+        "G",
+        "UPN"
+      ],
+      "test_results": [
+        {
+          "test_name": "PC-01.a production draft parent preserves volume and UNC roots",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0101-root-save/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0101-root-save/direct-regression.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        },
+        {
+          "test_name": "PC-01.b extended long draft save recovery binding and directory probe round trip",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0101-root-save/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0101-root-save/direct-regression.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03 production failure logs preserve exact version reject stale identities and recover",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0301-run-log/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0301-run-log/direct-regression.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        }
+      ],
+      "status": "not_verified",
+      "shared_evidence": [
+        "build/reports/loops/PC0101-root-save/summary.json: PC-01 path subset; volume-root actual write not_verified",
+        "build/reports/loops/PC0301-run-log/summary.json: partial log identity/failure scope"
+      ]
+    },
+    {
+      "id": "NA-15.d",
+      "title": "无功能回退",
+      "stage": "S5",
+      "required": true,
+      "layer": "integration",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-15.d"
+      ],
+      "related_ids": [
+        "NED",
+        "AR",
+        "G",
+        "UPN"
+      ],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-16.a",
+      "title": "验收映射和证据门禁",
+      "stage": "S5",
+      "required": true,
+      "layer": "infrastructure",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-16.a"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-16.b",
+      "title": "验收映射和证据门禁",
+      "stage": "S0",
+      "required": true,
+      "layer": "infrastructure",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-16.b"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-16.c",
+      "title": "验收映射和证据门禁",
+      "stage": "S0",
+      "required": true,
+      "layer": "infrastructure",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-16.c"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-16.d",
+      "title": "验收映射和证据门禁",
+      "stage": "S0",
+      "required": true,
+      "layer": "infrastructure",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-16.d"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-17.a",
+      "title": "真实产品闭环",
+      "stage": "S1",
+      "required": true,
+      "layer": "component+desktop",
+      "runner": "ctest",
+      "test_names": [
+        "PC-02 production Print Apply library drop Canvas Run exposes only this run logs",
+        "PC-03 production check logs bind draft hashes and remain separate from Canvas Run"
+      ],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-17.a"
+      ],
+      "related_ids": [],
+      "test_results": [
+        {
+          "test_name": "PC-02 production Print Apply library drop Canvas Run exposes only this run logs",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0201-print/green-line-endings.xml",
+          "command_record": "build/reports/loops/PC0201-print/green-line-endings.json",
+          "snapshot_scope": "executed development subset, full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03 production check logs bind draft hashes and remain separate from Canvas Run",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0302-check-log/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0302-check-log/direct-regression.json",
+          "snapshot_scope": "terminal check log development subset; live and desktop pending"
+        }
+      ],
+      "status": "not_verified",
+      "shared_evidence": [
+        "build/reports/loops/PC0201-print/summary.json: component subset only; desktop remains not_verified"
+      ]
+    },
+    {
+      "id": "NA-17.b",
+      "title": "真实产品闭环",
+      "stage": "S3",
+      "required": true,
+      "layer": "component+desktop",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-17.b"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-17.c",
+      "title": "真实产品闭环",
+      "stage": "S4",
+      "required": true,
+      "layer": "component+desktop",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-17.c"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    },
+    {
+      "id": "NA-17.d",
+      "title": "真实产品闭环",
+      "stage": "S5",
+      "required": true,
+      "layer": "component+desktop",
+      "runner": "ctest",
+      "test_names": [],
+      "coverage": "not_implemented",
+      "evidence_requirements": [
+        "all acceptance clauses in NA-17.d"
+      ],
+      "related_ids": [],
+      "test_results": [],
+      "status": "not_verified"
+    }
+  ],
+  "acceptance_document_sha256": "2fe375ab07622cace39606c9fb425d58ae6ab9c5f64dc60933b2f675cc8c3b50",
+  "current_entry": "PC0402/PC0403/PC0404 evidence synchronized. PC0303 adds active production Check cancellation and recovery: real task parent/child reaped under five seconds while unrelated process survived; archived stdout/source independently verified; direct regression 3 cases/83 assertions. No product Red was observed for this slice. Next: active panel/View close and Check timeout, then PC-03 version/project identity, PC-04 end-to-end flood, and PC-05 bidirectional formula oracle. No PC/NA stage passes; desktop paused.",
+  "status_policy": "passed applies only to executed tests in their recorded snapshots; partial is incomplete requirement coverage; failed preserves latest recorded failure; not_verified is absent/unexecuted evidence. No NA stage is passed.",
+  "test_inventory": {
+    "NA-01.a production draft offers a user chosen Save As target": "tests/unit/test_node_authoring.cpp",
+    "NA-01.a user file save cancel Save As and reopen use the production workspace": "tests/unit/test_node_authoring.cpp",
+    "NA-01.b explicit file failure preserves binding and recovery does not clear unsaved text": "tests/unit/test_node_authoring.cpp",
+    "NA-04.d chosen work directory checks and applies without moving installed versions": "tests/unit/test_node_authoring.cpp",
+    "NA-14.c changing recovery and work folders preserves text when settings cannot persist": "tests/unit/test_node_authoring.cpp",
+    "NA-01.b stale user file save and external modification preserve newer edits": "tests/unit/test_node_authoring.cpp",
+    "NA-07.d library copy preserves both immutable versions and refuses a nonempty destination": "tests/unit/test_node_authoring.cpp",
+    "NA-14.c library folder selection is verified for next startup without changing the live catalog": "tests/unit/test_node_authoring.cpp",
+    "NA-14.c location settings round trip and preserve corrupt preferences": "tests/unit/test_node_authoring.cpp",
+    "NA-01.b Save As confirmation is revocable and cannot overwrite an externally changed target": "tests/unit/test_node_authoring.cpp",
+    "NA-01.c unnamed user draft can discard normally without choosing a save target": "tests/unit/test_node_authoring.cpp",
+    "NA-14.b cancelled completed check cannot deliver Ready to the production panel": "tests/unit/test_node_authoring.cpp",
+    "NA-01.c discard after save failure survives an active check and never saves again": "tests/unit/test_node_authoring.cpp",
+    "NA-01.a production new button opens a persistent draft without editing the graph": "tests/unit/test_node_authoring.cpp",
+    "NA-01.c failed close retains the draft and offers explicit discard": "tests/unit/test_node_authoring.cpp",
+    "NA-01.c application shutdown waits for draft save and failure leaves editing enabled": "tests/unit/test_node_authoring.cpp",
+    "NA-04.a production panel offers isolated source checking": "tests/unit/test_node_authoring.cpp",
+    "NA-05.b generated Python wrapper rejects invalid outputs and subsequent valid check recovers": "tests/unit/test_node_authoring.cpp",
+    "NA-11.a schema2 preserves exact managed version while schema1 stays legacy": "tests/unit/test_node_authoring.cpp",
+    "NA-09.a an unresolved exact version cannot run a type-only replacement": "tests/unit/test_node_authoring.cpp",
+    "NA-04.c Ready retains the exact source that was probed despite mutable candidate edits": "tests/unit/test_node_authoring.cpp",
+    "NA-11.b first schema migration preserves the original bytes in a verified backup": "tests/unit/test_node_authoring.cpp",
+    "NA-11.b migration faults and conflicting backups never replace original project bytes": "tests/unit/test_node_authoring.cpp",
+    "NA-07.a checked Python draft applies one immutable library version": "tests/unit/test_node_authoring.cpp",
+    "NA-08.a production Apply library insertion Inspector and Run execute the checked Python code": "tests/unit/test_node_authoring.cpp",
+    "NA-07.b Apply publishes verified bytes atomically and failure retains the original catalog": "tests/unit/test_node_authoring.cpp",
+    "NA-08.c queued production run owns its catalog before a directory refresh": "tests/unit/test_node_authoring.cpp",
+    "NA-08.d fresh CLI restores the installed exact package and rejects a missing lock": "tests/unit/test_node_authoring.cpp",
+    "NA-11.d managed runtime rejects modified installed code before import and recovers exact bytes": "tests/unit/test_node_authoring.cpp",
+    "NA-07.b prepared catalog does not publish before refresh acceptance and cancelled commit is invisible": "tests/unit/test_node_authoring.cpp",
+    "NA-07.b production library preparation failure preserves index catalog and graph then retries": "tests/unit/test_node_authoring.cpp",
+    "NA-02.a production name and type fields edit one declaration and new nodes have independent identities": "tests/unit/test_node_authoring.cpp",
+    "NA-03.b production stateful template keeps frame state across probe blocks and resets on rerun": "tests/unit/test_node_authoring.cpp",
+    "NA-03.c production named template generates both input and output contracts and probes both outputs": "tests/unit/test_node_authoring.cpp",
+    "NA-03.c applied named package runs two independent WAV sources and selects each exact output": "tests/unit/test_node_authoring.cpp",
+    "NA-09.a Apply v2 publishes a new default while an owned v1 catalog keeps its exact old code": "tests/unit/test_node_authoring.cpp",
+    "NA-09.a production Apply v2 leaves the saved graph on v1 and a new graph selects v2": "tests/unit/test_node_authoring.cpp",
+    "NA-08.d reopen and fresh CLI resolve the saved v1 after v2 becomes default": "tests/unit/test_node_authoring.cpp",
+    "NA-08.b late committed Apply cannot install an old graph catalog into a new project": "tests/unit/test_node_authoring.cpp",
+    "NA-09.b production upgrade preview cancels cleanly and upgrades all package instances once": "tests/unit/test_node_authoring.cpp",
+    "NA-09.d production upgrade undo redo restores exact factories and real audio": "tests/unit/test_node_authoring.cpp",
+    "NA-11.c production Save carries the exact package and refuses conflicting destination bytes": "tests/unit/test_node_authoring.cpp",
+    "NA-08.d relative CLI project path resolves carried exact code without a global package": "tests/unit/test_node_authoring.cpp",
+    "NA-01.b recovery backup never marks the user file saved": "tests/unit/test_authoring_draft_storage.cpp",
+    "NA-01.c recovered draft remembers its original file and rejects a torn binding": "tests/unit/test_authoring_draft_storage.cpp",
+    "NA-01.d chosen draft filenames preserve identity and reject conflicts atomically": "tests/unit/test_authoring_draft_storage.cpp",
+    "NA-01.b injected clock coalesces autosaves and stale saves cannot mark new text saved": "tests/unit/test_authoring_draft_storage.cpp",
+    "NA-01.b write verify and replace failures preserve original bytes and recover": "tests/unit/test_authoring_draft_storage.cpp",
+    "NA-01.d two drafts stay independent and traversal is rejected": "tests/unit/test_authoring_draft_storage.cpp",
+    "PC-04.a log text decoder preserves split UTF8 and replaces malformed or unfinished bytes": "tests/unit/test_log_text.cpp",
+    "PC-04.a supervised stdout stderr arrive before terminal and allow callback driven cancellation": "tests/integration/test_python_process.cpp",
+    "PC-04.a production log text joins partial stream chunks without invented newlines": "tests/unit/test_node_authoring.cpp",
+    "PC-04 production Canvas exposes live node logs before termination and clears them on New": "tests/unit/test_node_authoring.cpp",
+    "PC-04.d production live log UI meets twenty ms heartbeat over ten seconds": "tests/unit/test_node_authoring.cpp",
+    "PC-04.d pending log delivery bounds owned bytes records and scheduled callbacks": "tests/unit/test_log_mailbox.cpp",
+    "PC-04 authoring malformed raw logs preserve byte counts without discard underflow": "tests/unit/test_node_authoring.cpp",
+    "PC-04.c twenty success error cancel rounds retain no live Python processes or handles": "tests/integration/test_python_process.cpp",
+    "PC-04.d production run log node filter preserves hidden current run entries": "tests/unit/test_node_authoring.cpp",
+    "PC-04.d production filter separates live logs from two real node instances while preserving run identity": "tests/unit/test_node_authoring.cpp",
+    "PC-03.c production Check cancellation reclaims only its process tree and permits recovery": "tests/unit/test_node_authoring.cpp"
+  },
+  "latest_execution": {
+    "ctest_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
+    "total": 118,
+    "passed": 118,
+    "failed": 0,
+    "skipped": 0,
+    "mapped_NA_tests": 49,
+    "python_off": {
+      "record": "build/reports/loops/NA0030-draft-close/python-off-final.json",
+      "passed": 54,
+      "scope": "disabled contracts and file operations; not Python execution"
+    },
+    "runtime_off": {
+      "record": "build/reports/loops/NA0030-draft-close/pure-final.json",
+      "passed": 6
+    },
+    "independent": [
+      "build/reports/loops/NA0030-draft-close/independent-files.json",
+      "build/reports/loops/NA0030-draft-close/independent-library-final.json"
+    ],
+    "note": "All 68 required subcases retained; no whole requirement/stage promoted to passed. GUI selection and DPI not verified."
+  },
+  "pipeline_execution_closure_supplement": {
+    "acceptance_source": "doc/testing_pipeline_execution_closure.md",
+    "acceptance_document_sha256": "15e133509c4d1803d739ab0e231a2c42d61039a40387323b895070b065d7a377",
+    "required_subcase_count_impact": 0,
+    "scope": "PC-01..08 supplemental map; separate from 68 required NA subcases",
+    "status": "partial",
+    "current_entry": "PC0402/PC0403/PC0404 evidence synchronized. PC0303 adds active production Check cancellation and recovery: real task parent/child reaped under five seconds while unrelated process survived; archived stdout/source independently verified; direct regression 3 cases/83 assertions. No product Red was observed for this slice. Next: active panel/View close and Check timeout, then PC-03 version/project identity, PC-04 end-to-end flood, and PC-05 bidirectional formula oracle. No PC/NA stage passes; desktop paused.",
+    "slices": [
+      {
+        "id": "PC0402-live-log",
+        "status": "partial",
+        "record": "build/reports/loops/PC0402-live-log/summary.json",
+        "loop": "build/reports/loops/PC0402-live-log/loop.md",
+        "covered": [
+          "PC-04.a current incremental worker decode/stdout/stderr delivery subset",
+          "PC-04.d current Canvas live log and New clear, chunk join, heartbeat subset"
+        ],
+        "unverified": [
+          "PC-04.b combined live flood and UI budget",
+          "PC-04.d node/level filter and previous-run history",
+          "PC-03 check cancellation/timeout/late-delivery and two-version/two-instance identity",
+          "desktop/OS input"
+        ]
+      },
+      {
+        "id": "PC0403-ui-bound",
+        "status": "partial",
+        "record": "build/reports/loops/PC0403-ui-bound/summary.json",
+        "loop": "build/reports/loops/PC0403-ui-bound/loop.md",
+        "covered": [
+          "earlier-snapshot mailbox bound same-case Red/Green",
+          "current-source 79/79 UI regression for Canvas live log/New clear, chunk joining and 10s/20ms heartbeat",
+          "independent 20 rounds/60 actual Python tasks, raw/stdout agreement, no processes remaining"
+        ],
+        "unverified": [
+          "current-source malformed-byte accounting; latest process startup failed 0xc0000142 before assertions",
+          "combined end-to-end flood budget",
+          "node/level filter and previous-run history",
+          "desktop/OS input"
+        ]
+      },
+      {
+        "id": "PC0404-node-filter",
+        "status": "partial",
+        "record": "build/reports/loops/PC0404-node-filter/summary.json",
+        "loop": "build/reports/loops/PC0404-node-filter/loop.md",
+        "covered": [
+          "production node filter retains hidden current-run entries",
+          "two real Python Print instances in a saved File→Print→Print→Output project; request identity preserved",
+          "5/5 directly affected current-source UI regression, zero failures/skips",
+          "independent 513-frame/16kHz audio identity and raw/event/UI log verification"
+        ],
+        "unverified": [
+          "log-level filter and previous-run history",
+          "end-to-end flood across worker budget/UI mailbox/display tail/heartbeat",
+          "PC-03 Check cancellation/timeout/late delivery and two-version/two-instance identity",
+          "desktop/OS pointer route"
+        ]
+      },
+      {
+        "id": "PC0303-check-cancel",
+        "status": "partial",
+        "record": "build/reports/loops/PC0303-check-cancel/summary.json",
+        "loop": "build/reports/loops/PC0303-check-cancel/loop.md",
+        "acceptance_mapping": [
+          "PC-03.c.active_check_cancel",
+          "NA-04.d active isolated Check cancellation/recovery subset",
+          "NA-14.b cancellation revokes active Check result delivery subset"
+        ],
+        "covered": [
+          "real production Python authoring Check cancelled at a complete PID marker barrier",
+          "only its Python process tree is reaped under five seconds; unrelated test-owned process remains alive",
+          "cancelled stdout archive and candidate source are independently verified; edited same-panel retry succeeds",
+          "direct regression 3 cases/83 assertions includes NA-14.b late completion and NA-08.b project-crossing guard"
+        ],
+        "unverified": [
+          "Check timeout and active panel/View/application close with late delivery",
+          "PC-03.a/d two-project/two-revision and two-version/two-instance identity",
+          "remaining PC-03 and full PC-01..08 requirements; desktop remains paused"
+        ]
+      }
+    ]
+  }
+}

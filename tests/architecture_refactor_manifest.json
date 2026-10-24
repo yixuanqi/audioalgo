@@ -2479,7 +2479,7 @@
   ],
   "user_native_plugins": {
     "acceptance_source": "doc/plan_delivery_convergence.md",
-    "acceptance_document_sha256": "f05d2e0f9dac67186d4bc7a7e39d59f689695e3df0565e01d07f8b3b7093cf81",
+    "acceptance_document_sha256": "af25fcf934a7b4d5f701fb8256b5bfe29922c474bdd8aa0563913ea6c357ef02",
     "requirements": [
       {
         "id": "UPN-01",

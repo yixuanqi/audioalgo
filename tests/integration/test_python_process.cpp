@@ -36,6 +36,20 @@ class Node:
                 if mode=='wait':c.check_cancelled()
                 time.sleep(.005)
         if mode=='crash':__import__('os')._exit(73)
+        if mode=='errlog':print('round-error',flush=True);raise RuntimeError('round failure')
+        if mode=='successlog' and self.position==0:print('round-success',flush=True)
+        if mode.startswith('logbytes-') and self.position==0:
+            sys.stdout.buffer.write(b'x'*int(mode[9:]));sys.stdout.buffer.flush()
+        if mode.startswith('logboth-') and self.position==0:
+            count=int(mode[8:]);sys.stdout.buffer.write(b'x'*(count//2));sys.stdout.buffer.flush()
+            sys.stderr.buffer.write(b'y'*(count-count//2));sys.stderr.buffer.flush()
+        if mode=='logforever':
+            while True:sys.stdout.buffer.write(b'x'*4096);sys.stdout.buffer.flush()
+        if mode=='loggate':
+            sys.stdout.buffer.write(bytes([0xe4]));sys.stdout.buffer.flush()
+            sys.stdout.buffer.write(bytes([0xb8,0xad,0xe6,0x96,0x87]));sys.stdout.buffer.flush()
+            sys.stderr.buffer.write(b'stderr-without-newline');sys.stderr.buffer.flush()
+            while True:c.check_cancelled();time.sleep(.005)
         if mode=='flood':
             for i in range(256):print('o'*4096);print('e'*4096,file=sys.stderr)
         result=value.samples*self.gain
@@ -94,6 +108,84 @@ TEST_CASE("PY-08 C++ collector bounds actual pipe floods and recovers after cras
             else CHECK((error.code=="python_runner_exited" || error.code=="python_runner_disconnected"));
             CHECK(stats.exit_code!=259);
         }
+    }
+}
+
+TEST_CASE("PC-04.a supervised stdout stderr arrive before terminal and allow callback driven cancellation", "[PC-04.a][process]") {
+    using namespace audioalgo;
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) / "build/reports/loops/PC0402-live-log/artifacts" / juce::Uuid().toString().toStdString();
+    REQUIRE(std::filesystem::create_directories(root)); auto r = request(root); r.parameters = {{"mode", std::string("loggate")}};
+    r.execution_timeout = std::chrono::seconds(3); std::atomic<bool> cancel{false};
+    r.is_cancelled = [&] { return cancel.load(); };
+    std::string stdout_text, stderr_text; std::uint64_t last = 0; bool identities = true;
+    const auto worker = std::this_thread::get_id(); bool worker_thread = true;
+    r.on_log = [&](NodeLogEvent event) {
+        identities = identities && event.identity == r.identity && event.node_id == r.node_id && event.sequence > last;
+        worker_thread = worker_thread && std::this_thread::get_id() == worker; last = event.sequence;
+        if (event.source == "stdout") stdout_text += event.text; else if (event.source == "stderr") stderr_text += event.text;
+        if (stdout_text == "\xe4\xb8\xad\xe6\x96\x87" && stderr_text == "stderr-without-newline") cancel = true;
+    };
+    PythonTaskStatistics stats; const auto result = run_python_task(r, &stats);
+    REQUIRE(std::holds_alternative<Diagnostic>(result)); CHECK(std::get<Diagnostic>(result).code == "run_cancelled");
+    CHECK(cancel.load()); CHECK(identities); CHECK(worker_thread); CHECK(last >= 2);
+    CHECK(stats.stdout_bytes == 6); CHECK(stats.stderr_bytes == std::string("stderr-without-newline").size());
+    CHECK(stdout_text == "\xe4\xb8\xad\xe6\x96\x87"); CHECK(stderr_text == "stderr-without-newline");
+}
+
+TEST_CASE("PC-04.c twenty success error cancel rounds retain no live Python processes or handles", "[PC-04.c][process]") {
+    using namespace audioalgo;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0403-ui-bound/cycles"/juce::Uuid().toString().toStdString();
+    REQUIRE(std::filesystem::create_directories(root));auto r=request(root);r.parameters={{"mode",std::string("gain")}};
+    REQUIRE(std::holds_alternative<PythonTaskSuccess>(run_python_task(r)));
+#ifdef _WIN32
+    DWORD baseline=0;REQUIRE(GetProcessHandleCount(GetCurrentProcess(),&baseline));
+#endif
+    int completed=0;
+    for(int round=0;round<20;++round)for(const std::string mode:{"successlog","errlog","loggate"}) {
+        INFO(round);INFO(mode);std::atomic<bool> cancel{false};std::string stdout_text,stderr_text;
+        r.parameters={{"mode",mode}};r.execution_timeout=std::chrono::seconds(3);r.is_cancelled=[&]{return cancel.load();};
+        r.on_log=[&](NodeLogEvent e){if(e.source=="stdout")stdout_text+=e.text;else if(e.source=="stderr")stderr_text+=e.text;
+            if(mode=="loggate" && stdout_text=="\xe4\xb8\xad\xe6\x96\x87" && stderr_text=="stderr-without-newline")cancel=true;};
+        PythonTaskStatistics stats;const auto result=run_python_task(r,&stats);
+        if(mode=="successlog"){CHECK(std::holds_alternative<PythonTaskSuccess>(result));CHECK(stdout_text.find("round-success")!=std::string::npos);}
+        else {REQUIRE(std::holds_alternative<Diagnostic>(result));CHECK(std::get<Diagnostic>(result).code==(mode=="loggate"?"run_cancelled":"python_exception"));if(mode=="errlog")CHECK(stdout_text.find("round-error")!=std::string::npos);}
+        CHECK(stats.process_id!=0);CHECK(stats.exit_code!=259);
+#ifdef _WIN32
+        if(auto handle=OpenProcess(SYNCHRONIZE,FALSE,stats.process_id)){CHECK(WaitForSingleObject(handle,0)==WAIT_OBJECT_0);CloseHandle(handle);}
+        DWORD current=0;REQUIRE(GetProcessHandleCount(GetCurrentProcess(),&current));CHECK(current<=baseline);
+#endif
+        ++completed;
+    }
+    std::ofstream(root/"receipt.json")<<"{\"rounds\":20,\"tasks\":"<<completed<<",\"live_processes\":0}";
+}
+
+TEST_CASE("PC-04 supervised logs allow exact sixteen MiB reject one extra byte reclaim floods and preserve archives", "[PC-04][logs][process]") {
+    using namespace audioalgo;
+    constexpr std::uint64_t limit = 16 * 1024 * 1024;
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) / "build/reports/loops/PC0401-log-budget/artifacts" / juce::Uuid().toString().toStdString();
+    REQUIRE(std::filesystem::create_directories(root));
+    auto r = request(root);
+    for (const auto mode : {std::string("logbytes-") + std::to_string(limit), std::string("logbytes-") + std::to_string(limit + 1), std::string("logforever"), std::string("logboth-") + std::to_string(limit), std::string("logboth-") + std::to_string(limit + 1)}) {
+        INFO(mode); r.parameters = {{"mode", mode}}; r.execution_timeout = std::chrono::seconds(3);
+        PythonTaskStatistics stats; const auto started = std::chrono::steady_clock::now();
+        auto result = run_python_task(r, &stats);
+        const bool exact = mode == "logbytes-16777216" || mode == "logboth-16777216";
+        CHECK(std::holds_alternative<PythonTaskSuccess>(result) == exact);
+        CHECK(stats.log_limit_exceeded == !exact);
+        if (const auto* error = std::get_if<Diagnostic>(&result)) { INFO(error->message); CHECK(error->code == "log_limit"); }
+        CHECK(stats.stdout_bytes + stats.stderr_bytes >= limit); CHECK(stats.stdout_tail.size() <= 65536); CHECK(stats.stderr_tail.size() <= 65536);
+        CHECK(std::chrono::steady_clock::now() - started < std::chrono::seconds(5)); CHECK(stats.exit_code != 259);
+        CHECK_FALSE(stats.log_directory.empty());
+        if (!stats.log_directory.empty()) {
+            CHECK(std::filesystem::file_size(stats.log_directory / "stdout.log") + std::filesystem::file_size(stats.log_directory / "stderr.log") == limit);
+        }
+        if (exact) CHECK(stats.stdout_bytes + stats.stderr_bytes == limit);
+        std::ofstream(root / "receipt.jsonl", std::ios::app) << "{\"mode\":\"" << mode << "\",\"log_directory\":"
+            << juce::JSON::toString(juce::String(stats.log_directory.generic_string())).toStdString()
+            << ",\"stdout_bytes\":" << stats.stdout_bytes << ",\"stderr_bytes\":" << stats.stderr_bytes
+            << ",\"limit_exceeded\":" << (stats.log_limit_exceeded ? "true" : "false") << "}\n";
+        r.parameters = {{"mode", std::string("gain")}};
+        CHECK(std::holds_alternative<PythonTaskSuccess>(run_python_task(r)));
     }
 }
 
