@@ -1,4 +1,5 @@
 #include "audio_project/ProjectModel.h"
+#include <filesystem>
 
 #include <algorithm>
 #include <cmath>
@@ -33,9 +34,34 @@ bool parameter_matches(ParameterKind kind, const ParameterValue& value) {
 
 } // namespace
 
+std::vector<GraphDiagnostic> validate_managed_version_locks(const ProjectModel& project) {
+    std::vector<GraphDiagnostic> errors;
+    std::map<std::string, std::string> types, packages;
+    for (const auto& node : project.nodes) {
+        std::string key;
+        if (node.managed_version) {
+            const auto& v = *node.managed_version;
+            const auto invalid = [&] { errors.push_back({"managed_version_invalid", "Invalid exact package version lock", node.id, {}}); };
+            if (project.schema_version != 2 || v.package_id.empty() || v.wrapper_version.empty() || v.content_sha256.size() != 64 ||
+                !std::all_of(v.content_sha256.begin(), v.content_sha256.end(), [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); })) invalid();
+            const auto path = std::filesystem::u8path(v.package_path);
+            if (path.empty() || path.is_absolute() || path.has_root_path() || path.lexically_normal() != path ||
+                std::any_of(path.begin(), path.end(), [](const auto& p) { return p == ".."; })) invalid();
+            key = v.package_id + ":" + v.content_sha256;
+            const auto [entry, inserted] = packages.emplace(v.package_id, v.content_sha256);
+            if (!inserted && entry->second != v.content_sha256)
+                errors.push_back({"managed_version_conflict", "One project cannot bind two versions of the same package", node.id, {}});
+        }
+        const auto [entry, inserted] = types.emplace(node.type_id, key);
+        if (!inserted && entry->second != key)
+            errors.push_back({"managed_version_conflict", "One project cannot bind two versions of the same logical type", node.id, {}});
+    }
+    return errors;
+}
+
 static std::vector<GraphDiagnostic> validate_project_impl(const ProjectModel& project, const NodeCatalog& registry,
                                                           bool require_complete_inputs) {
-    std::vector<GraphDiagnostic> diagnostics;
+    std::vector<GraphDiagnostic> diagnostics = validate_managed_version_locks(project);
     std::map<std::string, const NodeInstance*, std::less<>> nodes;
     std::map<std::string, const NodeDescriptor*, std::less<>> descriptors;
 
@@ -54,6 +80,15 @@ static std::vector<GraphDiagnostic> validate_project_impl(const ProjectModel& pr
             continue;
         }
         descriptors.emplace(node.id, descriptor);
+        if (node.managed_version) {
+            const auto& v = *node.managed_version;
+            if (!descriptor->plugin_origin || descriptor->plugin_origin->plugin_id != v.package_id ||
+                descriptor->plugin_origin->managed_content_sha256 != v.content_sha256 ||
+                descriptor->plugin_origin->managed_wrapper_version != v.wrapper_version)
+                diagnostics.push_back({"managed_version_unavailable", "The exact managed package version has not been resolved", node.id, {}});
+        } else if (descriptor->plugin_origin && !descriptor->plugin_origin->managed_content_sha256.empty()) {
+            diagnostics.push_back({"managed_version_required", "A managed node requires an exact project version lock", node.id, {}});
+        }
 
         for (const auto& parameter : node.opaque_parameters)
             diagnostics.push_back({"parameter_value_unsupported",

@@ -110,8 +110,8 @@ ProjectLoadOutcome load_project_file(const std::filesystem::path& path) {
     if (!schema.isInt() && !schema.isInt64())
         return bad_project("schema_version must be an integer");
     project.schema_version = static_cast<std::uint32_t>(static_cast<int>(schema));
-    if (project.schema_version != 1)
-        return Diagnostic{"project_schema_unsupported", "Only project schema version 1 is supported"};
+    if (project.schema_version != 1 && project.schema_version != 2)
+        return Diagnostic{"project_schema_unsupported", "Supported project schema version 1 or 2 is required"};
     if (!get_string(*root, "project_id", project.project_id) || !get_string(*root, "name", project.name))
         return bad_project("project_id and name must be strings");
     project.revision = static_cast<std::uint64_t>(static_cast<juce::int64>(root->getProperty("revision")));
@@ -138,6 +138,23 @@ ProjectLoadOutcome load_project_file(const std::filesystem::path& path) {
             return bad_project("Each node requires string id and type_id fields");
         node.x = static_cast<double>(object->getProperty("x"));
         node.y = static_cast<double>(object->getProperty("y"));
+        if (object->hasProperty("managed_version")) {
+            if (project.schema_version != 2) return bad_project("managed_version requires project schema 2");
+            const auto* lock = object->getProperty("managed_version").getDynamicObject();
+            NodeInstance::ManagedVersion version;
+            if (!lock || !get_string(*lock, "package_id", version.package_id) ||
+                !get_string(*lock, "content_sha256", version.content_sha256) ||
+                !get_string(*lock, "package_path", version.package_path) ||
+                !get_string(*lock, "wrapper_version", version.wrapper_version)) return bad_project("Invalid managed_version fields");
+            if (version.package_id.empty() || version.wrapper_version.empty() || version.content_sha256.size() != 64 ||
+                !std::all_of(version.content_sha256.begin(), version.content_sha256.end(), [](char c) { return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'); }))
+                return bad_project("Invalid managed version identity/hash");
+            const auto relative = std::filesystem::u8path(version.package_path);
+            if (relative.empty() || relative.is_absolute() || relative.has_root_path() || relative.lexically_normal() != relative ||
+                std::any_of(relative.begin(), relative.end(), [](const auto& part) { return part == ".."; })) return bad_project("Managed package path must be confined and relative");
+            retain_unknown_properties(*lock, {"package_id", "content_sha256", "package_path", "wrapper_version"}, version.serialized_extensions);
+            node.managed_version = std::move(version);
+        }
         const auto parameters_var = object->getProperty("parameters");
         const auto* parameters = parameters_var.getDynamicObject();
         if (parameters == nullptr)
@@ -153,7 +170,7 @@ ProjectLoadOutcome load_project_file(const std::filesystem::path& path) {
                 node.parameters.emplace(name, std::move(value));
             }
         }
-        retain_unknown_properties(*object, {"id", "type_id", "x", "y", "parameters"},
+        retain_unknown_properties(*object, {"id", "type_id", "x", "y", "parameters", "managed_version"},
                                   node.serialized_extensions);
         project.nodes.push_back(std::move(node));
     }
@@ -176,10 +193,21 @@ ProjectLoadOutcome load_project_file(const std::filesystem::path& path) {
                                   connection.serialized_extensions);
         project.connections.push_back(std::move(connection));
     }
+    if (const auto errors = validate_managed_version_locks(project); !errors.empty())
+        return Diagnostic{errors.front().code, errors.front().message, errors.front().node_id, {}};
     return project;
 }
 
 ProjectSaveOutcome save_project_file(const std::filesystem::path& path, const ProjectModel& project) {
+    return save_project_file(path, project, {});
+}
+
+ProjectSaveOutcome save_project_file(const std::filesystem::path& path, const ProjectModel& project,
+                                     const ProjectSaveOptions& options) {
+    if (project.schema_version != 1 && project.schema_version != 2)
+        return Diagnostic{"project_schema_unsupported", "Supported project schema version 1 or 2 is required"};
+    if (const auto errors = validate_managed_version_locks(project); !errors.empty())
+        return Diagnostic{errors.front().code, errors.front().message, errors.front().node_id, {}};
     juce::DynamicObject::Ptr root = new juce::DynamicObject();
     root->setProperty("schema_version", static_cast<int>(project.schema_version));
     root->setProperty("project_id", juce::String::fromUTF8(project.project_id.c_str()));
@@ -197,6 +225,18 @@ ProjectSaveOutcome save_project_file(const std::filesystem::path& path, const Pr
         object->setProperty("type_id", juce::String::fromUTF8(node.type_id.c_str()));
         object->setProperty("x", node.x);
         object->setProperty("y", node.y);
+        if (node.managed_version) {
+            if (project.schema_version != 2) return bad_project("managed_version requires project schema 2");
+            juce::DynamicObject::Ptr lock = new juce::DynamicObject;
+            const auto& version = *node.managed_version;
+            lock->setProperty("package_id", juce::String::fromUTF8(version.package_id.c_str()));
+            lock->setProperty("content_sha256", juce::String::fromUTF8(version.content_sha256.c_str()));
+            lock->setProperty("package_path", juce::String::fromUTF8(version.package_path.c_str()));
+            lock->setProperty("wrapper_version", juce::String::fromUTF8(version.wrapper_version.c_str()));
+            std::string invalid;
+            if (!append_opaque_properties(*lock, version.serialized_extensions, invalid)) return bad_project("Invalid managed version extension " + invalid);
+            object->setProperty("managed_version", juce::var(lock.get()));
+        }
         juce::DynamicObject::Ptr parameters = new juce::DynamicObject();
         for (const auto& [key, value] : node.parameters)
             parameters->setProperty(juce::Identifier(juce::String::fromUTF8(key.c_str())), parameter_to_var(value));
@@ -233,6 +273,55 @@ ProjectSaveOutcome save_project_file(const std::filesystem::path& path, const Pr
     const auto file = to_juce_file(path);
     if (!file.getParentDirectory().isDirectory())
         return Diagnostic{"project_directory_missing", "Project directory does not exist"};
+    if (project.schema_version == 2) {
+        const auto allow = [&](ProjectSavePhase phase) { return !options.allow || options.allow(phase); };
+        const bool existed = file.exists();
+        juce::MemoryBlock original;
+        if (existed) {
+            if (!file.loadFileAsData(original)) return Diagnostic{"project_save_failed", "Could not read original project before migration"};
+            const auto previous = juce::JSON::parse(juce::String::createStringFromData(original.getData(), static_cast<int>(original.getSize())));
+            if (!previous.isObject() || (!previous["schema_version"].isInt() && !previous["schema_version"].isInt64()))
+                return Diagnostic{"project_migration_source_invalid", "Existing project format cannot be identified; save to a new file"};
+            const auto previous_schema = static_cast<int>(previous["schema_version"]);
+            if (previous_schema != 1 && previous_schema != 2)
+                return Diagnostic{"project_schema_unsupported", "Existing project schema cannot be overwritten by this host"};
+            if (previous_schema == 1) {
+                if (!allow(ProjectSavePhase::backup)) return Diagnostic{"project_backup_failed", "Migration backup was rejected"};
+                auto backup_path = path; backup_path += ".schema-1.bak";
+                const auto backup = to_juce_file(backup_path);
+                if (!backup.exists()) {
+                    const auto io_path = [](const std::filesystem::path& p) -> std::filesystem::path {
+#ifdef _WIN32
+                        auto s = std::filesystem::absolute(p).lexically_normal().wstring();
+                        if (s.rfind(L"\\\\?\\", 0) != 0) s = s.rfind(L"\\\\", 0) == 0 ? L"\\\\?\\UNC\\" + s.substr(2) : L"\\\\?\\" + s;
+                        return s;
+#else
+                        return p;
+#endif
+                    };
+                    std::error_code error;
+                    if (!std::filesystem::copy_file(io_path(path), io_path(backup_path), std::filesystem::copy_options::none, error))
+                        return Diagnostic{"project_backup_failed", "Could not create exclusive migration backup: " + error.message()};
+                }
+                juce::MemoryBlock copied;
+                if (!backup.existsAsFile() || !backup.loadFileAsData(copied) || copied != original)
+                    return Diagnostic{"project_backup_failed", "Existing migration backup differs from original bytes; it was preserved"};
+            }
+        }
+        juce::TemporaryFile staged(file);
+        if (!allow(ProjectSavePhase::write) || !staged.getFile().replaceWithData(utf8.getAddress(), static_cast<std::size_t>(utf8.sizeInBytes() - 1)))
+            return Diagnostic{"project_save_failed", "Could not write migration candidate"};
+        if (!allow(ProjectSavePhase::verify)) return Diagnostic{"project_save_failed", "Migration candidate verification was rejected"};
+        const auto staged_name = staged.getFile().getFullPathName().toUTF8();
+        const auto verified = load_project_file(std::filesystem::u8path(staged_name.getAddress()));
+        if (!std::holds_alternative<ProjectModel>(verified)) return Diagnostic{"project_save_failed", "Migration candidate did not validate"};
+        juce::MemoryBlock current;
+        if ((existed && (!file.loadFileAsData(current) || current != original)) || (!existed && file.exists()))
+            return Diagnostic{"project_save_conflict", "Project changed while preparing the format migration"};
+        if (!allow(ProjectSavePhase::replace) || !staged.overwriteTargetFileWithTemporary())
+            return Diagnostic{"project_save_failed", "Could not atomically replace migrated project"};
+        return std::monostate{};
+    }
     if (!file.replaceWithData(utf8.getAddress(), static_cast<std::size_t>(utf8.sizeInBytes() - 1)))
         return Diagnostic{"project_save_failed", "Could not atomically save project JSON"};
     return std::monostate{};

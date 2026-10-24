@@ -17,6 +17,11 @@ struct OpaqueJsonField {
 };
 
 struct NodeInstance {
+    struct ManagedVersion {
+        std::string package_id, content_sha256, package_path, wrapper_version;
+        std::vector<OpaqueJsonField> serialized_extensions;
+        bool operator==(const ManagedVersion&) const = default;
+    };
     std::string id;
     std::string type_id;
     NodeParameters parameters;
@@ -24,6 +29,7 @@ struct NodeInstance {
     double y = 0.0;
     std::vector<OpaqueJsonField> opaque_parameters;
     std::vector<OpaqueJsonField> serialized_extensions;
+    std::optional<ManagedVersion> managed_version;
 };
 
 struct Connection {
@@ -54,6 +60,9 @@ struct GraphDiagnostic {
     std::string node_id;
     std::string port_id;
 };
+
+// Missing packages can be inspected/saved without silently changing their locks.
+[[nodiscard]] std::vector<GraphDiagnostic> validate_managed_version_locks(const ProjectModel& project);
 
 [[nodiscard]] std::vector<GraphDiagnostic> validate_project(const ProjectModel& project, const NodeCatalog& registry);
 [[nodiscard]] std::vector<GraphDiagnostic> validate_project_structure(const ProjectModel& project,
