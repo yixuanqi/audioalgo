@@ -10,17 +10,21 @@ template<typename ComponentType>
 class EditorRunQueue final {
 public:
     using Completion=typename EditorRunJob<ComponentType>::Completion;
-    struct Request {RunRequest run;RunIdentity identity;};
+    using LogCompletion=typename EditorRunJob<ComponentType>::LogCompletion;
+    struct Request {RunRequest run;RunIdentity identity;std::shared_ptr<const NodeRegistry> nodes;};
     using Mailbox=LatestRequestMailbox<Request>;
     EditorRunQueue(EditorWorkerPool& pool,std::weak_ptr<ComponentDispatchState<ComponentType>> target,
                    std::shared_ptr<const NodeRegistry> nodes,std::shared_ptr<const ProjectResourceService> resources,
-                   Completion completion)
-        :pool_(pool),state_(std::make_shared<State>(std::move(target),std::move(nodes),std::move(resources),std::move(completion))){}
+                   Completion completion,LogCompletion logs={})
+        :pool_(pool),state_(std::make_shared<State>(std::move(target),std::move(nodes),std::move(resources),std::move(completion),std::move(logs))){}
     ~EditorRunQueue(){close();}
     EditorRunQueue(const EditorRunQueue&)=delete;
     EditorRunQueue& operator=(const EditorRunQueue&)=delete;
     [[nodiscard]] bool submit(RunRequest request,RunIdentity identity) {
-        const auto submission=state_->mailbox.submit({std::move(request),std::move(identity)});
+        // Capture on the submitting message thread. Workers never read a map
+        // being replaced by a catalog refresh, including requests still pending.
+        auto snapshot = std::make_shared<const NodeRegistry>(*state_->nodes);
+        const auto submission=state_->mailbox.submit({std::move(request),std::move(identity),std::move(snapshot)});
         if(!submission.accepted)return false;
         if(!submission.start_worker)return true;
         auto* job=new DrainJob(state_,submission.ticket);
@@ -33,13 +37,14 @@ public:
 private:
     struct State {
         State(std::weak_ptr<ComponentDispatchState<ComponentType>> t,std::shared_ptr<const NodeRegistry> n,
-              std::shared_ptr<const ProjectResourceService> r,Completion c)
-            :target(std::move(t)),nodes(std::move(n)),resources(std::move(r)),completion(std::move(c)){}
+              std::shared_ptr<const ProjectResourceService> r,Completion c,LogCompletion l)
+            :target(std::move(t)),nodes(std::move(n)),resources(std::move(r)),completion(std::move(c)),logs(std::move(l)){}
         Mailbox mailbox;
         std::weak_ptr<ComponentDispatchState<ComponentType>> target;
         std::shared_ptr<const NodeRegistry> nodes;
         std::shared_ptr<const ProjectResourceService> resources;
         Completion completion;
+        LogCompletion logs;
     };
     class DrainJob final:public juce::ThreadPoolJob {
     public:
@@ -58,8 +63,8 @@ private:
                 try {
                     // Reuse the actual worker's service, waveform and identity delivery
                     // path. The inner job is synchronous inside this pool worker.
-                    EditorRunJob<ComponentType> one(state_->target,state_->nodes,std::move(request.run),
-                        request.identity,state_->resources,state_->completion);
+                    EditorRunJob<ComponentType> one(state_->target,request.nodes,std::move(request.run),
+                        request.identity,state_->resources,state_->completion,state_->logs);
                     one.runJob();
                 } catch(const std::exception& error) {
                     const auto posted=dispatch_to_live_component(state_->target,

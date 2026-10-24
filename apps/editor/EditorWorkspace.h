@@ -21,6 +21,7 @@
 #include "audio_io/WavFile.h"
 #include "audio_project/ProjectFileIO.h"
 #include "audio_project/ProjectModel.h"
+#include "audio_node_authoring/ProjectCatalog.h"
 #include "audio_run_service/RunService.h"
 #include "audio_editor_application/EditorController.h"
 #include "audio_editor_application/EditorProjectDocuments.h"
@@ -39,6 +40,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -46,17 +48,27 @@
 #include "EditorUiSupport.h"
 #include "EditorGraphCanvas.h"
 #include "EditorNodeLibrary.h"
+#include "NodeUpgradePanel.h"
+#include "NodeAuthoringPanel.h"
 #include "EditorWaveformView.h"
 #include "EditorRunStatusPanel.h"
+#include "EditorRunLogPanel.h"
 namespace audioalgo::editor {
 class EditorComponent final : public juce::Component, public juce::DragAndDropContainer {
 public:
     EditorComponent(std::shared_ptr<audioalgo::NodeRegistry> descriptors,
                     std::shared_ptr<const audioalgo::ProjectDocumentService> document_service,
                     std::shared_ptr<const audioalgo::ProjectResourceService> project_resources,
-                    std::shared_ptr<audioalgo::AudioPreviewService> preview_service)
+                    std::shared_ptr<audioalgo::AudioPreviewService> preview_service,
+                    std::shared_ptr<const authoring::DraftStorage> drafts = {}, bool load_demo = true,
+                    std::shared_ptr<const authoring::AuthoringChecks> checks = {},
+                    std::function<bool()> allow_catalog_prepare = {}, bool user_draft_files = false,
+                    std::function<void(bool, const std::filesystem::path&, DraftFileActions::Completion)> draft_picker = {},
+                    std::function<authoring::SaveResult(bool, const std::filesystem::path&)> location_persistence = {},
+                    std::function<authoring::SaveResult(const std::filesystem::path&)> library_location_persistence = {})
         : document_service_(std::move(document_service)), project_resources_(std::move(project_resources)),
-          preview_service_(std::move(preview_service)), descriptors_owner_(std::move(descriptors)), controller_(descriptors_), project_(controller_.project()),
+          preview_service_(std::move(preview_service)), descriptors_owner_(std::move(descriptors)),
+          available_catalog_(std::make_shared<const NodeRegistry>(descriptors_)), controller_(descriptors_), project_(controller_.project()),
           canvas_(project_, descriptors_, selection_, controller_,
                   [this](std::string id) { inspector_.show_node(id); },
                   [this] { mark_changed(); },
@@ -74,7 +86,11 @@ public:
                       return button->gesture_project_epoch();
                   }),
           inspector_(controller_, selection_, [this] { mark_changed(); }),
-          library_(descriptors_, [this](std::string id) { add_library_node(id); }, [this] { return project_epoch_; }) {
+          library_(descriptors_, [this](std::string id) { add_library_node(id); }, [this] { return project_epoch_; },
+                   [this] { new_custom_node(); }, [this] { open_custom_draft(); }, [this] { preview_node_upgrade(); }, [this] { recover_custom_draft(); }),
+          drafts_(drafts ? std::move(drafts) : std::make_shared<authoring::FileDraftStorage>(
+              path_from_juce_file(juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+                  .getChildFile("AudioAlgo").getChildFile("authoring").getChildFile("drafts")))), checks_(std::move(checks)), allow_catalog_prepare_(std::move(allow_catalog_prepare)), user_draft_files_(user_draft_files), draft_picker_(std::move(draft_picker)), location_persistence_(std::move(location_persistence)), library_location_persistence_(std::move(library_location_persistence)) {
         completion_dispatch_state_ = std::make_shared<
             audioalgo::editor::ComponentDispatchState<EditorComponent>>(*this);
         inspector_.set_descriptor_registry(descriptors_);
@@ -87,6 +103,11 @@ public:
         addAndMakeVisible(canvas_);
         addAndMakeVisible(inspector_);
         addAndMakeVisible(waveform_);
+        addChildComponent(run_logs_); addAndMakeVisible(waveform_tab_); addAndMakeVisible(logs_tab_);
+        waveform_tab_.setComponentID("project.waveform"); logs_tab_.setComponentID("project.logs");
+        style_button(waveform_tab_); style_button(logs_tab_);
+        waveform_tab_.onClick = [this] { waveform_.setVisible(true); run_logs_.setVisible(false); };
+        logs_tab_.onClick = [this] { waveform_.setVisible(false); run_logs_.setVisible(true); };
         addAndMakeVisible(status_);
         addAndMakeVisible(library_);
 
@@ -98,11 +119,14 @@ public:
         style_button(play_button_, amber);
         style_button(delete_button_, danger);
         new_button_.onClick = [this] { new_project(); };
+        new_button_.setComponentID("project.new");
         open_button_.onClick = [this] { open_project(); };
         save_button_.onClick = [this] { save_project(); };
         undo_button_.onClick = [this] { undo_topology(); };
         redo_button_.onClick = [this] { redo_topology(); };
         run_button_.onClick = [this] { run_project(); };
+        run_button_.setComponentID("project.run"); save_button_.setComponentID("project.save");
+        canvas_.setComponentID("project.canvas"); status_.setComponentID("project.status");
         play_button_.onClick = [this] { toggle_playback(); };
         delete_button_.onClick = [this] { canvas_.delete_selected(); };
 
@@ -110,7 +134,7 @@ public:
         initial_project.project_id = new_id();
         initial_project.name = "Untitled Audio Graph";
         controller_.adopt_project(std::move(initial_project));
-        load_staged_demo();
+        if (load_demo) load_staged_demo();
         setSize(audioalgo::editor::default_editor_window_size.width,
                 audioalgo::editor::default_editor_window_size.height);
         update_history_controls();
@@ -129,13 +153,26 @@ public:
         const auto expected_session = controller_.session_identity();
         const auto expected_document_generation = controller_.document_generation();
         const auto service = document_service_;
-        submit_work<audioalgo::ProjectDocumentLoadOutcome>(
-            [service, path] { return service->load(path); },
+        const auto checks = checks_;
+        const auto base = available_catalog_;
+        struct OpenResult { ProjectDocumentLoadOutcome document; authoring::CatalogResolution resolution; };
+        submit_work<OpenResult>(
+            [service, path, checks, base] {
+                OpenResult result{service->load(path), {base, {}}};
+                if (const auto* project = std::get_if<ProjectModel>(&result.document)) {
+                    const auto selections = authoring::managed_selections(*project);
+                    if (checks) result.resolution = checks->resolve_catalog(base, selections, path.parent_path());
+                    else for (const auto& selection : selections)
+                        result.resolution.diagnostics.push_back({"managed_version_unavailable", "No exact package resolver is configured", selection.node_id});
+                }
+                return result;
+            },
             [path, expected_session, expected_document_generation]
-            (EditorComponent& target, audioalgo::ProjectDocumentLoadOutcome outcome) {
+            (EditorComponent& target, OpenResult outcome) {
+                auto catalog = std::make_unique<NodeRegistry>(*outcome.resolution.catalog);
                 const auto opened = audioalgo::EditorProjectDocuments::complete_open(
-                    target.controller_, std::move(outcome), expected_session, expected_document_generation,
-                    [&target] { target.advance_project_epoch(); });
+                    target.controller_, std::move(outcome.document), expected_session, expected_document_generation,
+                    [&target, &catalog] { target.advance_project_epoch(); target.descriptors_.swap(*catalog); });
                 if (const auto* error = std::get_if<audioalgo::Diagnostic>(&opened)) {
                     if (error->code != "project_session_stale")
                         target.set_status(utf8_string(error->code) + ": " + utf8_string(error->message), true);
@@ -143,11 +180,19 @@ public:
                 }
                 target.update_history_controls();
                 target.project_path_ = path;
+                if (!outcome.resolution.diagnostics.empty()) {
+                    const auto& error = outcome.resolution.diagnostics.front();
+                    target.set_status(utf8_string(error.code) + ": " + utf8_string(error.message), true);
+                    return;
+                }
                 target.set_status("Opened " + utf8_string(path_to_utf8(path.filename())), false);
             });
     }
 
     ~EditorComponent() override {
+        // The panel may release a prepared catalog through its host callback.
+        // Do so while all host members are still alive.
+        authoring_panel_.reset();
         file_chooser_completion_.close();
         completion_dispatch_state_->invalidate();
         if (!shutdown_started_) {
@@ -162,6 +207,12 @@ public:
     void begin_shutdown(std::function<void()> on_drained) {
         if (shutdown_started_)
             return;
+
+        if (authoring_panel_) {
+            after_draft_close_ = std::move(on_drained);
+            authoring_panel_->request_close([this] { after_draft_close_ = {}; });
+            return;
+        }
 
         shutdown_started_ = true;
         if (run_queue_) run_queue_->close();
@@ -212,8 +263,16 @@ public:
         set_bounds(canvas_, layout.canvas);
         set_bounds(inspector_, layout.inspector);
         set_bounds(waveform_, layout.waveform);
+        auto results = waveform_.getBounds();
+        waveform_tab_.setBounds(results.removeFromTop(26).withWidth(90));
+        logs_tab_.setBounds(waveform_tab_.getRight() + 4, waveform_tab_.getY(), 100, 26);
+        waveform_.setBounds(results); run_logs_.setBounds(results);
         set_bounds(status_, layout.status);
+        if (authoring_panel_) authoring_panel_->setBounds(getLocalBounds().reduced(18));
+        if (upgrade_panel_) upgrade_panel_->setBounds(getLocalBounds().reduced(36));
     }
+
+    const audioalgo::editor::EditorController& controller() const { return controller_; }
 
     bool keyPressed(const juce::KeyPress& key) override {
         switch (audioalgo::editor::editor_shortcut_action(key)) {
@@ -250,8 +309,227 @@ public:
             });
         juce::ignoreUnused(completion_applied);
     }
+    void run_log_received(NodeLogEvent event) {
+        const auto applied = apply_if_current_run(run_reception_, event.identity, project_.project_id, project_epoch_, project_.revision, [&] {
+            run_logs_.append(event); waveform_.setVisible(false); run_logs_.setVisible(true);
+        });
+        juce::ignoreUnused(applied);
+    }
 
 private:
+    void preview_node_upgrade() {
+        if (authoring_panel_) { authoring_panel_->toFront(true); return; }
+        std::string package_id;
+        for (const auto& node : project_.nodes) if (node.managed_version) {
+            const auto* latest = available_catalog_->find(node.type_id);
+            if (latest && latest->plugin_origin && latest->plugin_origin->plugin_id == node.managed_version->package_id &&
+                latest->plugin_origin->managed_content_sha256 != node.managed_version->content_sha256) {
+                package_id = node.managed_version->package_id; break;
+            }
+        }
+        if (package_id.empty()) { set_status("Project nodes already use the available versions.", false); return; }
+        const auto family = [&package_id](const NodeDescriptor& descriptor) {
+            return descriptor.plugin_origin && !descriptor.plugin_origin->managed_content_sha256.empty() && descriptor.plugin_origin->plugin_id == package_id;
+        };
+        auto candidate = std::make_shared<NodeRegistry>(descriptors_.subset([&](const NodeDescriptor& descriptor) { return !family(descriptor); }));
+        if (!candidate->merge_disjoint(available_catalog_->subset(family))) { set_status("Upgrade type conflict; project preserved.", true); return; }
+        const auto preview = controller_.preview_managed_upgrade(*candidate, package_id);
+        upgrade_panel_ = std::make_unique<NodeUpgradePanel>(preview, [this, preview, candidate] {
+            const auto result = controller_.commit_managed_upgrade(preview, *candidate);
+            if (result.status == ProjectEditStatus::applied) {
+                cancel_catalog_resolution();
+                descriptors_.swap(*candidate);
+                inspector_.show_node(canvas_.selected_node_id());
+                mark_changed();
+                set_status("Package instances upgraded. Previous results are out of date.", false);
+            } else if (!result.diagnostics.empty()) {
+                const auto& error = result.diagnostics.front(); set_status(utf8_string(error.code) + ": " + utf8_string(error.message), true);
+            }
+            upgrade_panel_.reset();
+        }, [this] { upgrade_panel_.reset(); });
+        addAndMakeVisible(*upgrade_panel_); upgrade_panel_->toFront(true); resized();
+    }
+    void choose_draft_file(bool save, const std::filesystem::path& initial, DraftFileActions::Completion completion) {
+        if (draft_picker_) { draft_picker_(save, initial, std::move(completion)); return; }
+        const auto location = initial.empty() ? juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("Custom node.aadraft") : to_juce_file(initial);
+        launch_file_chooser(save ? "Save custom node draft" : "Open custom node draft", location, "*.aadraft",
+            (save ? juce::FileBrowserComponent::saveMode : juce::FileBrowserComponent::openMode) | juce::FileBrowserComponent::canSelectFiles,
+            [save, completion = std::move(completion)](const std::filesystem::path& path) {
+                auto selected = path;
+                if (save && !selected.empty() && selected.extension().empty()) selected += ".aadraft";
+                completion(std::move(selected));
+            }, true);
+    }
+    void show_draft(authoring::Draft draft, bool saved, DraftFileActions files = {}) {
+        if (user_draft_files_) {
+            files.choose_save = [this](const std::filesystem::path& initial, DraftFileActions::Completion completion) { choose_draft_file(true, initial, std::move(completion)); };
+            files.confirm_overwrite = [this](const std::filesystem::path& path, std::function<void(bool)> done) {
+                juce::AlertWindow::showOkCancelBox(juce::MessageBoxIconType::WarningIcon, "Replace draft file?", "Replace the existing draft at:\n" + utf8_string(path_to_utf8(path)) + "\nExternal changes after this confirmation will still be rejected.", "Replace", "Cancel", this,
+                    juce::ModalCallbackFunction::create([done = std::move(done)](int result) { done(result == 1); }));
+            };
+            files.choose_directory = [this](bool recovery, DraftFileActions::Completion completion) {
+                const auto current = recovery ? drafts_->directory() : checks_ ? checks_->work_directory() : std::filesystem::path{};
+                launch_file_chooser(recovery ? "Choose recovery folder" : "Choose check / build work folder", current.empty() ? juce::File::getSpecialLocation(juce::File::userDocumentsDirectory) : to_juce_file(current), {},
+                    juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories, std::move(completion), true);
+            };
+            files.persist_directory = location_persistence_;
+            files.directory_override = [](bool recovery) { return juce::SystemStats::getEnvironmentVariable(recovery ? "AUDIOALGO_AUTHORING_RECOVERY_ROOT" : "AUDIOALGO_AUTHORING_WORK_ROOT", {}).toStdString(); };
+            files.locations_changed = [this](auto checks, auto storage) { checks_ = std::move(checks); drafts_ = std::move(storage); };
+            files.choose_library_directory = [this](DraftFileActions::Completion completion) {
+                launch_file_chooser("Copy node library to an empty folder (next startup)", juce::File::getSpecialLocation(juce::File::userDocumentsDirectory), {},
+                    juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories, std::move(completion), true);
+            };
+            files.persist_library_directory = library_location_persistence_;
+            files.library_change_allowed = [this] { return !library_restart_pending_ && worker_pool_.get_num_jobs() == 0; };
+            files.allow_apply = [this] { return !library_restart_pending_; };
+            files.library_change_queued = [this] { library_restart_pending_ = true; };
+            if (library_restart_pending_) files.initial_location_message += (files.initial_location_message.empty() ? "" : " | ") + std::string("Library change queued; save and restart before applying new versions");
+        }
+        authoring_panel_ = std::make_unique<NodeAuthoringPanel>(std::move(draft), saved, drafts_, [this] {
+            auto after_close = std::move(after_draft_close_);
+            authoring_panel_.reset();
+            if (after_close) begin_shutdown(std::move(after_close));
+        }, checks_, [this] { return available_catalog_; },
+        [this](authoring::AppliedPackage applied) {
+            cancel_catalog_resolution();
+            available_catalog_ = std::move(applied.catalog);
+            const auto selections = authoring::managed_selections(project_);
+            const bool resolve_current = !selections.empty() && selections != prepared_project_locks_;
+            if (selections.empty()) descriptors_.swap(*prepared_default_catalog_);
+            else if (!resolve_current) descriptors_.swap(*prepared_catalog_);
+            library_.publish_refresh(std::move(*prepared_library_));
+            prepared_library_.reset(); prepared_catalog_.reset(); prepared_default_catalog_.reset();
+            prepared_project_locks_.clear();
+            canvas_.cancel_library_drag();
+            ++catalog_generation_;
+            set_status("Custom node available in node library", false);
+            if (resolve_current) refresh_project_catalog();
+        }, [this](const authoring::AppliedPackage& applied) -> std::optional<authoring::SourceDiagnostic> {
+            if (allow_catalog_prepare_ && !allow_catalog_prepare_())
+                return authoring::SourceDiagnostic{"authoring_catalog_refresh_failed", "Node library preparation failed"};
+            auto catalog = std::make_unique<NodeRegistry>(*applied.catalog);
+            std::set<std::string> locked_packages;
+            for (const auto& node : project_.nodes)
+                if (node.managed_version) locked_packages.insert(node.managed_version->package_id);
+            const auto locked = [&locked_packages](const NodeDescriptor& descriptor) {
+                return descriptor.plugin_origin && !descriptor.plugin_origin->managed_content_sha256.empty() &&
+                    locked_packages.contains(descriptor.plugin_origin->plugin_id);
+            };
+            *catalog = catalog->subset([&locked](const NodeDescriptor& descriptor) { return !locked(descriptor); });
+            if (!catalog->merge_disjoint(descriptors_.subset(locked)))
+                return authoring::SourceDiagnostic{"managed_version_conflict", "Project package types conflict with the available catalog"};
+            auto library = library_.prepare_refresh(*applied.catalog);
+            auto defaults = std::make_unique<NodeRegistry>(*applied.catalog);
+            auto selections = authoring::managed_selections(project_);
+            prepared_catalog_ = std::move(catalog); prepared_library_ = std::move(library);
+            prepared_default_catalog_ = std::move(defaults); prepared_project_locks_ = std::move(selections);
+            return {};
+        }, [this] {
+            prepared_library_.reset(); prepared_catalog_.reset(); prepared_default_catalog_.reset();
+            prepared_project_locks_.clear();
+        }, std::move(files));
+        addAndMakeVisible(*authoring_panel_); authoring_panel_->toFront(true); resized();
+    }
+    void refresh_project_catalog() {
+        if (!checks_) return;
+        const auto request = ++catalog_resolution_generation_;
+        catalog_resolution_pending_ = true;
+        run_button_.setEnabled(false);
+        const auto expected_session = controller_.session_identity();
+        const auto expected_generation = controller_.document_generation();
+        const auto expected_catalog = catalog_generation_;
+        submit_work<authoring::CatalogResolution>(
+            [service = checks_, base = available_catalog_, selections = authoring::managed_selections(project_), directory = project_path_.parent_path()] {
+                return service->resolve_catalog(base, selections, directory);
+            }, [request, expected_session, expected_generation, expected_catalog](EditorComponent& target, authoring::CatalogResolution result) {
+                if (request != target.catalog_resolution_generation_) return;
+                if (target.catalog_generation_ != expected_catalog || target.controller_.session_identity() != expected_session || target.controller_.document_generation() != expected_generation) {
+                    target.refresh_project_catalog();
+                    return;
+                }
+                auto catalog = *result.catalog;
+                target.descriptors_.swap(catalog);
+                target.cancel_catalog_resolution();
+                target.inspector_.show_node(target.canvas_.selected_node_id());
+                target.canvas_.repaint();
+                if (!result.diagnostics.empty()) {
+                    const auto& error = result.diagnostics.front();
+                    target.set_status(utf8_string(error.code) + ": " + utf8_string(error.message), true);
+                }
+            });
+    }
+    void cancel_catalog_resolution() {
+        ++catalog_resolution_generation_;
+        catalog_resolution_pending_ = false;
+        run_button_.setEnabled(true);
+    }
+    void new_custom_node() {
+        if (authoring_panel_) { authoring_panel_->toFront(true); return; }
+        auto draft = authoring::python_draft(new_id());
+        auto definition = juce::JSON::parse(utf8_string(draft.declaration));
+        definition.getDynamicObject()->setProperty("type_id", "user.custom." + utf8_string(draft.id));
+        draft.declaration = juce::JSON::toString(definition, false).toStdString();
+        show_draft(std::move(draft), false);
+    }
+    void load_draft(const std::string& id) {
+        if (user_draft_files_) {
+            submit_work<authoring::RecoveryOutcome>([storage = drafts_, id] { return storage->load_recovery(id); },
+                [](EditorComponent& target, authoring::RecoveryOutcome outcome) {
+                    if (target.authoring_panel_) return;
+                    if (auto* error = std::get_if<Diagnostic>(&outcome)) { target.set_status(utf8_string(error->message), true); return; }
+                    auto recovered = std::get<authoring::DraftRecovery>(std::move(outcome));
+                    DraftFileActions files; files.path = std::move(recovered.original_file); files.expected_bytes = std::move(recovered.expected_bytes);
+                    files.initial_location_message = "Recovered copy: " + path_to_utf8(recovered.recovery_file);
+                    if (recovered.updated_unix_seconds > 0) files.initial_location_message += " | Updated: " + juce::Time(recovered.updated_unix_seconds * 1000).formatted("%Y-%m-%d %H:%M:%S").toStdString();
+                    if (!recovered.warning.empty()) files.initial_location_message += " | " + recovered.warning;
+                    if (!recovered.warning.empty()) target.set_status("Draft text recovered; original location unavailable: " + utf8_string(recovered.warning), true);
+                    target.show_draft(std::move(recovered.document), false, std::move(files));
+                });
+            return;
+        }
+        submit_work<authoring::LoadResult>([storage = drafts_, id] { return storage->load(id); },
+            [](EditorComponent& target, authoring::LoadResult result) {
+                if (target.authoring_panel_) return;
+                if (auto* draft = std::get_if<authoring::Draft>(&result)) target.show_draft(std::move(*draft), !target.user_draft_files_);
+                else target.set_status(utf8_string(std::get<Diagnostic>(result).message), true);
+            });
+    }
+    void open_custom_draft() {
+        if (authoring_panel_) { authoring_panel_->toFront(true); return; }
+        if (user_draft_files_) {
+            auto safe = juce::Component::SafePointer<EditorComponent>(this);
+            choose_draft_file(false, {}, [safe](std::filesystem::path path) {
+                if (!safe || path.empty() || safe->authoring_panel_) return;
+                safe->submit_work<authoring::DraftFileOutcome>([path] { return authoring::DraftFiles{}.load(path); },
+                    [path](EditorComponent& target, authoring::DraftFileOutcome outcome) {
+                        if (target.authoring_panel_) return;
+                        if (auto* error = std::get_if<Diagnostic>(&outcome)) { target.set_status(utf8_string(error->message), true); return; }
+                        auto file = std::get<authoring::DraftFile>(std::move(outcome));
+                        DraftFileActions files; files.path = path; files.expected_bytes = std::move(file.bytes);
+                        target.show_draft(std::move(file.document), true, std::move(files));
+                    });
+            });
+            return;
+        }
+        recover_custom_draft();
+    }
+    void recover_custom_draft() {
+        if (authoring_panel_) { authoring_panel_->toFront(true); return; }
+        submit_work<authoring::ListResult>([storage = drafts_] { return storage->list(); },
+            [](EditorComponent& target, authoring::ListResult result) {
+                if (auto* error = std::get_if<Diagnostic>(&result)) { target.set_status(utf8_string(error->message), true); return; }
+                auto ids = std::get<std::vector<std::string>>(std::move(result));
+                if (ids.empty()) { target.set_status("No saved custom node drafts.", false); return; }
+                if (ids.size() == 1) { target.load_draft(ids.front()); return; }
+                juce::PopupMenu menu;
+                for (std::size_t i = 0; i < ids.size(); ++i) menu.addItem(static_cast<int>(i + 1), utf8_string(ids[i]));
+                juce::Component::SafePointer<EditorComponent> safe(&target);
+                menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&target.library_),
+                    [safe, ids = std::move(ids)](int choice) {
+                        if (safe != nullptr && choice > 0 && static_cast<std::size_t>(choice) <= ids.size()) safe->load_draft(ids[choice - 1]);
+                    });
+            });
+    }
     template <typename ResultType>
     bool submit_work(std::function<ResultType()> work,
                      std::function<void(EditorComponent&, ResultType)> completion) {
@@ -277,13 +555,15 @@ private:
     }
 
     void advance_project_epoch() {
+        cancel_catalog_resolution();
+        upgrade_panel_.reset();
         run_reception_.invalidate();
+        run_logs_.clear();
         if (run_queue_) run_queue_->cancel();
         ++project_epoch_;
         if (project_epoch_ == 0)
             ++project_epoch_;
-        active_file_chooser_.reset();
-        file_chooser_completion_.invalidate();
+        if (!file_chooser_for_draft_) { active_file_chooser_.reset(); file_chooser_completion_.invalidate(); }
         run_after_save_ = false;
         canvas_.set_project_epoch(project_epoch_);
         canvas_.select({});
@@ -299,16 +579,20 @@ private:
     }
 
     void undo_topology() {
+        const auto versions = authoring::managed_selections(project_);
         if (!controller_.undo())
             return;
+        if (versions != authoring::managed_selections(project_)) refresh_project_catalog();
         refresh_history_selection();
         mark_changed();
         set_status("Change undone.", false);
     }
 
     void redo_topology() {
+        const auto versions = authoring::managed_selections(project_);
         if (!controller_.redo())
             return;
+        if (versions != authoring::managed_selections(project_)) refresh_project_catalog();
         refresh_history_selection();
         mark_changed();
         set_status("Change redone.", false);
@@ -320,7 +604,9 @@ private:
     }
 
     void new_project() {
+        auto catalog = *available_catalog_;
         advance_project_epoch();
+        descriptors_.swap(catalog);
         auto project = audioalgo::ProjectModel{};
         project.project_id = new_id();
         project.name = "Untitled Audio Graph";
@@ -365,11 +651,12 @@ private:
             menu.addItem(static_cast<int>(index + 1), utf8_string(label));
         }
         const auto expected_revision = project_.revision;
+        const auto expected_catalog = catalog_generation_;
         juce::Component::SafePointer<EditorComponent> safe_this(this);
         menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&canvas_),
-            [safe_this, type_id, node_id, target, position, source_epoch, expected_revision,
+            [safe_this, type_id, node_id, target, position, source_epoch, expected_revision, expected_catalog,
              choices = std::move(choices)](int selected_id) mutable {
-                if (safe_this == nullptr || selected_id <= 0 ||
+                if (safe_this == nullptr || safe_this->catalog_generation_ != expected_catalog || selected_id <= 0 ||
                     static_cast<std::size_t>(selected_id) > choices.size())
                     return;
                 safe_this->commit_library_insertion(
@@ -605,8 +892,15 @@ private:
         auto snapshot = controller_.project();
         snapshot.name = path_to_utf8(path.stem());
         const auto service = document_service_;
+        const auto checks = checks_;
+        const auto source_directory = project_path_.parent_path();
         return submit_work<audioalgo::ProjectDocumentSaveOutcome>(
-            [service, path, snapshot = std::move(snapshot)] {
+            [service, checks, source_directory, path, snapshot = std::move(snapshot)]() -> ProjectDocumentSaveOutcome {
+                const auto selections = authoring::managed_selections(snapshot);
+                if (!selections.empty()) {
+                    if (!checks) return Diagnostic{"authoring_carry_failed", "No exact package service is configured"};
+                    if (auto error = checks->carry_packages(selections, source_directory, path.parent_path())) return Diagnostic{error->code, error->message};
+                }
                 return service->save(path, snapshot);
             },
             [path, expected_session, expected_document_generation, run_after_save]
@@ -630,7 +924,7 @@ private:
 
     void launch_file_chooser(const juce::String& title, const juce::File& initial_file,
                              const juce::String& pattern, int flags,
-                             std::function<void(const std::filesystem::path&)> completion) {
+                             std::function<void(const std::filesystem::path&)> completion, bool survives_project_switch = false) {
         if (active_file_chooser_ != nullptr) {
             set_status("Finish the open file selection first.", true);
             return;
@@ -638,6 +932,7 @@ private:
         const auto completion_token = file_chooser_completion_.begin(std::move(completion));
         if (completion_token == 0)
             return;
+        file_chooser_for_draft_ = survives_project_switch;
         active_file_chooser_ = std::make_unique<juce::FileChooser>(title, initial_file, pattern, true, false, this);
         juce::Component::SafePointer<EditorComponent> safe_this(this);
         active_file_chooser_->launchAsync(flags, [safe_this, completion_token](const juce::FileChooser& chooser) {
@@ -658,6 +953,7 @@ private:
         if (!completion)
             return;
         active_file_chooser_.reset();
+        file_chooser_for_draft_ = false;
         completion(selected);
     }
 
@@ -765,6 +1061,7 @@ private:
     }
 
     void run_project() {
+        if (catalog_resolution_pending_) { set_status("Resolving exact node versions before Run…", false); return; }
         if (project_path_.empty()) {
             save_project(true);
             return;
@@ -781,6 +1078,7 @@ private:
         const auto revision = project_.revision;
         const audioalgo::RunIdentity identity{project_.project_id, project_epoch_, new_id(), revision};
         run_reception_.begin(identity);
+        run_logs_.clear();
         const auto run_root = project_path_.parent_path() / "runs";
         const auto output_directory = run_root / ("run-" + new_id());
         audioalgo::RunRequest request{project_, project_path_, output_directory, 512};
@@ -791,7 +1089,7 @@ private:
             [](EditorComponent& target, audioalgo::RunOutcome outcome,
                WaveformChannels waveform, audioalgo::RunIdentity completed_identity) {
                 target.run_finished(std::move(outcome), std::move(waveform), std::move(completed_identity));
-            });
+            }, [](EditorComponent& target, NodeLogEvent event) { target.run_log_received(std::move(event)); });
         if (!run_queue_->submit(std::move(request), identity)) {
             run_reception_.invalidate();
             set_status("The editor is closing; the run was not started.", true);
@@ -900,6 +1198,7 @@ private:
     std::shared_ptr<audioalgo::AudioPreviewService> preview_service_;
     std::shared_ptr<audioalgo::NodeRegistry> descriptors_owner_;
     audioalgo::NodeRegistry& descriptors_ = *descriptors_owner_;
+    std::shared_ptr<const NodeRegistry> available_catalog_;
     audioalgo::editor::EditorController controller_;
     const audioalgo::ProjectModel& project_;
     std::filesystem::path project_path_;
@@ -911,7 +1210,27 @@ private:
     GraphCanvas canvas_;
     NodeInspector inspector_;
     WaveformView waveform_;
+    RunLogPanel run_logs_;
+    juce::TextButton waveform_tab_{"Waveform"}, logs_tab_{"Run logs"};
     NodeLibrary library_;
+    std::shared_ptr<const authoring::DraftStorage> drafts_;
+    bool user_draft_files_ = false;
+    std::function<void(bool, const std::filesystem::path&, DraftFileActions::Completion)> draft_picker_;
+    std::function<authoring::SaveResult(bool, const std::filesystem::path&)> location_persistence_;
+    std::function<authoring::SaveResult(const std::filesystem::path&)> library_location_persistence_;
+    bool library_restart_pending_ = false;
+    std::unique_ptr<NodeAuthoringPanel> authoring_panel_;
+    std::unique_ptr<NodeUpgradePanel> upgrade_panel_;
+    std::function<void()> after_draft_close_;
+    std::shared_ptr<const authoring::AuthoringChecks> checks_;
+    std::uint64_t catalog_generation_ = 0;
+    std::uint64_t catalog_resolution_generation_ = 0;
+    bool catalog_resolution_pending_ = false;
+    std::function<bool()> allow_catalog_prepare_;
+    std::unique_ptr<NodeRegistry> prepared_catalog_;
+    std::unique_ptr<NodeRegistry> prepared_default_catalog_;
+    std::vector<authoring::PackageSelection> prepared_project_locks_;
+    std::optional<NodeLibrary::PreparedRefresh> prepared_library_;
     RunStatusPanel status_;
     juce::TextButton new_button_{"New"};
     juce::TextButton open_button_{"Open"};
@@ -925,6 +1244,7 @@ private:
     std::unique_ptr<audioalgo::editor::EditorRunQueue<EditorComponent>> run_queue_;
     audioalgo::AsyncCompletionSlot<std::filesystem::path> file_chooser_completion_;
     std::unique_ptr<juce::FileChooser> active_file_chooser_;
+    bool file_chooser_for_draft_ = false;
     bool run_after_save_ = false;
     bool shutdown_started_ = false;
 };

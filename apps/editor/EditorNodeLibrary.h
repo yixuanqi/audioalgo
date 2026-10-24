@@ -59,37 +59,73 @@ private:
 class NodeLibrary final : public juce::Component {
 public:
     NodeLibrary(const NodeCatalog& catalog, std::function<void(std::string)> clicked,
-                std::function<std::uint64_t()> epoch) {
+                std::function<std::uint64_t()> epoch,
+                std::function<void()> create_custom = {}, std::function<void()> open_draft = {}, std::function<void()> upgrade = {}, std::function<void()> recover = {})
+        : clicked_(std::move(clicked)), epoch_(std::move(epoch)) {
         setInterceptsMouseClicks(false, true);
         addAndMakeVisible(title_);
         addAndMakeVisible(viewport_);
+        addAndMakeVisible(new_custom_); addAndMakeVisible(open_draft_);
+        addAndMakeVisible(recover_); recover_.setComponentID("authoring.recover"); recover_.onClick = std::move(recover);
+        recover_.setEnabled(static_cast<bool>(recover_.onClick)); style_button(recover_);
+        addAndMakeVisible(upgrade_); upgrade_.setComponentID("authoring.upgrade"); upgrade_.onClick = std::move(upgrade);
+        upgrade_.setEnabled(static_cast<bool>(upgrade_.onClick)); style_button(upgrade_);
+        new_custom_.setComponentID("authoring.new"); open_draft_.setComponentID("authoring.open");
+        new_custom_.onClick = std::move(create_custom); open_draft_.onClick = std::move(open_draft);
+        new_custom_.setEnabled(static_cast<bool>(new_custom_.onClick));
+        open_draft_.setEnabled(static_cast<bool>(open_draft_.onClick));
+        style_button(new_custom_, signal); style_button(open_draft_);
         title_.setText("NODE LIBRARY", juce::dontSendNotification);
         title_.setColour(juce::Label::textColourId, muted);
         title_.setFont(juce::FontOptions(11.0f, juce::Font::bold));
-        viewport_.setViewedComponent(&content_, false);
         viewport_.setScrollBarsShown(true, false);
+        refresh(catalog);
+    }
+    struct PreparedRefresh {
+        std::unique_ptr<juce::Component> content;
+        std::vector<std::unique_ptr<NodeLibraryButton>> buttons;
+    };
+    PreparedRefresh prepare_refresh(const NodeCatalog& catalog) const {
+        PreparedRefresh replacement{std::make_unique<juce::Component>(), {}};
         for (const auto& entry : build_node_library_entries(catalog)) {
-            auto button = std::make_unique<NodeLibraryButton>(utf8_string(entry.display_name), entry.type_id, clicked, epoch);
+            auto button = std::make_unique<NodeLibraryButton>(utf8_string(entry.display_name), entry.type_id, clicked_, epoch_);
             button->setComponentID("library." + utf8_string(entry.type_id));
             style_button(*button);
-            content_.addAndMakeVisible(*button);
-            buttons_.push_back(std::move(button));
+            replacement.content->addAndMakeVisible(*button);
+            replacement.buttons.push_back(std::move(button));
         }
+        return replacement;
     }
+    void publish_refresh(PreparedRefresh replacement) {
+        const auto scroll = viewport_.getViewPosition();
+        viewport_.setViewedComponent(replacement.content.get(), false);
+        content_.swap(replacement.content); buttons_.swap(replacement.buttons);
+        resized(); viewport_.setViewPosition(scroll);
+    }
+    void refresh(const NodeCatalog& catalog) { publish_refresh(prepare_refresh(catalog)); }
     void resized() override {
         title_.setBounds(18, 24, getWidth() - 34, 22);
-        viewport_.setBounds(10, 54, getWidth() - 20, std::max(48, getHeight() - 110));
+        new_custom_.setBounds(12, 52, getWidth() - 24, 30);
+        open_draft_.setBounds(12, 86, getWidth() - 24, 28);
+        recover_.setBounds(12, 118, getWidth() - 24, 28);
+        viewport_.setBounds(10, 150, getWidth() - 20, std::max(48, getHeight() - 206));
+        upgrade_.setBounds(12, getHeight() - 40, getWidth() - 24, 28);
         const int width = std::max(96, viewport_.getWidth() - 20);
         int y = 8;
         for (auto& button : buttons_) {
             button->setBounds(2, y, width, 34);
             y += 42;
         }
-        content_.setSize(viewport_.getWidth() - 8, y);
+        if (content_) content_->setSize(viewport_.getWidth() - 8, y);
     }
 private:
+    std::function<void(std::string)> clicked_;
+    std::function<std::uint64_t()> epoch_;
+    juce::TextButton new_custom_{"New custom node"}, open_draft_{"Open draft"};
+    juce::TextButton upgrade_{"Upgrade project"};
+    juce::TextButton recover_{"Recover draft"};
     juce::Label title_;
-    juce::Component content_;
+    std::unique_ptr<juce::Component> content_;
     juce::Viewport viewport_;
     std::vector<std::unique_ptr<NodeLibraryButton>> buttons_;
 };

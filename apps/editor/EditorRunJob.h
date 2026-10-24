@@ -2,6 +2,7 @@
 
 #include "EditorCompletionDispatch.h"
 #include "EditorWaveformData.h"
+#include "audio_editor_application/RunLogMailbox.h"
 #include "audio_io/WavFile.h"
 #include "audio_run_service/RunService.h"
 
@@ -20,6 +21,7 @@ template <typename ComponentType>
 class EditorRunJob final : public juce::ThreadPoolJob {
 public:
     using Completion = std::function<void(ComponentType&, RunOutcome, WaveformChannels, RunIdentity)>;
+    using LogCompletion = std::function<void(ComponentType&, NodeLogEvent)>;
 
     EditorRunJob(std::weak_ptr<ComponentDispatchState<ComponentType>> target,
                  std::shared_ptr<const NodeRegistry> descriptors, RunRequest request,
@@ -30,14 +32,25 @@ public:
     EditorRunJob(std::weak_ptr<ComponentDispatchState<ComponentType>> target,
                  std::shared_ptr<const NodeRegistry> descriptors, RunRequest request,
                  RunIdentity identity, std::shared_ptr<const ProjectResourceService> resources,
-                 Completion completion)
+                 Completion completion, LogCompletion logs = {})
         : ThreadPoolJob("AudioAlgo offline render"), target_(std::move(target)),
           descriptors_(std::move(descriptors)), request_(std::move(request)),
           identity_(std::move(identity)), resources_(resources ? std::move(resources)
                                                                : std::make_shared<ProjectResourceService>()),
-          completion_(std::move(completion)) {}
+          completion_(std::move(completion)), logs_(std::move(logs)) {}
 
     JobStatus runJob() override {
+        if (logs_) {
+            auto mailbox = std::make_shared<RunLogMailbox>();
+            auto observer = std::move(request_.on_log);
+            request_.on_log = [target = target_, completion = logs_, observer = std::move(observer), mailbox](NodeLogEvent event) {
+                if (observer) observer(event);
+                if (!mailbox->push(std::move(event))) return;
+                const auto posted = dispatch_to_live_component(target,
+                    [completion, mailbox](ComponentType& live) mutable { for (auto& value : mailbox->take()) completion(live, std::move(value)); });
+                if (!posted) (void)mailbox->take();
+            };
+        }
         auto caller_cancelled = std::move(request_.is_cancelled);
         request_.is_cancelled = [this, caller_cancelled = std::move(caller_cancelled)] {
             return shouldExit() || (caller_cancelled && caller_cancelled());
@@ -74,6 +87,7 @@ private:
     RunIdentity identity_;
     std::shared_ptr<const ProjectResourceService> resources_;
     Completion completion_;
+    LogCompletion logs_;
 };
 
 } // namespace audioalgo::editor

@@ -62,6 +62,7 @@ public:
         library_drop_session_.finish_drag(source_epoch);
         repaint();
     }
+    void cancel_library_drag() noexcept { library_drop_session_.cancel(); repaint(); }
 
     void paint(juce::Graphics& g) override {
         g.fillAll(background);

@@ -1,5 +1,6 @@
 #include "EditorWorkspace.h"
 #include "EditorHostServices.h"
+#include "audio_node_authoring_runtime/PythonAuthoring.h"
 #include "plugins/builtin/registration.h"
 #include "plugins/host/registration.h"
 #include <filesystem>
@@ -11,20 +12,37 @@ public:
     MainWindow() : DocumentWindow("AudioAlgo Editor", background, DocumentWindow::allButtons) {
         setUsingNativeTitleBar(true);
         auto descriptors = std::make_shared<audioalgo::NodeRegistry>();
-        const auto discovery=audioalgo::register_host_nodes(*descriptors);
+        const auto discovery = std::async(std::launch::async, [descriptors] {
+            return audioalgo::register_host_nodes(*descriptors);
+        }).get();
         juce::String plugin_errors;
         for(auto& e:discovery.diagnostics)
             plugin_errors += juce::String::fromUTF8((e.code+" ["+e.plugin_id+"]: "+e.message+"\n").c_str());
+        auto authoring_root = path_from_juce_file(juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("AudioAlgo/authoring"));
+        auto work_directory = authoring_root;
+        auto recovery_directory = authoring_root / "drafts";
+        try {
+            authoring_root = audioalgo::authoring::configured_authoring_root();
+            work_directory = authoring_root; recovery_directory = authoring_root / "drafts";
+            work_directory = audioalgo::authoring::configured_authoring_work_directory();
+            recovery_directory = audioalgo::authoring::configured_authoring_recovery_directory();
+        } catch (const std::exception& error) { plugin_errors += "Storage settings could not be read; choose a folder in the draft editor. " + juce::String::fromUTF8(error.what()) + "\n"; }
+        plugin_errors += juce::String::fromUTF8(audioalgo::authoring::authoring_launch_diagnostic().c_str());
         if(plugin_errors.isNotEmpty()) {
             juce::Logger::writeToLog(plugin_errors);
             juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,
-                "Node plugin diagnostics",plugin_errors);
+                "Startup / storage diagnostics",plugin_errors);
         }
         setContentOwned(new EditorComponent(
             std::move(descriptors),
             std::make_shared<ProjectFileDocumentService>(),
             std::make_shared<audioalgo::ProjectResourceService>(),
-            std::make_shared<JuceAudioPreviewService>()), true);
+            std::make_shared<JuceAudioPreviewService>(),
+            std::make_shared<audioalgo::authoring::FileDraftStorage>(recovery_directory), true,
+            std::make_shared<audioalgo::authoring::PythonAuthoring>(authoring_root, std::filesystem::path{}, std::filesystem::path{}, std::function<bool(audioalgo::authoring::ApplyPhase)>{}, work_directory), std::function<bool()>{}, true,
+            std::function<void(bool, const std::filesystem::path&, DraftFileActions::Completion)>{},
+            [](bool recovery, const std::filesystem::path& path) { return audioalgo::authoring::save_authoring_location(recovery, path); },
+            [](const std::filesystem::path& path) { return audioalgo::authoring::save_authoring_library_location(path); }), true);
         const auto* primary_display = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay();
         const auto initial_size = primary_display == nullptr
             ? audioalgo::editor::default_editor_window_size
@@ -73,9 +91,6 @@ public:
 
     void shutdown() override { window_.reset(); }
     void systemRequestedQuit() override {
-        if (quit_requested_)
-            return;
-        quit_requested_ = true;
         if (window_ != nullptr) {
             window_->shutdown_after_editor_jobs([this] { quit(); });
             return;
@@ -85,7 +100,6 @@ public:
 
 private:
     std::unique_ptr<MainWindow> window_;
-    bool quit_requested_ = false;
 };
 
 } // namespace
