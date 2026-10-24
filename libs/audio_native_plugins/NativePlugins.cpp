@@ -24,6 +24,15 @@ namespace audioalgo {
 namespace {
 juce::String js(const std::string& s) { return juce::String::fromUTF8(s.data(), static_cast<int>(s.size())); }
 std::string text(const juce::var& v) { return v.toString().toStdString(); }
+std::filesystem::path io_path(const std::filesystem::path& path) {
+#ifdef _WIN32
+    auto value = std::filesystem::absolute(path).lexically_normal().wstring();
+    if (!value.starts_with(L"\\\\?\\")) value = value.starts_with(L"\\\\") ? L"\\\\?\\UNC\\" + value.substr(2) : L"\\\\?\\" + value;
+    return value;
+#else
+    return path;
+#endif
+}
 juce::File file(const std::filesystem::path& p) {
     auto s=p.u8string();
     return juce::File(juce::String::fromUTF8(reinterpret_cast<const char*>(s.data()),static_cast<int>(s.size())));
@@ -58,7 +67,7 @@ ParameterValue parameter_value(const juce::var& v, ParameterKind kind) {
     require(v.isString(),"String default required"); return text(v);
 }
 std::string manifest_bytes(const std::filesystem::path& path) {
-    std::ifstream stream(path,std::ios::binary);require(stream.is_open(),"Could not read manifest");
+    std::ifstream stream(io_path(path),std::ios::binary);require(stream.is_open(),"Could not read manifest");
     std::string data(1024*1024+1,'\0');stream.read(data.data(),static_cast<std::streamsize>(data.size()));
     const auto count=static_cast<std::size_t>(stream.gcount());require(!stream.bad() && count>0 && count<=1024*1024,"Manifest size must be1..1048576 bytes");data.resize(count);return data;
 }
@@ -197,9 +206,28 @@ public:
         task.plugin_root=execution_root;task.output_parent=std::filesystem::u8path(request.context.output_directory);task.type_id=desc_.type_id;task.node_id=request.context.node_id;
         task.parameters=request.parameters;task.inputs=request.inputs;task.identity=request.context.identity;task.is_cancelled=request.context.is_cancelled;
         task.maximum_block_frames=request.context.maximum_block_frames;task.maximum_payload_bytes=request.context.maximum_task_payload_bytes;
+        if(!request.context.diagnostic_directory.empty())task.log_parent=std::filesystem::u8path(request.context.diagnostic_directory);
         for(const auto& port:desc_.ports)if(port.direction==PortDirection::output)task.output_ports.push_back(port.id);
+        std::uint64_t sequence = 0;
+        auto deliver = [&](NodeLogEvent event) {
+            event.identity = request.context.identity; event.node_id = request.context.node_id;
+            event.type_id = desc_.type_id; event.version = desc_.version;
+            if (desc_.plugin_origin) {
+                event.package_id = desc_.plugin_origin->plugin_id;
+                event.content_sha256 = desc_.plugin_origin->managed_content_sha256;
+                if (event.content_sha256.empty()) event.content_sha256 = desc_.plugin_origin->manifest_sha256;
+            }
+            event.sequence = ++sequence;
+            if (!event.received_unix_ms) event.received_unix_ms = static_cast<std::uint64_t>(juce::Time::currentTimeMillis());
+            if (request.context.on_log) request.context.on_log(std::move(event));
+        };
+        if (request.context.on_log) task.on_log = deliver;
         PythonTaskStatistics statistics;auto outcome=run_python_task(task,&statistics);
-        if(const auto* error=std::get_if<Diagnostic>(&outcome))return *error;
+        if (const auto* error = std::get_if<Diagnostic>(&outcome)) {
+            NodeLogEvent event; event.source = "diagnostic"; event.level = "error";
+            event.text = error->code + ": " + error->message; event.total_bytes = event.text.size(); deliver(std::move(event));
+            return *error;
+        }
         auto success=std::move(std::get<PythonTaskSuccess>(outcome));
         if(!frozen_root_.empty())for(const auto& root:{frozen_root_,runner_root_})if(auto error=validate_python_snapshot(root,request.context.is_cancelled)){error->node_id=request.context.node_id;return *error;}
         if(request.context.record_task_artifact){auto provenance=juce::JSON::parse(js(success.provenance_json));auto* object=provenance.getDynamicObject();
@@ -207,7 +235,10 @@ public:
             object->setProperty("interpreter_sha256",js(interpreter_hash_));
             juce::DynamicObject::Ptr logs=new juce::DynamicObject;
             logs->setProperty("stdout_bytes",static_cast<juce::int64>(statistics.stdout_bytes));logs->setProperty("stderr_bytes",static_cast<juce::int64>(statistics.stderr_bytes));
+            logs->setProperty("stdout_discarded_bytes",static_cast<juce::int64>(statistics.stdout_discarded_bytes));logs->setProperty("stderr_discarded_bytes",static_cast<juce::int64>(statistics.stderr_discarded_bytes));
             logs->setProperty("stdout_tail",js(statistics.stdout_tail));logs->setProperty("stderr_tail",js(statistics.stderr_tail));
+            logs->setProperty("complete_directory",file(statistics.log_directory).getFullPathName());
+            logs->setProperty("limit_exceeded",statistics.log_limit_exceeded);
             object->setProperty("logs",juce::var(logs.get()));
             object->setProperty("frozen_package_root",file(execution_root).getRelativePathFrom(file(std::filesystem::u8path(request.context.output_directory))).replaceCharacter('\\','/'));
             object->setProperty("runner_snapshot",file(runner_root_).getRelativePathFrom(file(std::filesystem::u8path(request.context.output_directory))).replaceCharacter('\\','/'));
@@ -338,8 +369,8 @@ PluginDiscovery load_native_plugins(NodeRegistry& registry,const std::vector<std
     for(auto& path:paths) {
         std::string id;
         try {
-            auto manifest_file=file(path);
-            require(manifest_file.getSize()>0 && manifest_file.getSize()<=1024*1024,"Manifest size must be 1..1048576 bytes");
+            // The bounded reader validates the actual bytes, including on
+            // Windows paths longer than MAX_PATH. JUCE getSize can report 0.
             const auto captured=manifest_bytes(path);
             const auto raw=juce::String::createStringFromData(captured.data(),static_cast<int>(captured.size()));
             auto manifest=juce::JSON::parse(raw);
