@@ -29,7 +29,13 @@ namespace audioalgo::editor {
             return node.id == node_id;
         }))
         return std::nullopt;
-    return NodeInstance{node_id, type_id, default_node_parameters(*descriptor), x, y};
+    NodeInstance node{node_id, type_id, default_node_parameters(*descriptor), x, y};
+    if (descriptor->plugin_origin && !descriptor->plugin_origin->managed_content_sha256.empty()) {
+        const auto& origin = *descriptor->plugin_origin;
+        node.managed_version = NodeInstance::ManagedVersion{origin.plugin_id, origin.managed_content_sha256,
+            origin.managed_package_path, origin.managed_wrapper_version};
+    }
+    return node;
 }
 
 [[nodiscard]] inline bool can_add_node_of_execution_kind(

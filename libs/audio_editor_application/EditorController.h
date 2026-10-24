@@ -45,6 +45,17 @@ struct NodeViewSnapshot {
     ProjectSessionIdentity session;
     NodeInstance node;
 };
+struct ManagedUpgradeInstance {
+    std::string node_id, type_id, from_sha256, to_sha256;
+    bool operator==(const ManagedUpgradeInstance&) const = default;
+};
+struct ManagedUpgradePreview {
+    ProjectSessionIdentity session;
+    std::uint64_t document_generation = 0;
+    std::string package_id;
+    std::vector<ManagedUpgradeInstance> instances;
+    std::vector<GraphDiagnostic> diagnostics;
+};
 
 // Owns the edited project, the command/history stack and the presentation-visible state.
 // It depends only on the pure SDK/project model: no JUCE, no component, no file dialog.
@@ -90,6 +101,8 @@ public:
 
     void mark_saved() noexcept { dirty_ = false; }
     [[nodiscard]] ProjectEditOutcome set_project_name(std::string name);
+    [[nodiscard]] ManagedUpgradePreview preview_managed_upgrade(const NodeCatalog& target, const std::string& package_id) const;
+    [[nodiscard]] ProjectEditOutcome commit_managed_upgrade(const ManagedUpgradePreview&, const NodeCatalog& target);
     // Called when a run finishes for the current revision.
     void mark_result_current() noexcept { results_stale_ = false; }
 

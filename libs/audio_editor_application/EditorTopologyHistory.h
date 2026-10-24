@@ -107,7 +107,7 @@ private:
         for (std::size_t index = 0; index < left.nodes.size(); ++index) {
             const auto& a = left.nodes[index];
             const auto& b = right.nodes[index];
-            if (a.id != b.id || a.type_id != b.type_id || a.parameters != b.parameters)
+            if (a.id != b.id || a.type_id != b.type_id || a.parameters != b.parameters || a.managed_version != b.managed_version)
                 return false;
         }
         for (std::size_t index = 0; index < left.connections.size(); ++index) {
@@ -138,7 +138,8 @@ private:
             return false;
 
         for (std::size_t index = 0; index < left.nodes.size(); ++index) {
-            if (left.nodes[index].id != right.nodes[index].id || left.nodes[index].type_id != right.nodes[index].type_id)
+            if (left.nodes[index].id != right.nodes[index].id || left.nodes[index].type_id != right.nodes[index].type_id ||
+                left.nodes[index].managed_version != right.nodes[index].managed_version)
                 return false;
         }
         for (std::size_t index = 0; index < left.connections.size(); ++index) {
@@ -197,7 +198,8 @@ private:
                                                           const ProjectModel& target,
                                                           const Entry& entry) {
         auto restored = target;
-        restored.schema_version = current.schema_version;
+        if (entry.before.schema_version == entry.after.schema_version)
+            restored.schema_version = current.schema_version;
         restored.project_id = current.project_id;
         restored.name = current.name;
         for (auto& node : restored.nodes) {

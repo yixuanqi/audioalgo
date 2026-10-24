@@ -98,6 +98,68 @@ void EditorController::mark_document_changed() noexcept {
         ++document_generation_;
 }
 
+ManagedUpgradePreview EditorController::preview_managed_upgrade(const NodeCatalog& target, const std::string& package_id) const {
+    ManagedUpgradePreview preview{session_identity(), document_generation_, package_id};
+    auto candidate = project_;
+    for (auto& node : candidate.nodes) {
+        if (!node.managed_version || node.managed_version->package_id != package_id) continue;
+        const auto* before = catalog_.find(node.type_id);
+        const auto* after = target.find(node.type_id);
+        if (!before || !after || !after->plugin_origin || after->plugin_origin->plugin_id != package_id ||
+            after->plugin_origin->managed_content_sha256.empty()) {
+            preview.diagnostics.push_back({"managed_upgrade_type_missing", "The package no longer provides this type", node.id});
+            continue;
+        }
+        const auto& origin = *after->plugin_origin;
+        preview.instances.push_back({node.id, node.type_id, node.managed_version->content_sha256, origin.managed_content_sha256});
+        bool same_ports = before->ports.size() == after->ports.size() && before->execution_kind == after->execution_kind;
+        for (const auto& port : before->ports) {
+            const auto match = std::find_if(after->ports.begin(), after->ports.end(), [&](const PortDescriptor& next) {
+                return port.id == next.id && port.type_id == next.type_id && port.direction == next.direction && port.required == next.required;
+            });
+            same_ports = same_ports && match != after->ports.end();
+        }
+        if (!same_ports) preview.diagnostics.push_back({"managed_upgrade_ports_incompatible", "Port changes require a new logical type; existing connections are preserved", node.id});
+        for (const auto& parameter : before->parameters) {
+            const auto match = std::find_if(after->parameters.begin(), after->parameters.end(), [&](const ParameterDescriptor& next) {
+                return parameter.id == next.id && parameter.kind == next.kind;
+            });
+            if (match == after->parameters.end())
+                preview.diagnostics.push_back({"managed_upgrade_parameter_incompatible", "Parameter removal or kind changes require a new logical type", node.id, parameter.id});
+        }
+        node.managed_version->content_sha256 = origin.managed_content_sha256;
+        node.managed_version->package_path = origin.managed_package_path;
+        node.managed_version->wrapper_version = origin.managed_wrapper_version;
+    }
+    auto diagnostics = validate_project_structure(candidate, target);
+    preview.diagnostics.insert(preview.diagnostics.end(), diagnostics.begin(), diagnostics.end());
+    return preview;
+}
+
+ProjectEditOutcome EditorController::commit_managed_upgrade(const ManagedUpgradePreview& expected, const NodeCatalog& target) {
+    if (expected.session != session_identity() || expected.document_generation != document_generation_)
+        return project_edit_rejected("project_session_stale", "The project changed after the upgrade preview");
+    if (parameter_gesture_) return project_edit_rejected("parameter_gesture_active", "Finish or cancel the active parameter gesture");
+    if (project_.revision == std::numeric_limits<std::uint64_t>::max()) return project_edit_rejected("revision_exhausted", "The project revision cannot be advanced");
+    const auto preview = preview_managed_upgrade(target, expected.package_id);
+    if (preview.instances != expected.instances) return project_edit_rejected("managed_upgrade_stale", "The target version changed after the preview");
+    if (!preview.diagnostics.empty()) return {ProjectEditStatus::rejected, preview.diagnostics};
+    const bool changed = std::any_of(preview.instances.begin(), preview.instances.end(), [](const auto& instance) { return instance.from_sha256 != instance.to_sha256; });
+    if (!changed) return {ProjectEditStatus::unchanged, {}};
+    const auto applied = history_.apply(project_, [&](ProjectModel& edited) {
+        for (auto& node : edited.nodes) if (node.managed_version && node.managed_version->package_id == expected.package_id) {
+            const auto& origin = *target.find(node.type_id)->plugin_origin;
+            node.managed_version->content_sha256 = origin.managed_content_sha256;
+            node.managed_version->package_path = origin.managed_package_path;
+            node.managed_version->wrapper_version = origin.managed_wrapper_version;
+        }
+        return true;
+    });
+    if (!applied) return {ProjectEditStatus::unchanged, {}};
+    mark_edited();
+    return {ProjectEditStatus::applied, {}};
+}
+
 ProjectEditOutcome EditorController::commit_insertion(ProjectModel candidate, NodeInsertionResult insertion) {
     const auto applied = history_.apply(project_, [&](ProjectModel& edited) {
         edited = std::move(candidate);
@@ -134,6 +196,7 @@ ProjectEditOutcome EditorController::add_node(const std::string& type_id, const 
 
     auto candidate = project_;
     candidate.nodes.push_back(*node);
+    if (node->managed_version) candidate.schema_version = 2;
     if (descriptor->execution_kind == NodeExecutionKind::sink)
         candidate.selected_output_node_id = node_id;
     auto diagnostics = validate_project_structure(candidate, catalog_);
@@ -142,6 +205,7 @@ ProjectEditOutcome EditorController::add_node(const std::string& type_id, const 
 
     const auto applied = history_.apply(project_, [&](ProjectModel& edited) {
         edited.nodes.push_back(*node);
+        if (node->managed_version) edited.schema_version = 2;
         if (descriptor->execution_kind == NodeExecutionKind::sink)
             edited.selected_output_node_id = node_id;
         return true;

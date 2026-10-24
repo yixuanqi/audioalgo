@@ -112,6 +112,7 @@ namespace audioalgo::editor {
     } else {
         inserted_node.x = x;
         inserted_node.y = y;
+        if (inserted_node.managed_version) candidate.schema_version = 2;
         candidate.nodes.push_back(std::move(inserted_node));
     }
     candidate.connections.push_back({target_connection.from_node, target_connection.from_port,
