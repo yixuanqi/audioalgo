@@ -379,6 +379,46 @@ RunOutcome RunService::run(const RunRequest& request) const {
     NodeExecutionContext context;context.project_file=to_juce_file(request.project_file).getFullPathName().toStdString();
     context.output_directory=to_juce_file(request.output_directory).getFullPathName().toStdString();context.identity=identity;context.is_cancelled=request.is_cancelled;
     context.maximum_task_payload_bytes=request.maximum_task_payload_bytes;
+    // Diagnostics outlive OutputDirectoryGuard's failed-payload cleanup. Keep
+    // them outside the runs directory so an archive cannot look like a result.
+    std::ofstream log_stream;
+    std::filesystem::path log_file;
+    const auto diagnostic_directory=request.output_directory.parent_path().parent_path()/"run-logs"/juce::Uuid().toString().toStdString();
+    context.diagnostic_directory=to_juce_file(diagnostic_directory).getFullPathName().toStdString();
+    std::optional<Diagnostic> log_error;
+    context.on_log=[&](NodeLogEvent event) {
+        event.identity=identity;
+        const auto instance=std::find_if(rendering_project.nodes.begin(),rendering_project.nodes.end(),[&](const auto& n){return n.id==event.node_id;});
+        if(instance!=rendering_project.nodes.end()) {
+            event.type_id=instance->type_id;
+            if(instance->managed_version) {
+                event.package_id=instance->managed_version->package_id;
+                event.content_sha256=instance->managed_version->content_sha256;
+            }
+        }
+        if(!log_error) try {
+            if(!log_stream.is_open()) {
+                const auto directory=diagnostic_directory;
+                std::filesystem::create_directories(directory);
+                log_file=directory/"events.jsonl";log_stream.open(log_file,std::ios::binary);
+            }
+            event.report_file=to_juce_file(log_file).getFullPathName().toStdString();
+            juce::DynamicObject::Ptr row=new juce::DynamicObject;
+            row->setProperty("project_id",to_juce_string(identity.project_id));row->setProperty("session_epoch",static_cast<juce::int64>(identity.session_epoch));
+            row->setProperty("request_id",to_juce_string(identity.request_id));row->setProperty("revision",static_cast<juce::int64>(identity.revision));
+            row->setProperty("node_id",to_juce_string(event.node_id));row->setProperty("type_id",to_juce_string(event.type_id));
+            row->setProperty("package_id",to_juce_string(event.package_id));row->setProperty("content_sha256",to_juce_string(event.content_sha256));
+            row->setProperty("version",to_juce_string(event.version));row->setProperty("sequence",static_cast<juce::int64>(event.sequence));
+            row->setProperty("received_unix_ms",static_cast<juce::int64>(event.received_unix_ms));
+            row->setProperty("source",to_juce_string(event.source));row->setProperty("level",to_juce_string(event.level));row->setProperty("text",to_juce_string(event.text));
+            row->setProperty("total_bytes",static_cast<juce::int64>(event.total_bytes));row->setProperty("discarded_bytes",static_cast<juce::int64>(event.discarded_bytes));
+            row->setProperty("dropped_text_bytes",static_cast<juce::int64>(event.dropped_text_bytes));
+            row->setProperty("raw_log_file",to_juce_string(event.raw_log_file));
+            log_stream<<juce::JSON::toString(juce::var(row.get()),true).toStdString()<<'\n';log_stream.flush();
+            if(!log_stream)throw std::runtime_error("Could not persist node log archive: "+log_file.generic_string());
+        } catch(const std::exception& error) {log_error=Diagnostic{"run_log_write_failed",error.what(),event.node_id};}
+        if(request.on_log)request.on_log(std::move(event));
+    };
     context.record_task_artifact=[&](std::string directory,std::string provenance){juce::DynamicObject::Ptr item=new juce::DynamicObject;
         item->setProperty("directory",to_juce_file(std::filesystem::u8path(directory)).getRelativePathFrom(to_juce_file(request.output_directory)).replaceCharacter('\\','/'));item->setProperty("path_base","run_root");
         item->setProperty("provenance",juce::JSON::parse(to_juce_string(provenance)));task_artifacts.add(juce::var(item.get()));};
@@ -386,6 +426,7 @@ RunOutcome RunService::run(const RunRequest& request) const {
         render_audio_graph(rendering_project, *nodes_, std::move(source_bindings), request.block_size,{{}, &render_statistics, true, request.is_cancelled});
     if (const auto* error = std::get_if<Diagnostic>(&rendered_result))
         return *error;
+    if(log_error)return *log_error;
     if (cancelled()) return cancellation();
     for (const auto& resource : resource_records) {
         const auto digest = file_hash(request.output_directory / resource.snapshot_path);
