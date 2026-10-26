@@ -1,5 +1,7 @@
 #include "NativePlugins.h"
-#include <audioalgo/node_abi_v1.h>
+#include <audioalgo/node_log_abi_v1.h>
+#include <audioalgo/log_queue_v1.hpp>
+#include "audio_core/Utf8LogDecoder.h"
 #include <juce_core/juce_core.h>
 #include <juce_cryptography/juce_cryptography.h>
 #include <algorithm>
@@ -10,6 +12,7 @@
 #include <type_traits>
 #include <fstream>
 #include <regex>
+#include <thread>
 #ifdef AUDIOALGO_HAS_PYTHON
 #include "audio_python_backend/PythonTask.h"
 #endif
@@ -273,6 +276,7 @@ struct Module {
     ~Module()=default;
 #endif
     aa_node_api_v1 api{};
+    aa_node_log_api_v1 log_api{};
 };
 class Processor final : public AudioNodeProcessor {
 public:
@@ -286,10 +290,75 @@ public:
         for(auto& p:desc_.ports) if(p.direction==PortDirection::input) inputs_.push_back({borrowed(p.id),0,nullptr});
                                else outputs_.push_back({borrowed(p.id),0,nullptr});
     }
-    ~Processor() override { if(instance_) { module_->api.reset(instance_); module_->api.destroy(instance_); } }
+    ~Processor() override {
+        // Final render drain detaches on the worker. Also detach partial binds
+        // before reset/destroy so no callback can retain our queue after it dies.
+        (void)detach_logs();
+        if(instance_) { module_->api.reset(instance_); module_->api.destroy(instance_); }
+    }
     NodeProcessOutcome process(const NodeProcessRequest&) override { return Diagnostic{"plugin_owned_processing_unsupported","Use the native block runtime"}; }
     bool supports_block_processing() const noexcept override {return true;}
     bool supports_named_block_processing() const noexcept override {return true;}
+    std::optional<Diagnostic> freeze_task(const NodeExecutionContext& context) override {
+        if(!module_->log_api.set_sink || !context.on_log)return {};
+        if(!context.worker_log_io_allowed)return Diagnostic{"native_log_thread_invalid","Native logs require an owned worker context",context.node_id};
+        if(queue_) {
+            if(log_identity_!=context.identity || log_node_!=context.node_id)return Diagnostic{"native_log_identity_mismatch","A native log sink cannot be rebound to another run",context.node_id};
+            return {};
+        }
+        queue_=std::make_unique<sdk::LogQueueV1>();log_tail_.reserve(log_tail_limit+AA_LOG_MAX_MESSAGE_BYTES);log_identity_=context.identity;log_node_=context.node_id;log_worker_=std::this_thread::get_id();
+        const auto sink=queue_->sink();aa_error error{sizeof(error)};sink_attempted_=true;
+        if(module_->log_api.set_sink(instance_,&sink,&error)!=0)return failure(error,"native_log_bind_failed");
+        return {};
+    }
+    std::optional<Diagnostic> drain_logs(const NodeExecutionContext& context,bool final) override {
+        if(!queue_)return {};
+        if(!context.worker_log_io_allowed || std::this_thread::get_id()!=log_worker_)
+            return Diagnostic{"native_log_thread_invalid","Native log consumption is worker-only",context.node_id};
+        try {
+            const auto statistics=queue_->statistics();sdk::LogRecordV1 record;
+            while(queue_->pop(record)) {
+                if(log_failure_)continue;
+                const auto task_bytes=context.native_task_log_bytes?*context.native_task_log_bytes:written_bytes_;
+                constexpr std::size_t complete_log_limit=16u*1024u*1024u;
+                if(task_bytes>complete_log_limit || record.message_bytes>complete_log_limit-task_bytes) {
+                    set_log_failure(context,"log_limit","Native task log exceeds16MiB across its instances; no output is published");continue;
+                }
+                if(!raw_.is_open()) {
+                    if(context.diagnostic_directory.empty()) {set_log_failure(context,"native_log_directory_missing","Native log archive directory is missing");continue;}
+                    const auto directory=std::filesystem::u8path(context.diagnostic_directory);std::error_code error;std::filesystem::create_directories(io_path(directory),error);
+                    if(error) {set_log_failure(context,"native_log_write_failed",error.message());continue;}
+                    raw_path_=directory/("native-log-"+juce::Uuid().toString().toStdString()+".log");raw_.open(io_path(raw_path_),std::ios::binary);
+                    if(!raw_) {set_log_failure(context,"native_log_write_failed","Could not open native log archive");continue;}
+                }
+                raw_.write(record.message,record.message_bytes);raw_.flush();
+                if(!raw_) {set_log_failure(context,"native_log_write_failed","Could not persist native log message");continue;}
+                written_bytes_+=record.message_bytes;
+                ++written_messages_;
+                log_tail_.append(record.message,record.message_bytes);trim_log_text(log_tail_,log_tail_limit);
+                if(context.native_task_log_bytes)*context.native_task_log_bytes+=record.message_bytes;
+                auto event=log_event(context,std::string(record.message,record.message_bytes),"native",record.level==AA_LOG_DEBUG?"debug":record.level==AA_LOG_WARNING?"warning":record.level==AA_LOG_ERROR?"error":"info");
+                event.raw_log_file=file(raw_path_).getFullPathName().toStdString();event.total_bytes=written_bytes_+statistics.full_bytes;event.discarded_bytes=statistics.full_bytes;
+                if(context.on_log)context.on_log(std::move(event));
+            }
+            if(statistics.full_messages)set_log_failure(context,"native_log_queue_full","Native log queue overflow: "+std::to_string(statistics.full_messages)+" messages / "+std::to_string(statistics.full_bytes)+" bytes rejected");
+            if(statistics.rejected_messages)set_log_failure(context,"native_log_message_invalid","Native log sink rejected "+std::to_string(statistics.rejected_messages)+" invalid messages");
+        } catch(const std::exception& error) {
+            if(!log_failure_)log_failure_=Diagnostic{"native_log_delivery_failed",error.what(),context.node_id};
+        } catch(...) {
+            if(!log_failure_)log_failure_=Diagnostic{"native_log_delivery_failed","Unknown native log delivery failure",context.node_id};
+        }
+        if(final) {
+            if(auto error=detach_logs();!log_failure_&&error){error->node_id=context.node_id;log_failure_=std::move(error);}
+            // The copied sink context remains borrowed until set_sink(NULL)
+            // returns. Drain valid farewell records accepted during that call.
+            (void)drain_logs(context,false);
+            queue_->close();raw_.close();
+            try {write_log_summary(context);}
+            catch(const std::exception& error){set_log_failure(context,"native_log_summary_failed",error.what());}
+        }
+        return log_failure_;
+    }
     std::optional<Diagnostic> prepare(const NodePrepareContext& c) override {
         if(c.maximum_block_frames>UINT32_MAX || c.format.channel_count>UINT32_MAX) return Diagnostic{"plugin_format_overflow","ABI frame/channel limit exceeded"};
         juce::DynamicObject::Ptr parameters=new juce::DynamicObject;
@@ -331,12 +400,56 @@ public:
     }
     void reset() noexcept override { module_->api.reset(instance_); maximum_=0; }
 private:
+    // Only the owned worker mutates the bounded capture or writes this final
+    // sidecar. Keep SDK rejection, raw persistence and tail eviction distinct.
+    void write_log_summary(const NodeExecutionContext& context) {
+        if(raw_path_.empty())return;
+        const auto statistics=queue_->statistics();const auto accepted_bytes=statistics.attempted_bytes-statistics.full_bytes;
+        NodeLogEvent identity;identity.identity=context.identity;identity.node_id=context.node_id;identity.type_id=desc_.type_id;identity.version=desc_.version;
+        if(desc_.plugin_origin){identity.package_id=desc_.plugin_origin->plugin_id;identity.content_sha256=desc_.plugin_origin->managed_content_sha256;if(identity.content_sha256.empty())identity.content_sha256=desc_.plugin_origin->library_sha256;}
+        juce::DynamicObject::Ptr summary=new juce::DynamicObject;
+        summary->setProperty("schema_version",1);summary->setProperty("project_id",js(identity.identity.project_id));summary->setProperty("request_id",js(identity.identity.request_id));
+        summary->setProperty("session_epoch",static_cast<juce::int64>(identity.identity.session_epoch));summary->setProperty("revision",static_cast<juce::int64>(identity.identity.revision));
+        summary->setProperty("node_id",js(identity.node_id));summary->setProperty("type_id",js(identity.type_id));summary->setProperty("package_id",js(identity.package_id));summary->setProperty("version",js(identity.version));summary->setProperty("content_sha256",js(identity.content_sha256));summary->setProperty("source","native");summary->setProperty("raw_log_file",file(raw_path_).getFullPathName());
+        const auto count=[&](const char* name,std::uint64_t value){summary->setProperty(name,static_cast<juce::int64>(value));};
+        count("persisted_bytes",written_bytes_);count("persisted_messages",written_messages_);count("accepted_bytes",accepted_bytes);count("accepted_messages",statistics.accepted_messages);count("attempted_valid_bytes",statistics.attempted_bytes);
+        count("queue_full_messages",statistics.full_messages);count("queue_full_bytes",statistics.full_bytes);count("rejected_messages",statistics.rejected_messages);count("closed_messages",statistics.closed_messages);
+        count("tail_limit_bytes",log_tail_limit);count("tail_bytes",log_tail_.size());count("tail_discarded_bytes",written_bytes_-log_tail_.size());summary->setProperty("tail_utf8_base64",juce::Base64::toBase64(log_tail_.data(),log_tail_.size()));
+        summary->setProperty("raw_complete",written_bytes_==accepted_bytes);summary->setProperty("all_messages_accepted",statistics.full_messages==0&&statistics.rejected_messages==0&&statistics.closed_messages==0);summary->setProperty("failure_code",log_failure_?js(log_failure_->code):juce::String{});
+        auto path=raw_path_;path.replace_extension(".summary.json");std::ofstream output(io_path(path),std::ios::binary);const auto bytes=juce::JSON::toString(juce::var(summary.get()),false).toStdString();output.write(bytes.data(),static_cast<std::streamsize>(bytes.size()));output.close();if(!output)throw std::runtime_error("Could not persist native log capture summary");
+    }
+    NodeLogEvent log_event(const NodeExecutionContext& context,std::string message,std::string source,std::string level) {
+        NodeLogEvent event;event.identity=context.identity;event.node_id=context.node_id;event.type_id=desc_.type_id;event.version=desc_.version;
+        if(desc_.plugin_origin){event.package_id=desc_.plugin_origin->plugin_id;event.content_sha256=desc_.plugin_origin->managed_content_sha256;if(event.content_sha256.empty())event.content_sha256=desc_.plugin_origin->library_sha256;}
+        event.sequence=++log_sequence_;event.received_unix_ms=static_cast<std::uint64_t>(juce::Time::currentTimeMillis());event.text=std::move(message);event.source=std::move(source);event.level=std::move(level);return event;
+    }
+    void set_log_failure(const NodeExecutionContext& context,std::string code,std::string message) {
+        if(log_failure_)return;
+        log_failure_=Diagnostic{code,message,context.node_id};auto event=log_event(context,code+": "+message,"diagnostic","error");event.total_bytes=event.text.size();if(context.on_log)context.on_log(std::move(event));
+    }
+    std::optional<Diagnostic> detach_logs() noexcept {
+        if(!sink_attempted_)return {};sink_attempted_=false;
+        try {aa_error error{sizeof(error)};if(module_->log_api.set_sink(instance_,nullptr,&error)!=0)return failure(error,"native_log_detach_failed");}
+        catch(...){return Diagnostic{"native_log_detach_failed","Native log detach raised an exception"};}
+        return {};
+    }
     std::shared_ptr<Module> module_;
     NodeDescriptor desc_;
     aa_instance instance_=nullptr;
     std::vector<aa_input_v1> inputs_;
     std::vector<aa_output_v1> outputs_;
     uint32_t maximum_=0,channels_=0,rate_=0;
+    std::unique_ptr<sdk::LogQueueV1> queue_;
+    std::ofstream raw_;
+    std::filesystem::path raw_path_;
+    RunIdentity log_identity_;
+    std::string log_node_;
+    std::thread::id log_worker_;
+    std::optional<Diagnostic> log_failure_;
+    static constexpr std::size_t log_tail_limit=64u*1024u;
+    std::string log_tail_;
+    std::uint64_t written_bytes_=0,written_messages_=0,log_sequence_=0;
+    bool sink_attempted_=false;
 };
 }
 
@@ -432,10 +545,28 @@ PluginDiscovery load_native_plugins(NodeRegistry& registry,const std::vector<std
             const auto exported=juce::JSON::parse(juce::String::fromUTF8(api.manifest_json.data,static_cast<int>(api.manifest_json.size)));
             if(juce::JSON::toString(exported,true)!=juce::JSON::toString(manifest,true))
                 throw Rejected("plugin_descriptor_mismatch","DLL metadata differs from deployed manifest");
+#ifdef _WIN32
+            // A missing extension preserves the original v1 computation contract.
+            // A present but incompatible table must fail before any registry commit.
+            const auto log_entry=reinterpret_cast<aa_get_log_api_v1>(GetProcAddress(module->handle,AA_LOG_ENTRY));
+            if(log_entry) {
+                aa_error log_error{sizeof(log_error)};
+                if(log_entry(AA_LOG_ABI_V1,sizeof(module->log_api),&module->log_api,&log_error)!=0)
+                    throw Rejected("plugin_log_api_rejected",bounded(log_error.message));
+                if(module->log_api.struct_size!=sizeof(module->log_api) || module->log_api.abi_version!=AA_LOG_ABI_V1 || !module->log_api.set_sink)
+                    throw Rejected("plugin_log_api_incompatible","Invalid optional logging table version, size or mandatory function");
+            }
+#endif
             // Copy-on-commit keeps even multi-node packages atomic. Factory/instance leases
             // retain module ownership independently of discovery and registry object lifetimes.
             auto candidate=registry;
             for(auto& d:descriptors) {
+                // Host-observed capability, never a manifest promise. Keep it
+                // in the existing native backend metadata rather than changing
+                // the published C ABI or loading a DLL from the UI.
+                juce::DynamicObject::Ptr metadata=new juce::DynamicObject;
+                metadata->setProperty("user_logs",module->log_api.set_sink?"sdk_v1":"unavailable");
+                d.backend_metadata_json=juce::JSON::toString(juce::var(metadata.get()),true).toStdString();
                 auto registration=candidate.register_node(d,[module,d]{return std::make_unique<Processor>(module,d);});
                 if(!registration.registered) throw Rejected("plugin_node_registration_failed",registration.diagnostic?registration.diagnostic->message:"Registration failed");
             }

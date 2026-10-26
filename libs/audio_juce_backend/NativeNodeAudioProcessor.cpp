@@ -235,6 +235,18 @@ void NativeNodeAudioProcessor::releaseResources() {
     fixed_leading_ = fixed_frames_ == 0 ? 0 : fixed_frames_ - 1;
 }
 
+std::optional<Diagnostic> NativeNodeAudioProcessor::drain_logs(bool final) {
+    try {
+        auto error=processor_->drain_logs(context_,final);
+        if(error && error->node_id.empty())error->node_id=node_id_;
+        return error;
+    } catch(const std::exception& error) {
+        return node_error("node_log_drain_exception",node_id_,{},error.what());
+    } catch(...) {
+        return node_error("node_log_drain_exception",node_id_,{},"Unknown log drain exception");
+    }
+}
+
 void NativeNodeAudioProcessor::process_fixed_block(juce::AudioBuffer<float>& buffer) {
     const auto channels = static_cast<std::size_t>(channel_count_);
     const auto input_count = input_port_ids_.size() * channels;

@@ -40,6 +40,7 @@ public:
     void set_finite_output_ends(std::vector<std::size_t> frames) { finite_output_ends_ = std::move(frames); }
     // Worker-side terminal handshake, also used by a truly empty finite stream.
     void complete_finite_stream();
+    [[nodiscard]] std::optional<Diagnostic> drain_logs(bool final);
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
