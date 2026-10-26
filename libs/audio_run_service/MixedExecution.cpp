@@ -51,7 +51,7 @@ AudioGraphOutcome render_prepared_audio_graph(const ProjectModel& project,const 
     for(const auto& source:sources) {
         const auto& a=source.audio;
         if(!a.format_error().empty() || a.format()!=reference.format() || a.channel_ids()!=reference.channel_ids() || a.frame_count()!=reference.frame_count() || a.valid_interval()!=reference.valid_interval())
-            return Diagnostic{"source_format_mismatch","Mixed sources must have matching format, channel identity, frames and valid interval",source.node_id};
+            return Diagnostic{"source_format_mismatch","Mixed sources must have matching format, channel identity, frames and valid interval",source.node_id,"audio"};
     }
     auto compiled=compile_prepared_plan(project,registry,reference.format(),reference.frame_count(),host);
     if(const auto* e=std::get_if<Diagnostic>(&compiled))return *e;

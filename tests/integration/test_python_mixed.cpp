@@ -4,14 +4,18 @@
 #include "tests/fixtures/IndependentTailStream.h"
 #include "audio_io/WavFile.h"
 #include "plugins/host/registration.h"
+#include "plugins/builtin/registration.h"
 #include "EditorNodeInspector.h"
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_cryptography/juce_cryptography.h>
 #include <future>
 #include <cmath>
 #include <array>
 #include <random>
+#include <fstream>
+#include <iostream>
 
 namespace {
 audioalgo::RunOutcome worker_run(const audioalgo::RunService& service,const audioalgo::RunRequest& request) {
@@ -67,6 +71,22 @@ TEST_CASE("P3-03 RunService executes native Python native stateful chain with ex
         }
         REQUIRE(std::filesystem::exists(request.output_directory/"complete.json"));
     }
+}
+
+TEST_CASE("PC-05.b mismatched mixed sources identify their output port before any factory", "[PC-05.b][PC0506]") {
+    using namespace audioalgo;juce::ScopedJuceInitialiser_GUI messages;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0506-source-port/artifacts"/juce::Uuid().toString().toStdString();std::filesystem::create_directories(root);std::cout<<"PC05_SOURCE_ROOT="<<root.generic_string()<<'\n';
+    struct OfflineAdd final:AudioNodeProcessor{NodeProcessOutcome process(const NodeProcessRequest& request)override{auto output=request.inputs.at("primary");const auto& other=request.inputs.at("reference");for(std::size_t c=0;c<output.channel_count();++c)for(std::size_t n=0;n<output.frame_count();++n)output.mutable_channel(c)[n]+=other.channel(c)[n];return AudioPorts{{"main",std::move(output)}};}};
+    NodeRegistry registry;REQUIRE(register_builtin_nodes(registry));int factories=0;auto descriptor=*registry.find("builtin.gain");descriptor.type_id="fixture.pc0506_add";descriptor.parameters.clear();descriptor.ports={{"primary","audio.pcm@1",PortDirection::input,true},{"reference","audio.pcm@1",PortDirection::input,true},{"main","audio.pcm@1",PortDirection::output}};descriptor.capabilities.supports_named_audio_ports=true;descriptor.capabilities.requires_offline_task=true;REQUIRE(registry.register_node(descriptor,[&]{++factories;return std::make_unique<OfflineAdd>();}).registered);
+    ProjectModel project;project.project_id="pc0506-source-preflight";project.selected_output_node_id="join";project.selected_output_port_id="main";project.nodes={{"a","builtin.file_source",{{"path",std::string("a.wav")}}},{"b","builtin.file_source",{{"path",std::string("b.wav")}}},{"join",descriptor.type_id,{}}};project.connections={{"a","audio","join","primary"},{"b","audio","join","reference"}};REQUIRE(std::holds_alternative<std::monostate>(save_project_file(root/"project.aaproj",project)));
+    AudioBuffer a(48000,{"left","right"},513);for(std::size_t c=0;c<2;++c)for(std::size_t n=0;n<513;++n)a.mutable_channel(c)[n]=static_cast<float>((static_cast<int>((3*n+7*c)%29)-14)/64.0);REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root/"a.wav",a,WavEncoding::float32)));
+    struct Variant{const char* kind;AudioBuffer audio;};std::vector<Variant> variants{{"rate",AudioBuffer(16000,{"left","right"},513)},{"channels",AudioBuffer(48000,{"mono"},513)},{"channel_ids",AudioBuffer(48000,{"right","left"},513)},{"frames",AudioBuffer(48000,{"left","right"},512)},{"interval",AudioBuffer(48000,{"left","right"},513,AudioInterval{1,512})}};
+    juce::Array<juce::var> receipts;
+    for(auto& variant:variants){for(std::size_t c=0;c<variant.audio.channel_count();++c)for(std::size_t n=0;n<variant.audio.frame_count();++n)variant.audio.mutable_channel(c)[n]=static_cast<float>((static_cast<int>((11*n+5*c)%31)-15)/128.0);const auto file=root/(std::string(variant.kind)+".wav");REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(file,variant.audio,WavEncoding::float32)));const auto hash=juce::SHA256(juce::File(file.generic_string())).toHexString();
+        auto future=std::async(std::launch::async,[&]{return render_prepared_audio_graph(project,registry,{{"a",a},{"b",variant.audio}},127,{},nullptr,nullptr);});const auto result=future.get();const auto* error=std::get_if<Diagnostic>(&result);REQUIRE(error);INFO(variant.kind);CHECK(error->code=="source_format_mismatch");CHECK(error->node_id=="b");CHECK(error->port_id=="audio");CHECK(factories==0);CHECK(juce::SHA256(juce::File(file.generic_string())).toHexString()==hash);
+        juce::DynamicObject::Ptr row=new juce::DynamicObject;row->setProperty("kind",variant.kind);row->setProperty("code",juce::String(error->code));row->setProperty("node",juce::String(error->node_id));row->setProperty("port",juce::String(error->port_id));row->setProperty("factories",factories);row->setProperty("input_sha256",hash);row->setProperty("rate",static_cast<int>(variant.audio.sample_rate_hz()));row->setProperty("channels",static_cast<int>(variant.audio.channel_count()));row->setProperty("frames",static_cast<int>(variant.audio.frame_count()));row->setProperty("valid_start",static_cast<int>(variant.audio.valid_interval().first_frame));row->setProperty("valid_count",static_cast<int>(variant.audio.valid_interval().frame_count));juce::Array<juce::var> ids;for(const auto& id:variant.audio.channel_ids())ids.add(juce::String(id));row->setProperty("channel_ids",ids);receipts.add(juce::var(row.get()));
+    }
+    auto future=std::async(std::launch::async,[&]{return render_prepared_audio_graph(project,registry,{{"a",a},{"b",a}},127,{},nullptr,nullptr);});const auto result=future.get();if(auto* error=std::get_if<Diagnostic>(&result))INFO(error->code+": "+error->message);REQUIRE(std::holds_alternative<AudioBuffer>(result));CHECK(factories==1);const auto& output=std::get<AudioBuffer>(result);REQUIRE(output.frame_count()==513);CHECK(output.channel_ids()==a.channel_ids());CHECK(output.valid_interval()==a.valid_interval());for(std::size_t c=0;c<2;++c)for(std::size_t n=0;n<513;++n)CHECK(output.channel(c)[n]==a.channel(c)[n]*2.f);REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root/"control.wav",output,WavEncoding::float32)));std::ofstream(root/"source-probe.json")<<juce::JSON::toString(receipts,false).toStdString();
 }
 
 TEST_CASE("P3-03 mixed instances clip multioutput and shared native branches preserve single execution","[P3-03]") {
