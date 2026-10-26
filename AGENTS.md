@@ -30,7 +30,9 @@
 11. [自定义节点工作台测试与通过准则](doc/testing_node_authoring_workbench.md)
 12. [自定义节点工作台 Agent TDD 执行规程](doc/agent_loop_node_authoring_workbench.md)
 
-2026-10-24用户补充：卷根草稿保存和跨语言Pipeline可观察闭环按[修改方案](doc/plan_pipeline_execution_closure.md)、[逐项测试与通过准则](doc/testing_pipeline_execution_closure.md)、[Agent TDD执行规程及启动提示词](doc/agent_loop_pipeline_execution_closure.md)接续。当前首片PC-01为生产卷根路径Red，随后PC-02 Print编写/Apply/库拖放/画布Run/日志可见，再推进日志身份/失败/预算、混合数值、兼容C++日志及工作台构建激活。NA0031只有只读根因探针，尚未修复产品；原NA0030通过范围不覆盖新缺口。原68个NA及AR/G/NED/UPN保留，工程SaveAs携带继续挂账；真实桌面仍暂停，不把本补充三文档当实现完成。
+2026-10-26补充设计：[多文件工作区详细开发方案](doc/plan_node_workspace_implementation.md)与[逐项验收方案](doc/testing_node_workspace_authoring.md)规定后续文件夹节点/专业编辑路径的目标及NWS-01～10，[ADR0040](doc/decisions/0040-node-workspace-schema-v1.md)已冻结工作区 schema 1、运行文件清单/整树 hash、路径与预算、创建/转换事务。当前事实：W0 已冻结（`tests/fixtures/node_workspace/` 夹具 + 独立 `workspace_expectation.py` + `workspace_lock.json`，`tests/node_workspace_manifest.json` 30 条与 CTest `NWS-00.contract`）；W1 首个行为已实现（生产面板“Node project folder…”/节点库“Open node project”创建并重开目录，原 `.aadraft` 不变，目录模式只读）。NWS-01.a/b/c 仅 `partial`，其余 `not_run`，桌面 `not_verified`；不强制 VS Code，当前单文件工作台与PC/NA主线保持。恢复实现仍先读唯一状态摘要，按直接依赖接续。
+
+2026-10-24用户补充：卷根草稿保存和跨语言Pipeline可观察闭环按[修改方案](doc/plan_pipeline_execution_closure.md)、[逐项测试与通过准则](doc/testing_pipeline_execution_closure.md)、[Agent TDD执行规程及启动提示词](doc/agent_loop_pipeline_execution_closure.md)接续。历史首片PC-01为生产卷根路径Red，随后PC-02 Print编写/Apply/库拖放/画布Run/日志可见，再推进日志身份/失败/预算、混合数值、兼容C++日志及工作台构建激活。NA0031最初只有只读根因探针，后续修复与剩余真实桌面缺项以唯一当前摘要为准；原NA0030通过范围不覆盖新缺口。原68个NA及AR/G/NED/UPN保留，工程SaveAs携带继续挂账；真实桌面仍暂停，不把本补充三文档当实现完成。
 
 2026-10-24工作台已启动：从唯一当前摘要及NA0008证据接续，不重做NA-01.a草稿闭环。NA0001～07已有草稿、隔离检查、schema 2精确锁和迁移备份的历史分片证据；NA0008推进真实Apply/库刷新/画布Run，NA0009修复生产面板取消投递和放弃关闭。当前构建及各子项状态必须核对最新命令/源码身份，不把历史Green当当前累计通过。按S0～S5优先完成Python，再完成版本/兼容和C++构建激活；原P3保留作后续恢复，不扩无关重构。NA-01～17共68个必需子项另列，不替代AR/G/NED/UPN；保留缩放连线、右键多选、负坐标拖动等既有交互。真实桌面仍暂停，缺项不记通过。
 
