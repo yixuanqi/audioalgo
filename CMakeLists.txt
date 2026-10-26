@@ -161,7 +161,7 @@ target_include_directories(audio_editor_application PUBLIC "${CMAKE_CURRENT_SOUR
 target_link_libraries(audio_editor_application PUBLIC audio_project)
 target_compile_features(audio_editor_application PUBLIC cxx_std_20)
 
-add_library(audio_node_authoring STATIC libs/audio_node_authoring/Draft.cpp)
+add_library(audio_node_authoring STATIC libs/audio_node_authoring/Draft.cpp libs/audio_node_authoring/Workspace.cpp)
 target_include_directories(audio_node_authoring PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/libs")
 target_link_libraries(audio_node_authoring PUBLIC audio_node_sdk)
 target_compile_features(audio_node_authoring PUBLIC cxx_std_20)
