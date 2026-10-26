@@ -151,14 +151,42 @@ AudioGraphOutcome render_audio_graph(const ProjectModel& project,
     for (auto& processor : std::get<NodeProcessorPlan>(instances).processors)
         planned_processors.emplace(processor.node_id, std::move(processor));
 
+    // A mixed Run calls this renderer separately for each native-region task.
+    // Keep its budget local to that task, including final reset/drain, rather
+    // than granting each node an independent complete-log allowance.
+    const auto native_task_log_bytes=std::make_shared<std::size_t>(0);
     juce::AudioProcessorGraph graph;
     graph.setPlayConfigDetails(channel_count, channel_count, sample_rate, block_size);
     graph.setNonRealtime(true);
 
     std::map<std::string, juce::AudioProcessorGraph::NodeID, std::less<>> graph_nodes;
     std::vector<std::pair<std::string, NativeNodeAudioProcessor*>> diagnostic_sources;
+    struct RenderCleanup {
+        juce::AudioProcessorGraph& graph;
+        std::vector<std::pair<std::string,NativeNodeAudioProcessor*>>& processors;
+        bool finished=false;
+        std::optional<Diagnostic> finish() noexcept {
+            if(finished)return {};
+            finished=true;
+            std::optional<Diagnostic> failure;
+            try {
+                graph.releaseResources();
+                // As with preparation, JUCE schedules worker-triggered release
+                // on its message thread. Fence it before draining reset logs
+                // and detaching their borrowed sinks.
+                if(auto* messages=juce::MessageManager::getInstanceWithoutCreating();messages&&!messages->isThisTheMessageThread()) {
+                    const auto released=messages->callFunctionOnMessageThread([](void* pointer)->void*{static_cast<juce::AudioProcessorGraph*>(pointer)->rebuild();return pointer;},&graph);
+                    if(released!=&graph)failure=graph_error("graph_release_dispatch_failed","Could not finish native graph release on its message thread");
+                }
+            }catch(const std::exception& e){failure=graph_error("node_release_exception",e.what());}catch(...){failure=graph_error("node_release_exception","Unknown native release exception");}
+            for(const auto& [id,processor]:processors){(void)id;auto error=processor->drain_logs(true);if(!failure&&error)failure=std::move(error);}
+            return failure;
+        }
+        ~RenderCleanup(){(void)finish();}
+    } cleanup{graph,diagnostic_sources};
     for (const auto& node : execution_plan.nodes) {
         std::unique_ptr<juce::AudioProcessor> processor;
+        NativeNodeAudioProcessor* wrapper_view=nullptr;
         const auto* descriptor = &node.descriptor;
         if (descriptor->execution_kind == NodeExecutionKind::source) {
             const auto bound = bindings.find(node.node_id);
@@ -173,10 +201,19 @@ AudioGraphOutcome render_audio_graph(const ProjectModel& project,
             auto planned = planned_processors.find(node.node_id);
             if (planned == planned_processors.end() || !planned->second.processor)
                 return graph_error("node_plan_incomplete", "No prepared SDK processor exists for node " + node.node_id);
+            auto node_context=options.execution_context;node_context.node_id=node.node_id;node_context.maximum_block_frames=block_size;
+            node_context.native_task_log_bytes=native_task_log_bytes;
+            const auto* message_thread=juce::MessageManager::getInstanceWithoutCreating();
+            node_context.worker_log_io_allowed=!message_thread || !message_thread->isThisTheMessageThread();
+            if(auto error=planned->second.processor->freeze_task(node_context)) {
+                (void)planned->second.processor->drain_logs(node_context,true);
+                if(error->node_id.empty())error->node_id=node.node_id;
+                return *error;
+            }
             auto wrapper = std::make_unique<NativeNodeAudioProcessor>(
                 std::move(planned->second.processor), node.node_id, *descriptor,
-                std::move(planned->second.parameters), NodeExecutionContext{}, channel_count);
-            auto* wrapper_view = wrapper.get();
+                std::move(planned->second.parameters), std::move(node_context), channel_count);
+            wrapper_view = wrapper.get();
             wrapper_view->set_finite_output_frames(execution_plan.source_frames + node.output_tail_frames + node.output_latency_frames);
             std::vector<std::size_t> input_ends;
             for (const auto& end : node.input_ends) input_ends.push_back(end.frame);
@@ -186,12 +223,12 @@ AudioGraphOutcome render_audio_graph(const ProjectModel& project,
                 output_ends.push_back(execution_plan.source_frames + node.output_latency_frames + node.output_tails.at(port.id));
             wrapper_view->set_finite_output_ends(std::move(output_ends));
             processor = std::move(wrapper);
-            diagnostic_sources.emplace_back(node.node_id, wrapper_view);
         }
 
         const auto added = graph.addNode(std::move(processor), std::nullopt, juce::AudioProcessorGraph::UpdateKind::none);
         if (added == nullptr)
             return graph_error("juce_node_rejected", "JUCE rejected node " + node.node_id);
+        if(wrapper_view)diagnostic_sources.emplace_back(node.node_id,wrapper_view);
         graph_nodes.emplace(node.node_id, added->nodeID);
     }
 
@@ -270,6 +307,11 @@ AudioGraphOutcome render_audio_graph(const ProjectModel& project,
         }
         return std::nullopt;
     };
+    const auto drain_pending_logs=[&]() -> std::optional<Diagnostic> {
+        for(const auto& [id,processor]:diagnostic_sources){(void)id;if(auto error=processor->drain_logs(false))return error;}
+        return {};
+    };
+    if(const auto error=drain_pending_logs())return *error;
     if (const auto error = find_processing_error()) {
         return *error;
     }
@@ -303,6 +345,7 @@ AudioGraphOutcome render_audio_graph(const ProjectModel& project,
         juce::AudioBuffer<float> block(channel_count, static_cast<int>(count));
         block.clear();
         graph.processBlock(block, midi);
+        if(const auto error=drain_pending_logs())return *error;
         if (cancelled()) return graph_error("run_cancelled", "Native rendering was cancelled after its processing block");
         if (const auto error = find_processing_error()) {
             return *error;
@@ -328,7 +371,7 @@ AudioGraphOutcome render_audio_graph(const ProjectModel& project,
     }
     if (const auto error = find_processing_error()) return *error;
     if (cancelled()) return graph_error("run_cancelled", "Native rendering was cancelled after terminal stream completion");
-    graph.releaseResources();
+    if(const auto error=cleanup.finish())return *error;
     if (options.statistics) {
         const auto aligned_time = map_sample_frame(aligned_frames, reference.audio.sample_rate_hz(), 1000000000);
         const auto offset_time = map_sample_frame(latency, reference.audio.sample_rate_hz(), 1000000000);

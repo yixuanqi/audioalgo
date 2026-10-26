@@ -171,7 +171,7 @@ AudioGraphOutcome render_prepared_audio_graph(const ProjectModel& project,const 
                     {latency+port_valid.first_frame,port_valid.frame_count});
             }
             NativeRenderStatistics region_statistics;
-            const auto rendered=render_audio_graph(projection,local,std::move(inputs),host,{host_partitions,&region_statistics,false,context.is_cancelled});
+            const auto rendered=render_audio_graph(projection,local,std::move(inputs),host,{host_partitions,&region_statistics,false,context.is_cancelled,context});
             if(const auto* e=std::get_if<Diagnostic>(&rendered))return *e;
             if(region_statistics.drain_padding_frames>std::numeric_limits<std::size_t>::max()-total_drain_padding)
                 return Diagnostic{"render_length_overflow","Aggregate native drain count exceeds the sample range"};

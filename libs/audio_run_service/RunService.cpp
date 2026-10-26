@@ -410,7 +410,17 @@ RunOutcome RunService::run(const RunRequest& request) const {
             row->setProperty("package_id",to_juce_string(event.package_id));row->setProperty("content_sha256",to_juce_string(event.content_sha256));
             row->setProperty("version",to_juce_string(event.version));row->setProperty("sequence",static_cast<juce::int64>(event.sequence));
             row->setProperty("received_unix_ms",static_cast<juce::int64>(event.received_unix_ms));
-            row->setProperty("source",to_juce_string(event.source));row->setProperty("level",to_juce_string(event.level));row->setProperty("text",to_juce_string(event.text));
+            row->setProperty("source",to_juce_string(event.source));row->setProperty("level",to_juce_string(event.level));
+            // JUCE String/JSON cannot represent embedded NUL. Keep a readable
+            // fallback and explicitly encode authoritative UTF-8 bytes only
+            // for this case; ordinary archives retain their existing schema.
+            if(event.text.find('\0')!=std::string::npos) {
+                row->setProperty("text_encoding","utf8-base64");
+                row->setProperty("text_utf8_base64",juce::Base64::toBase64(event.text.data(),event.text.size()));
+                std::string readable;readable.reserve(event.text.size());
+                for(const char c:event.text)if(c=='\0')readable+="\\0";else readable+=c;
+                row->setProperty("text",to_juce_string(readable));
+            } else row->setProperty("text",to_juce_string(event.text));
             row->setProperty("total_bytes",static_cast<juce::int64>(event.total_bytes));row->setProperty("discarded_bytes",static_cast<juce::int64>(event.discarded_bytes));
             row->setProperty("dropped_text_bytes",static_cast<juce::int64>(event.dropped_text_bytes));
             row->setProperty("raw_log_file",to_juce_string(event.raw_log_file));
@@ -423,7 +433,7 @@ RunOutcome RunService::run(const RunRequest& request) const {
         item->setProperty("directory",to_juce_file(std::filesystem::u8path(directory)).getRelativePathFrom(to_juce_file(request.output_directory)).replaceCharacter('\\','/'));item->setProperty("path_base","run_root");
         item->setProperty("provenance",juce::JSON::parse(to_juce_string(provenance)));task_artifacts.add(juce::var(item.get()));};
     const auto rendered_result = mixed?render_prepared_audio_graph(rendering_project,*nodes_,std::move(source_bindings),request.block_size,std::move(context),&render_statistics,&task_manifest_json):
-        render_audio_graph(rendering_project, *nodes_, std::move(source_bindings), request.block_size,{{}, &render_statistics, true, request.is_cancelled});
+        render_audio_graph(rendering_project, *nodes_, std::move(source_bindings), request.block_size,{{}, &render_statistics, true, request.is_cancelled,context});
     if (const auto* error = std::get_if<Diagnostic>(&rendered_result))
         return *error;
     if(log_error)return *log_error;

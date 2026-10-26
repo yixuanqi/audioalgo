@@ -39,6 +39,7 @@ struct NativeRenderOptions {
     NativeRenderStatistics* statistics = nullptr;
     bool capture_raw_audio = false;
     std::function<bool()> is_cancelled;
+    NodeExecutionContext execution_context;
 };
 
 // Explicit multi-source entry: every source node of the project must have exactly one binding.
