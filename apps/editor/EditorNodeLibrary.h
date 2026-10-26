@@ -90,6 +90,10 @@ public:
         for (const auto& entry : build_node_library_entries(catalog)) {
             auto button = std::make_unique<NodeLibraryButton>(utf8_string(entry.display_name), entry.type_id, clicked_, epoch_);
             button->setComponentID("library." + utf8_string(entry.type_id));
+            if(const auto* descriptor=catalog.find(entry.type_id)) {
+                const auto notice=native_user_log_notice(*descriptor);
+                if(notice.isNotEmpty())button->setTooltip(utf8_string(entry.display_name)+"\n"+notice);
+            }
             style_button(*button);
             replacement.content->addAndMakeVisible(*button);
             replacement.buttons.push_back(std::move(button));

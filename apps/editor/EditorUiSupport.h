@@ -1,5 +1,6 @@
 #pragma once
 #include "EditorText.h"
+#include "audio_node_sdk/NodeSDK.h"
 #include "audio_project/ProjectModel.h"
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <filesystem>
@@ -15,6 +16,15 @@ inline const auto signal = juce::Colour(0xff9ad3c8);
 inline const auto compatible_green = juce::Colour(0xff6ed39a);
 inline const auto amber = juce::Colour(0xffe5b56f);
 inline const auto danger = juce::Colour(0xffe28778);
+
+inline juce::String native_user_log_notice(const NodeDescriptor& descriptor) {
+    if(!descriptor.plugin_origin || descriptor.plugin_origin->runtime!="native")return {};
+    const auto metadata=juce::JSON::parse(utf8_string(descriptor.backend_metadata_json));
+    const auto capability=metadata["user_logs"].toString();
+    if(capability=="sdk_v1")return "User logs: available.";
+    if(capability=="unavailable")return "User logs: unavailable in this version.";
+    return {};
+}
 
 inline std::string path_to_utf8(const std::filesystem::path& path) {
     const auto value = path.u8string();

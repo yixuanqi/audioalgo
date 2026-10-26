@@ -4,6 +4,7 @@
 #include "EditorNodeParameterBinding.h"
 #include "EditorParameterPanel.h"
 #include "EditorText.h"
+#include "EditorUiSupport.h"
 
 namespace audioalgo::editor {
 
@@ -35,6 +36,8 @@ public:
             return;
         }
         const audioalgo::editor::EditorNodeParameterBinding binding(controller_, *snapshot_);
+        auto details=utf8_string(node.type_id + "\nID " + node.id);
+        if(const auto notice=native_user_log_notice(*descriptor);notice.isNotEmpty())details+="\n"+notice;
         panel_.show_parameters(*descriptor, node.parameters,
             [this, binding](std::string parameter_id, audioalgo::ParameterValue value) {
                 apply_parameter(binding, std::move(parameter_id), std::move(value));
@@ -43,7 +46,7 @@ public:
                    audioalgo::ParameterValue value) {
                 apply_parameter_gesture(binding, std::move(parameter_id), phase, std::move(value));
             },
-            utf8_string(node.type_id + "\nID " + node.id));
+            details);
         std::vector<std::pair<std::string, std::string>> opaque;
         for (const auto& field : node.opaque_parameters)
             opaque.emplace_back(field.name, field.value_json);

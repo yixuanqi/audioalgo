@@ -359,6 +359,41 @@ TEST_CASE("AR-09.c delayed service completion cannot read a deleted node or upda
     }
 }
 
+TEST_CASE("PC-03.c queued log delivery after View invalidation releases payloads without touching a replacement",
+          "[PC-03.c][lifecycle]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    using State = audioalgo::editor::ComponentDispatchState<DeliveryTarget>;
+    auto old_target = std::make_unique<DeliveryTarget>();
+    auto state = std::make_shared<State>(*old_target);
+    std::weak_ptr<State> old_state = state;
+    auto payload = std::make_shared<audioalgo::NodeLogEvent>();
+    payload->identity = {"old-project", 1, "old-request", 1}; payload->text = "late log";
+    std::weak_ptr<audioalgo::NodeLogEvent> weak_payload = payload;
+    int old_deliveries = 0;
+    bool posted = false;
+    std::thread worker([&] {
+        posted = audioalgo::editor::dispatch_to_live_component(old_state,
+            [payload, &old_deliveries](DeliveryTarget&) { ++old_deliveries; });
+    });
+    worker.join(); REQUIRE(posted);
+    // The worker has queued an actual production dispatch, but the message
+    // thread has not delivered it. Close the old View at this exact boundary.
+    state->invalidate(); old_target.reset(); state.reset(); payload.reset();
+    CHECK_FALSE(old_state.expired()); CHECK_FALSE(weak_payload.expired());
+    auto replacement = std::make_unique<DeliveryTarget>();
+    auto replacement_state = std::make_shared<State>(*replacement);
+    bool drained = false;
+    REQUIRE(audioalgo::editor::dispatch_to_live_component(std::weak_ptr<State>(replacement_state),
+        [&](DeliveryTarget& live) { ++live.deliveries; drained = true; }));
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (!drained && std::chrono::steady_clock::now() < deadline)
+        juce::MessageManager::getInstance()->runDispatchLoopUntil(10);
+    REQUIRE(drained);
+    CHECK(old_deliveries == 0); CHECK(replacement->deliveries == 1);
+    CHECK(old_state.expired()); CHECK(weak_payload.expired());
+    replacement_state->invalidate();
+}
+
 TEST_CASE("AR-09.d production RunJob publishes a real run and drops delivery after View close",
           "[architecture][native_integration][lifecycle]") {
     juce::ScopedJuceInitialiser_GUI juce_message_environment;

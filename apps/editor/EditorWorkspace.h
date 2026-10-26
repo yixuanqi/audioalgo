@@ -54,6 +54,7 @@
 #include "EditorRunStatusPanel.h"
 #include "EditorRunLogPanel.h"
 namespace audioalgo::editor {
+struct RunConfiguration { int block_size=512; };
 class EditorComponent final : public juce::Component, public juce::DragAndDropContainer {
 public:
     EditorComponent(std::shared_ptr<audioalgo::NodeRegistry> descriptors,
@@ -65,7 +66,8 @@ public:
                     std::function<bool()> allow_catalog_prepare = {}, bool user_draft_files = false,
                     std::function<void(bool, const std::filesystem::path&, DraftFileActions::Completion)> draft_picker = {},
                     std::function<authoring::SaveResult(bool, const std::filesystem::path&)> location_persistence = {},
-                    std::function<authoring::SaveResult(const std::filesystem::path&)> library_location_persistence = {})
+                    std::function<authoring::SaveResult(const std::filesystem::path&)> library_location_persistence = {},
+                    RunConfiguration run_configuration = {})
         : document_service_(std::move(document_service)), project_resources_(std::move(project_resources)),
           preview_service_(std::move(preview_service)), descriptors_owner_(std::move(descriptors)),
           available_catalog_(std::make_shared<const NodeRegistry>(descriptors_)), controller_(descriptors_), project_(controller_.project()),
@@ -91,6 +93,7 @@ public:
           drafts_(drafts ? std::move(drafts) : std::make_shared<authoring::FileDraftStorage>(
               path_from_juce_file(juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
                   .getChildFile("AudioAlgo").getChildFile("authoring").getChildFile("drafts")))), checks_(std::move(checks)), allow_catalog_prepare_(std::move(allow_catalog_prepare)), user_draft_files_(user_draft_files), draft_picker_(std::move(draft_picker)), location_persistence_(std::move(location_persistence)), library_location_persistence_(std::move(library_location_persistence)) {
+        run_configuration_=run_configuration;
         completion_dispatch_state_ = std::make_shared<
             audioalgo::editor::ComponentDispatchState<EditorComponent>>(*this);
         inspector_.set_descriptor_registry(descriptors_);
@@ -127,7 +130,9 @@ public:
         run_button_.onClick = [this] { run_project(); };
         run_button_.setComponentID("project.run"); save_button_.setComponentID("project.save");
         canvas_.setComponentID("project.canvas"); status_.setComponentID("project.status");
+        play_button_.setComponentID("project.play");
         play_button_.onClick = [this] { toggle_playback(); };
+        run_logs_.enable_history([this]{refresh_run_log_history();},[this](std::optional<RunLogArchiveReference> selected){select_run_log_history(std::move(selected));});
         delete_button_.onClick = [this] { canvas_.delete_selected(); };
 
         auto initial_project = audioalgo::ProjectModel{};
@@ -150,6 +155,10 @@ public:
     void open_project_file(const std::filesystem::path& path) {
         if (path.empty())
             return;
+        // Document loading shares the bounded worker with rendering. Cancel on
+        // admission so an active render cannot prevent the Open that replaces it.
+        // Session/catalog adoption still occurs only after a successful load.
+        if (run_queue_) run_queue_->cancel();
         const auto expected_session = controller_.session_identity();
         const auto expected_document_generation = controller_.document_generation();
         const auto service = document_service_;
@@ -273,6 +282,10 @@ public:
     }
 
     const audioalgo::editor::EditorController& controller() const { return controller_; }
+    [[nodiscard]] EditorRunQueue<EditorComponent>::Mailbox::Counts background_run_counts() const {
+        return run_queue_ ? run_queue_->counts() : EditorRunQueue<EditorComponent>::Mailbox::Counts{};
+    }
+    [[nodiscard]] int background_job_count() const noexcept { return worker_pool_.get_num_jobs(); }
 
     bool keyPressed(const juce::KeyPress& key) override {
         switch (audioalgo::editor::editor_shortcut_action(key)) {
@@ -311,12 +324,58 @@ public:
     }
     void run_log_received(NodeLogEvent event) {
         const auto applied = apply_if_current_run(run_reception_, event.identity, project_.project_id, project_epoch_, project_.revision, [&] {
+            if(viewing_archived_logs_)return;
             run_logs_.append(event); waveform_.setVisible(false); run_logs_.setVisible(true);
         });
         juce::ignoreUnused(applied);
     }
 
 private:
+    void cancel_log_history_read() {
+        if(log_history_cancel_)log_history_cancel_->store(true);
+        ++log_history_generation_;viewing_archived_logs_=false;
+    }
+    void refresh_run_log_history() {
+        if(project_path_.empty()){run_logs_.set_history_status("Save the project before browsing logs");return;}
+        cancel_log_history_read();log_history_cancel_=std::make_shared<std::atomic<bool>>(false);
+        const auto token=log_history_cancel_;const auto generation=log_history_generation_,epoch=project_epoch_;
+        const auto directory=project_path_.parent_path()/"run-logs";const auto project=project_.project_id;const auto active=run_reception_.active();
+        run_logs_.set_history_busy(true);waveform_.setVisible(false);run_logs_.setVisible(true);
+        struct HistoryResult{RunLogArchiveList list;RunLogArchiveTail current;};
+        const auto submitted=submit_work<HistoryResult>([directory,project,active,token]{
+            const auto cancelled=[token]{return token->load();};HistoryResult result{RunLogArchiveReader::list(directory,project,cancelled),{}};
+            if(active)for(const auto& archive:result.list.runs)if(archive.identity==*active){result.current=RunLogArchiveReader::load(archive,cancelled);break;}
+            return result;
+        },[generation,epoch](EditorComponent& target,HistoryResult result){
+            if(generation!=target.log_history_generation_||epoch!=target.project_epoch_)return;
+            auto notice=result.list.notice;target.run_logs_.set_history_list(std::move(result.list));target.run_logs_.clear_entries();
+            for(const auto& event:result.current.events)target.run_logs_.append(event);
+            target.run_logs_.set_history_busy(false);
+            if(!result.current.notice.empty())notice+=(notice.empty()?"":"; ")+result.current.notice;
+            target.run_logs_.set_history_status(notice.empty()?"Current Run":notice);
+        });
+        if(!submitted)run_logs_.set_history_busy(false);
+    }
+    void select_run_log_history(std::optional<RunLogArchiveReference> selected) {
+        cancel_log_history_read();viewing_archived_logs_=selected.has_value();log_history_cancel_=std::make_shared<std::atomic<bool>>(false);
+        const auto token=log_history_cancel_;const auto generation=log_history_generation_,epoch=project_epoch_;
+        const auto directory=project_path_.parent_path()/"run-logs";const auto project=project_.project_id;const auto active=run_reception_.active();
+        run_logs_.clear_entries();run_logs_.set_history_busy(true);waveform_.setVisible(false);run_logs_.setVisible(true);
+        const auto submitted=submit_work<RunLogArchiveTail>([directory,project,active,selected,token]{
+            const auto cancelled=[token]{return token->load();};
+            if(selected)return RunLogArchiveReader::load(*selected,cancelled);
+            if(active){const auto list=RunLogArchiveReader::list(directory,project,cancelled);for(const auto& archive:list.runs)if(archive.identity==*active)return RunLogArchiveReader::load(archive,cancelled);}
+            return RunLogArchiveTail{};
+        },[generation,epoch,selected](EditorComponent& target,RunLogArchiveTail result){
+            if(generation!=target.log_history_generation_||epoch!=target.project_epoch_)return;
+            for(const auto& event:result.events)target.run_logs_.append(event);
+            target.run_logs_.set_history_busy(false);
+            auto label=selected?"Archived Run "+selected->identity.request_id:std::string("Current Run");
+            if(!result.notice.empty())label+=" · "+result.notice;
+            target.run_logs_.set_history_status(label);
+        });
+        if(!submitted)run_logs_.set_history_busy(false);
+    }
     void preview_node_upgrade() {
         if (authoring_panel_) { authoring_panel_->toFront(true); return; }
         std::string package_id;
@@ -555,6 +614,7 @@ private:
     }
 
     void advance_project_epoch() {
+        cancel_log_history_read();
         cancel_catalog_resolution();
         upgrade_panel_.reset();
         run_reception_.invalidate();
@@ -1078,10 +1138,11 @@ private:
         const auto revision = project_.revision;
         const audioalgo::RunIdentity identity{project_.project_id, project_epoch_, new_id(), revision};
         run_reception_.begin(identity);
+        cancel_log_history_read();
         run_logs_.clear();
         const auto run_root = project_path_.parent_path() / "runs";
         const auto output_directory = run_root / ("run-" + new_id());
-        audioalgo::RunRequest request{project_, project_path_, output_directory, 512};
+        audioalgo::RunRequest request{project_, project_path_, output_directory, run_configuration_.block_size};
         request.identity = identity;
         set_status("Rendering revision " + juce::String(static_cast<juce::int64>(revision)) + utf8_literal(" in the background…"), false);
         if (!run_queue_) run_queue_ = std::make_unique<audioalgo::editor::EditorRunQueue<EditorComponent>>(
@@ -1205,6 +1266,10 @@ private:
     std::filesystem::path output_file_;
     std::uint64_t project_epoch_ = 1;
     audioalgo::RunReception run_reception_;
+    RunConfiguration run_configuration_;
+    std::shared_ptr<std::atomic<bool>> log_history_cancel_;
+    std::uint64_t log_history_generation_=0;
+    bool viewing_archived_logs_=false;
     std::shared_ptr<audioalgo::editor::ComponentDispatchState<EditorComponent>> completion_dispatch_state_;
     audioalgo::editor::NodeSelectionState selection_;
     GraphCanvas canvas_;
