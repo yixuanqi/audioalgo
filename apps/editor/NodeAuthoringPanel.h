@@ -59,6 +59,7 @@ public:
             editor->setColour(juce::CodeEditorComponent::defaultTextColourId, ink);
             editor->setColour(juce::CodeEditorComponent::lineNumberTextId, muted);
             editor->setColour(juce::CodeEditorComponent::lineNumberBackgroundId, panel);
+            editor->setColour(juce::CodeEditorComponent::highlightColourId, selection);
         }
         addAndMakeVisible(check_logs_);
         for (juce::Component* c : std::initializer_list<juce::Component*>{&source_, &definition_, &title_, &source_label_,

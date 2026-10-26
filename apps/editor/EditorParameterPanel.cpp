@@ -1,4 +1,5 @@
 #include "EditorParameterPanel.h"
+#include "EditorColours.h"
 
 #include <algorithm>
 #include <charconv>
@@ -9,13 +10,6 @@
 
 namespace audioalgo::editor {
 namespace {
-
-constexpr juce::uint32 ink = 0xffe8edf5;
-constexpr juce::uint32 muted = 0xffaab6c7;
-constexpr juce::uint32 amber = 0xffffbd69;
-constexpr juce::uint32 signal = 0xff55d6be;
-constexpr juce::uint32 panel = 0xff17212c;
-constexpr juce::uint32 raised = 0xff263442;
 
 juce::String to_juce_string(std::string_view value) {
     return juce::String::fromUTF8(value.data(), static_cast<int>(value.size()));
@@ -53,7 +47,7 @@ ParameterPanel::ParameterPanel() {
     addAndMakeVisible(details_);
     addAndMakeVisible(error_);
     error_.setComponentID("parameter.error");
-    error_.setColour(juce::Label::textColourId, juce::Colour(0xffff8e87));
+    error_.setColour(juce::Label::textColourId, danger);
     error_.setJustificationType(juce::Justification::topLeft);
     title_.setColour(juce::Label::textColourId, juce::Colour(ink));
     title_.setFont(juce::FontOptions(17.0f, juce::Font::bold));
@@ -135,7 +129,7 @@ void ParameterPanel::show_parameters(const NodeDescriptor& descriptor, const Nod
             // declared step, e.g. 0.00001 must not appear as 0.000 in the text box.
             const auto decimals = interval > 0.0 ? std::max(3, static_cast<int>(std::ceil(-std::log10(interval)))) : 3;
             editor->setNumDecimalPlacesToDisplay(parameter.kind == ParameterKind::integer ? 0 : std::min(15, decimals));
-            editor->setColour(juce::Slider::thumbColourId, juce::Colour(amber));
+            editor->setColour(juce::Slider::thumbColourId, signal);
             editor->setColour(juce::Slider::trackColourId, juce::Colour(signal));
             if (const auto* integer_value = std::get_if<std::int64_t>(&value))
                 editor->setValue(static_cast<double>(*integer_value), juce::dontSendNotification);
@@ -249,7 +243,7 @@ void ParameterPanel::show_parameters(const NodeDescriptor& descriptor, const Nod
 
 void ParameterPanel::paint(juce::Graphics& graphics) {
     graphics.fillAll(juce::Colour(panel));
-    graphics.setColour(juce::Colour(raised));
+    graphics.setColour(border);
     graphics.drawVerticalLine(0, 0.0f, static_cast<float>(getHeight()));
 }
 

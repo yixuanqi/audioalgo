@@ -66,7 +66,7 @@ public:
 
     void paint(juce::Graphics& g) override {
         g.fillAll(background);
-        g.setColour(juce::Colour(0xff18252d));
+        g.setColour(grid);
         const auto pan = coordinates_.pan_offset();
         const auto spacing = 28.0f * coordinates_.zoom_scale();
         const auto grid_phase = [&](float offset) {
@@ -772,7 +772,7 @@ private:
                 continue;
             const bool selected = !is_insertion_target && selected_connection_index_ &&
                                   *selected_connection_index_ == index;
-            paint_connection_curve(g, *geometry, selected ? amber : signal, selected ? 4.0f : 3.0f);
+            paint_connection_curve(g, *geometry, selected ? ink : signal, selected ? 4.0f : 3.0f);
         }
 
         if (!split_insertion_preview)
@@ -824,10 +824,10 @@ private:
         const bool order_swap_target = node_order_swap_target_ && node.id == *node_order_swap_target_;
         const bool order_drop_rejected = node_order_drop_target_ && node.id == *node_order_drop_target_ &&
                                          !order_swap_target;
-        g.setColour(selected ? juce::Colour(0xff304852) : panel);
+        g.setColour(selected ? selection : raised);
         g.fillRoundedRectangle(bounds, 9.0f * scale);
         g.setColour(order_swap_target ? compatible_green :
-                    (order_drop_rejected ? danger : (selected ? amber : raised)));
+                    (order_drop_rejected ? danger : (selected ? signal : border)));
         g.drawRoundedRectangle(bounds, 9.0f * scale, selected ? 2.0f : 1.0f);
 
         const auto* descriptor = descriptors_.find(node.type_id);

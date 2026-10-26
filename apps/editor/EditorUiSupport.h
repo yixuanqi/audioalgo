@@ -1,5 +1,6 @@
 #pragma once
 #include "EditorText.h"
+#include "EditorColours.h"
 #include "audio_node_sdk/NodeSDK.h"
 #include "audio_project/ProjectModel.h"
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -7,15 +8,6 @@
 #include <optional>
 #include <algorithm>
 namespace audioalgo::editor {
-inline const auto background = juce::Colour(0xff101b23);
-inline const auto panel = juce::Colour(0xff1f2d36);
-inline const auto raised = juce::Colour(0xff263842);
-inline const auto ink = juce::Colour(0xffe6ece7);
-inline const auto muted = juce::Colour(0xff9aabb0);
-inline const auto signal = juce::Colour(0xff9ad3c8);
-inline const auto compatible_green = juce::Colour(0xff6ed39a);
-inline const auto amber = juce::Colour(0xffe5b56f);
-inline const auto danger = juce::Colour(0xffe28778);
 
 class EditorLookAndFeel final : public juce::LookAndFeel_V4 {
     class CaptionButton final : public juce::Button {
@@ -44,18 +36,35 @@ class EditorLookAndFeel final : public juce::LookAndFeel_V4 {
     };
 public:
     EditorLookAndFeel() {
+        setColourScheme(ColourScheme(panel, raised, panel, border, ink, muted,
+                                     juce::Colours::white, selection, ink));
         setDefaultSansSerifTypefaceName("Segoe UI");
+        setColour(juce::TextButton::buttonColourId, raised);
+        setColour(juce::TextButton::buttonOnColourId, selection);
+        setColour(juce::TextButton::textColourOffId, ink);
+        setColour(juce::TextButton::textColourOnId, juce::Colours::white);
         setColour(juce::Label::textColourId, ink);
-        setColour(juce::TextEditor::backgroundColourId, background);
+        setColour(juce::TextEditor::backgroundColourId, raised);
         setColour(juce::TextEditor::textColourId, ink);
-        setColour(juce::TextEditor::outlineColourId, muted.withAlpha(.3f));
+        setColour(juce::TextEditor::outlineColourId, border);
         setColour(juce::TextEditor::focusedOutlineColourId, signal);
+        setColour(juce::TextEditor::highlightColourId, selection);
+        setColour(juce::TextEditor::highlightedTextColourId, ink);
+        setColour(juce::CaretComponent::caretColourId, ink);
         setColour(juce::ComboBox::backgroundColourId, raised);
         setColour(juce::ComboBox::textColourId, ink);
-        setColour(juce::ComboBox::outlineColourId, muted.withAlpha(.3f));
+        setColour(juce::ComboBox::outlineColourId, border);
+        setColour(juce::ComboBox::arrowColourId, ink);
         setColour(juce::PopupMenu::backgroundColourId, panel);
         setColour(juce::PopupMenu::textColourId, ink);
-        setColour(juce::PopupMenu::highlightedBackgroundColourId, raised);
+        setColour(juce::PopupMenu::highlightedBackgroundColourId, selection);
+        setColour(juce::PopupMenu::highlightedTextColourId, ink);
+        setColour(juce::ToggleButton::textColourId, ink);
+        setColour(juce::ToggleButton::tickColourId, signal);
+        setColour(juce::Slider::backgroundColourId, raised);
+        setColour(juce::Slider::textBoxBackgroundColourId, raised);
+        setColour(juce::Slider::textBoxTextColourId, ink);
+        setColour(juce::Slider::textBoxOutlineColourId, border);
         setColour(juce::ScrollBar::thumbColourId, muted.withAlpha(.45f));
     }
     juce::Font getTextButtonFont(juce::TextButton&, int height) override {
@@ -65,14 +74,16 @@ public:
     void drawButtonBackground(juce::Graphics& g, juce::Button& button, const juce::Colour& colour,
                               bool highlighted, bool down) override {
         auto bounds = button.getLocalBounds().toFloat().reduced(.5f);
-        g.setColour(down ? signal.withAlpha(.16f) : highlighted ? colour.brighter(.12f) : colour);
-        g.fillRoundedRectangle(bounds, 5.f);
-        g.setColour(button.hasKeyboardFocus(true) ? signal : muted.withAlpha(highlighted ? .65f : .28f));
-        g.drawRoundedRectangle(bounds, 5.f, 1.f);
+        const auto fill = button.getToggleState() ? button.findColour(juce::TextButton::buttonOnColourId) : colour;
+        g.setColour((down ? fill.darker(.15f) : highlighted ? fill.brighter(.12f) : fill)
+                        .withMultipliedAlpha(button.isEnabled() ? 1.f : .4f));
+        g.fillRoundedRectangle(bounds, 3.f);
+        g.setColour(button.hasKeyboardFocus(true) ? signal : highlighted ? muted : border);
+        g.drawRoundedRectangle(bounds, 3.f, 1.f);
     }
     void drawDocumentWindowTitleBar(juce::DocumentWindow& window, juce::Graphics& g, int width, int height,
                                     int title_x, int title_width, const juce::Image*, bool active) override {
-        g.fillAll(panel); g.setColour(raised); g.fillRect(0, height - 1, width, 1);
+        g.fillAll(panel); g.setColour(border); g.fillRect(0, height - 1, width, 1);
         g.setColour(active ? ink : muted); g.setFont(juce::FontOptions(14.f, juce::Font::bold));
         g.drawText(window.getName(), title_x + 12, 0, std::max(0, title_width - 24), height, juce::Justification::centredLeft);
     }
@@ -136,11 +147,12 @@ inline const audioalgo::NodeInstance* find_node(const audioalgo::ProjectModel& p
     return found == project.nodes.end() ? nullptr : &*found;
 }
 
-inline void style_button(juce::TextButton& button, juce::Colour accent = signal) {
-        button.setColour(juce::TextButton::buttonColourId, raised);
-        button.setColour(juce::TextButton::buttonOnColourId, accent.withAlpha(0.2f));
-        button.setColour(juce::TextButton::textColourOffId, ink);
-        button.setColour(juce::TextButton::textColourOnId, accent);
+inline void style_button(juce::TextButton& button, juce::Colour accent = {}) {
+        const bool prominent = accent == signal;
+        button.setColour(juce::TextButton::buttonColourId, prominent ? primary : raised);
+        button.setColour(juce::TextButton::buttonOnColourId, selection);
+        button.setColour(juce::TextButton::textColourOffId, prominent ? juce::Colours::white : ink);
+        button.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
     }
 
 

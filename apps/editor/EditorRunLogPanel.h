@@ -18,6 +18,7 @@ public:
         addAndMakeVisible(editor_); editor_.setReadOnly(true); editor_.setLineNumbersShown(false);
         editor_.setColour(juce::CodeEditorComponent::backgroundColourId, panel);
         editor_.setColour(juce::CodeEditorComponent::defaultTextColourId, ink);
+        editor_.setColour(juce::CodeEditorComponent::highlightColourId, selection);
     }
     juce::String getText() const { return document_.getAllContent(); }
     juce::String getHighlightedText() const {
@@ -46,14 +47,14 @@ public:
         node_filter_.setComponentID(id + ".node_filter");
         node_filter_.setColour(juce::ComboBox::backgroundColourId, panel);
         node_filter_.setColour(juce::ComboBox::textColourId, ink);
-        node_filter_.setColour(juce::ComboBox::outlineColourId, muted);
-        node_filter_.setColour(juce::ComboBox::arrowColourId, signal);
+        node_filter_.setColour(juce::ComboBox::outlineColourId, border);
+        node_filter_.setColour(juce::ComboBox::arrowColourId, ink);
         node_filter_.onChange = [this] { change_node_filter(); };
         level_filter_.setComponentID(id + ".level_filter");
         level_filter_.setColour(juce::ComboBox::backgroundColourId, panel);
         level_filter_.setColour(juce::ComboBox::textColourId, ink);
-        level_filter_.setColour(juce::ComboBox::outlineColourId, muted);
-        level_filter_.setColour(juce::ComboBox::arrowColourId, signal);
+        level_filter_.setColour(juce::ComboBox::outlineColourId, border);
+        level_filter_.setColour(juce::ComboBox::arrowColourId, ink);
         level_filter_.onChange = [this] {
             const auto found = level_filter_ids_.find(level_filter_.getSelectedId());
             selected_level_ = found == level_filter_ids_.end() ? std::nullopt : std::optional<std::string>(found->second);
