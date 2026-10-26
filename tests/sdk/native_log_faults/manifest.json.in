@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "plugin_id": "example.sdk_logging.faults",
+  "version": "1.0.0",
+  "abi_version": 1,
+  "platform": "windows",
+  "architecture": "x64",
+  "library": "native_logging.dll",
+  "nodes": [
+    {
+      "type_id": "example.sdk_logging",
+      "version": "1.0.0",
+      "display_name": "SDK logging gain",
+      "ports": [
+        {
+          "id": "audio_in",
+          "direction": "input",
+          "type_id": "audio.pcm@1",
+          "required": true
+        },
+        {
+          "id": "audio_out",
+          "direction": "output",
+          "type_id": "audio.pcm@1"
+        }
+      ],
+      "parameters": [
+        {
+          "id": "mode",
+          "kind": "enum",
+          "default": "ok",
+          "choices": [
+            {
+              "value": "ok",
+              "label": "ok"
+            },
+            {
+              "value": "empty",
+              "label": "empty"
+            },
+            {
+              "value": "full",
+              "label": "full"
+            },
+            {
+              "value": "utf8",
+              "label": "utf8"
+            },
+            {
+              "value": "length",
+              "label": "length"
+            },
+            {
+              "value": "size",
+              "label": "size"
+            },
+            {
+              "value": "version",
+              "label": "version"
+            },
+            {
+              "value": "level",
+              "label": "level"
+            },
+            {
+              "value": "null",
+              "label": "null"
+            }
+          ]
+        }
+      ],
+      "sample_rates_hz": [
+        16000,
+        48000
+      ],
+      "channel_counts": [
+        1,
+        2,
+        4
+      ],
+      "supports_variable_block_size": true
+    }
+  ]
+}

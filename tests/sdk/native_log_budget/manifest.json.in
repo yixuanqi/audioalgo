@@ -1,0 +1,8 @@
+{
+  "schema_version":1,"plugin_id":"example.sdk_logging.budget","version":"1.0.0",
+  "abi_version":1,"platform":"windows","architecture":"x64","library":"native_logging.dll",
+  "nodes":[{"type_id":"example.sdk_logging","version":"1.0.0","display_name":"SDK logging gain",
+    "ports":[{"id":"audio_in","direction":"input","type_id":"audio.pcm@1","required":true},
+             {"id":"audio_out","direction":"output","type_id":"audio.pcm@1"}],
+    "parameters":[{"id":"log_bytes","kind":"int","default":0,"minimum":0,"maximum":67108864}],"sample_rates_hz":[16000,48000],"channel_counts":[1,2,4],"supports_variable_block_size":true}]
+}
