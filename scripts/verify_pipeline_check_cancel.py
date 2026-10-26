@@ -19,6 +19,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("artifact_root", type=Path)
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--deadline-ms", type=int, help="Verify a timed-out Check's recorded per-task deadline")
     args = parser.parse_args()
     root = args.artifact_root.resolve()
     staging = root / "work" / "staging"
@@ -46,6 +47,11 @@ def main() -> int:
             ],
             "stdout": raw,
         })
+        if args.deadline_ms is not None:
+            metadata = json.loads((request / "check-request.json").read_text(encoding="utf-8"))
+            if metadata != {"request_id": request.name, "execution_timeout_ms": args.deadline_ms}:
+                raise SystemExit("Check request deadline/identity does not match the independent expectation")
+            observed[-1]["request_metadata"] = metadata
 
     cancelled = [row for row in observed if "pc03-check-processes.txt" in str(row["source"])
                  and b"pc03-check-entered" in row["stdout"]]
@@ -58,7 +64,8 @@ def main() -> int:
         "schema_version": 1,
         "verified": True,
         "artifact_root": str(root),
-        "cancelled_check": {key: value for key, value in cancelled[0].items() if key != "stdout" and key != "source"},
+        "timed_out_check" if args.deadline_ms is not None else "cancelled_check": {
+            key: value for key, value in cancelled[0].items() if key != "stdout" and key != "source"},
         "recovered_check": {key: value for key, value in recovered[0].items() if key != "stdout" and key != "source"},
         "limits": ["Process handle exit state and cancel latency are asserted by the production-component test, not inferred from these files.",
                    "The saved raw stdout logs independently confirm the user-code markers for the cancelled and recovered Check requests."],

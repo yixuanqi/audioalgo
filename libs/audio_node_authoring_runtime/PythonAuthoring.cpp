@@ -233,15 +233,15 @@ class Node:
 )PY";
 }
 PythonAuthoring::PythonAuthoring(std::filesystem::path root, std::filesystem::path interpreter, std::filesystem::path runner,
-                               std::function<bool(ApplyPhase)> allow, std::filesystem::path work)
-    : root_(std::move(root)), interpreter_(std::move(interpreter)), runner_(std::move(runner)), work_(work.empty() ? root_ : std::move(work)), allow_(std::move(allow)) {
+                               std::function<bool(ApplyPhase)> allow, std::filesystem::path work, std::chrono::milliseconds execution_timeout)
+    : root_(std::move(root)), interpreter_(std::move(interpreter)), runner_(std::move(runner)), work_(work.empty() ? root_ : std::move(work)), execution_timeout_(execution_timeout), allow_(std::move(allow)) {
 #ifdef AUDIOALGO_AUTHORING_PYTHON
     if (interpreter_.empty()) interpreter_ = AUDIOALGO_AUTHORING_INTERPRETER;
     if (runner_.empty()) runner_ = AUDIOALGO_AUTHORING_RUNNER;
 #endif
 }
 std::shared_ptr<const AuthoringChecks> PythonAuthoring::with_work_directory(const std::filesystem::path& work) const {
-    auto result = std::make_shared<PythonAuthoring>(root_, interpreter_, runner_, allow_, work);
+    auto result = std::make_shared<PythonAuthoring>(root_, interpreter_, runner_, allow_, work, execution_timeout_);
     result->apply_mutex_ = apply_mutex_;
     return result;
 }
@@ -611,7 +611,8 @@ CheckOutcome PythonAuthoring::check(Draft draft, const std::shared_ptr<std::atom
         request.python_executable = interpreter_; request.runner_module_root = std::get<std::filesystem::path>(frozen_runner);
         request.type_id = descriptor->type_id; request.node_id = "authoring-probe"; request.output_parent = staging;
         request.identity = {draft.id, draft.generation, request_id, draft.generation};
-        request.maximum_block_frames = 127; request.execution_timeout = std::chrono::seconds(30);
+        request.maximum_block_frames = 127; request.execution_timeout = execution_timeout_;
+        write(staging / "check-request.json", "{\"request_id\":\"" + request_id + "\",\"execution_timeout_ms\":" + std::to_string(execution_timeout_.count()) + "}");
         request.is_cancelled = cancelled;
         const auto rate = descriptor->audio_format.sample_rates_hz.front();
         const auto channels = descriptor->audio_format.channel_counts.front();

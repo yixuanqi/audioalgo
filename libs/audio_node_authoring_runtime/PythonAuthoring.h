@@ -1,5 +1,6 @@
 #pragma once
 #include "audio_node_authoring/AuthoringChecks.h"
+#include <chrono>
 #include <mutex>
 
 namespace audioalgo::authoring {
@@ -7,7 +8,8 @@ enum class ApplyPhase { package, registration, index_write, index_verify, index_
 class PythonAuthoring final : public AuthoringChecks {
 public:
     PythonAuthoring(std::filesystem::path root, std::filesystem::path interpreter = {},
-                    std::filesystem::path runner = {}, std::function<bool(ApplyPhase)> allow = {}, std::filesystem::path work = {});
+                    std::filesystem::path runner = {}, std::function<bool(ApplyPhase)> allow = {}, std::filesystem::path work = {},
+                    std::chrono::milliseconds execution_timeout = std::chrono::seconds(30));
     std::shared_ptr<const AuthoringChecks> with_work_directory(const std::filesystem::path&) const override;
     std::filesystem::path work_directory() const override { return work_; }
     std::filesystem::path library_directory() const override { return root_; }
@@ -24,6 +26,7 @@ public:
         const std::filesystem::path& source_directory, const std::filesystem::path& destination_directory) const override;
 private:
     std::filesystem::path root_, interpreter_, runner_, work_;
+    std::chrono::milliseconds execution_timeout_;
     std::shared_ptr<std::mutex> apply_mutex_ = std::make_shared<std::mutex>();
     std::function<bool(ApplyPhase)> allow_;
 };
