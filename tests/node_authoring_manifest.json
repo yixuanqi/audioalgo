@@ -359,7 +359,9 @@
       "layer": "service+component",
       "runner": "ctest",
       "test_names": [
-        "NA-03.b production stateful template keeps frame state across probe blocks and resets on rerun"
+        "NA-03.b production stateful template keeps frame state across probe blocks and resets on rerun",
+        "PC-05.a production Run and fresh CLI execute both documented mixed formulas",
+        "PC-05.a GUI CLI mixed formula matrix preserves state across formats frames and host partitions"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -373,6 +375,20 @@
           "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
           "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
           "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-05.a production Run and fresh CLI execute both documented mixed formulas",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0501-mixed-formulas/green-traced.xml",
+          "command_record": "build/reports/loops/PC0501-mixed-formulas/green-traced.json",
+          "snapshot_scope": "PC0501 two mixed formulas,48000/2ch/513/host127;4GUI+2freshCLI independent stage/WAV/NPY/identity/reset proof,maxerror0. Full formats/frame/host matrix and whole requirement remain partial."
+        },
+        {
+          "test_name": "PC-05.a GUI CLI mixed formula matrix preserves state across formats frames and host partitions",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0502-mixed-matrix/matrix.xml",
+          "command_record": "build/reports/loops/PC0502-mixed-matrix/matrix.json",
+          "snapshot_scope": "PC0502:42 unique profiles/84 actual production GUI+fresh CLI Runs; full documented rate/channel/frame/state-host numerical matrix, independent WAV/NPY/code/resource/identity/reset proof maxerror0. Only explicit numerical/state subset; whole requirement remains partial."
         }
       ],
       "status": "partial",
@@ -452,7 +468,9 @@
       "layer": "integration",
       "runner": "ctest",
       "test_names": [
-        "NA-03.b production stateful template keeps frame state across probe blocks and resets on rerun"
+        "NA-03.b production stateful template keeps frame state across probe blocks and resets on rerun",
+        "PC-05.a production Run and fresh CLI execute both documented mixed formulas",
+        "PC-05.a GUI CLI mixed formula matrix preserves state across formats frames and host partitions"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -466,6 +484,20 @@
           "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
           "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
           "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-05.a production Run and fresh CLI execute both documented mixed formulas",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0501-mixed-formulas/green-traced.xml",
+          "command_record": "build/reports/loops/PC0501-mixed-formulas/green-traced.json",
+          "snapshot_scope": "PC0501 two mixed formulas,48000/2ch/513/host127;4GUI+2freshCLI independent stage/WAV/NPY/identity/reset proof,maxerror0. Full formats/frame/host matrix and whole requirement remain partial."
+        },
+        {
+          "test_name": "PC-05.a GUI CLI mixed formula matrix preserves state across formats frames and host partitions",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0502-mixed-matrix/matrix.xml",
+          "command_record": "build/reports/loops/PC0502-mixed-matrix/matrix.json",
+          "snapshot_scope": "PC0502:42 unique profiles/84 actual production GUI+fresh CLI Runs; full documented rate/channel/frame/state-host numerical matrix, independent WAV/NPY/code/resource/identity/reset proof maxerror0. Only explicit numerical/state subset; whole requirement remains partial."
         }
       ],
       "status": "partial",
@@ -482,7 +514,8 @@
       "runner": "ctest",
       "test_names": [
         "NA-03.c production named template generates both input and output contracts and probes both outputs",
-        "NA-03.c applied named package runs two independent WAV sources and selects each exact output"
+        "NA-03.c applied named package runs two independent WAV sources and selects each exact output",
+        "PC-05.b production Run and fresh CLI select named outputs with one shared upstream execution"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -503,6 +536,13 @@
           "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
           "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
           "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-05.b production Run and fresh CLI select named outputs with one shared upstream execution",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0503-named-shared/target.xml",
+          "command_record": "build/reports/loops/PC0503-named-shared/target.json",
+          "snapshot_scope": "PC0503 selected main/side production Run/fresh CLI six actual Runs,36NPY boundaries,maxerror0; one shared upstream five calls per Run. Only explicit graph/numerical subset; entire requirement partial."
         }
       ],
       "status": "partial",
@@ -639,7 +679,8 @@
       "test_names": [
         "NA-14.b cancelled completed check cannot deliver Ready to the production panel",
         "PC-03.c production Check cancellation reclaims only its process tree and permits recovery",
-        "NA-04.d chosen work directory checks and applies without moving installed versions"
+        "NA-04.d chosen work directory checks and applies without moving installed versions",
+        "PC-03.c production Check deadline preserves logs reclaims its tree and permits recovery"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -667,6 +708,13 @@
           "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
           "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
           "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03.c production Check deadline preserves logs reclaims its tree and permits recovery",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0305-check-timeout/direct-regression-current.xml",
+          "command_record": "build/reports/loops/PC0305-check-timeout/direct-regression-current.json",
+          "snapshot_scope": "PC0305 Windows Debug per-task timeout, owned tree, archived log and recovery subset; 9 cases/204 assertions. Not the full requirement/stage."
         }
       ],
       "status": "partial",
@@ -730,7 +778,8 @@
       "layer": "integration",
       "runner": "ctest",
       "test_names": [
-        "NA-05.b generated Python wrapper rejects invalid outputs and subsequent valid check recovers"
+        "NA-05.b generated Python wrapper rejects invalid outputs and subsequent valid check recovers",
+        "PC-05.b mixed output metadata failures identify the exact port preserve success and recover"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -744,6 +793,13 @@
           "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
           "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
           "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-05.b mixed output metadata failures identify the exact port preserve success and recover",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0505-output-metadata/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0505-output-metadata/direct-regression.json",
+          "snapshot_scope": "PC0505 actual rate/channel identity/interval output errors at python/main,three failures/four independent numerical successes,maxerror0; whole requirement remains partial."
         }
       ],
       "status": "partial",
@@ -766,7 +822,8 @@
         "PC-04.a log text decoder preserves split UTF8 and replaces malformed or unfinished bytes",
         "PC-04.a supervised stdout stderr arrive before terminal and allow callback driven cancellation",
         "PC-04.a production log text joins partial stream chunks without invented newlines",
-        "PC-04.c twenty success error cancel rounds retain no live Python processes or handles"
+        "PC-04.c twenty success error cancel rounds retain no live Python processes or handles",
+        "PC-04.b production flood enforces complete and UI budgets while remaining responsive and recovering"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -821,7 +878,7 @@
           "status": "passed",
           "evidence": "build/reports/loops/PC0403-ui-bound/final-ui-regression.xml",
           "command_record": "build/reports/loops/PC0403-ui-bound/final-ui-regression.json",
-          "snapshot_scope": "Current product build/source snapshot; final selected regression 79/79."
+          "snapshot_scope": "Recorded PC0403 product/source snapshot; selected regression 79/79, not current cumulative evidence."
         },
         {
           "test_name": "PC-04.c twenty success error cancel rounds retain no live Python processes or handles",
@@ -829,6 +886,13 @@
           "evidence": "build/reports/loops/PC0403-ui-bound/stable-regression.xml",
           "command_record": "build/reports/loops/PC0403-ui-bound/stable-regression.json",
           "snapshot_scope": "Individual case passed in 84-case aggregate with a separate heartbeat failure; independent 20-round report verifies 60 actual Python tasks and zero remaining processes."
+        },
+        {
+          "test_name": "PC-04.b production flood enforces complete and UI budgets while remaining responsive and recovering",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0405-live-flood/direct-visible-lines.xml",
+          "command_record": "build/reports/loops/PC0405-live-flood/direct-visible-lines.json",
+          "snapshot_scope": "PC0405 Debug real production flood/tree/recovery, complete retained log UI and original10s/20ms heartbeat subset; raw/source/WAV independently verified. Whole requirement stays partial."
         }
       ],
       "status": "partial",
@@ -888,9 +952,12 @@
       "runner": "ctest",
       "test_names": [
         "PC-03 production failure logs preserve exact version reject stale identities and recover",
-        "PC-03 production check logs bind draft hashes and remain separate from Canvas Run"
+        "PC-03 production check logs bind draft hashes and remain separate from Canvas Run",
+        "PC-03.d two versions and two instances keep exact log identity across same revision projects",
+        "PC-03.a slow production Run cannot pollute a new project revision or replacement Run",
+        "PC-04.d production historical Run logs do not replace current result or preview"
       ],
-      "coverage": "not_implemented",
+      "coverage": "partial",
       "evidence_requirements": [
         "all acceptance clauses in NA-06.a"
       ],
@@ -909,9 +976,30 @@
           "evidence": "build/reports/loops/PC0302-check-log/direct-regression.xml",
           "command_record": "build/reports/loops/PC0302-check-log/direct-regression.json",
           "snapshot_scope": "terminal check log development subset; live and desktop pending"
+        },
+        {
+          "test_name": "PC-03.d two versions and two instances keep exact log identity across same revision projects",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0307-log-versions/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0307-log-versions/direct-regression.json",
+          "snapshot_scope": "PC0307 two versions/two instances/sequential same-revision project log identity only; 8 cases/7063 assertions. Active Apply/freeze and slow-old/new matrix not covered; full requirement partial."
+        },
+        {
+          "test_name": "PC-03.a slow production Run cannot pollute a new project revision or replacement Run",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0309-live-identity/green-owned-artifacts.xml",
+          "command_record": "build/reports/loops/PC0309-live-identity/green-owned-artifacts.json",
+          "snapshot_scope": "PC0309 real held Run across project/revision/request replacement, current logs/output/preview ownership; 1 case/1675 assertions, three independent zero-error outputs. Direct aggregate remains 26/27 with separate PRJ environment recheck; no overall requirement promotion."
+        },
+        {
+          "test_name": "PC-04.d production historical Run logs do not replace current result or preview",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0407-log-history/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0407-log-history/direct-regression.json",
+          "snapshot_scope": "PC0407 logged-history subset: worker-bounded archive read, explicit old/current identity, unchanged current result/preview and queued-history revocation across New/Open. No full requirement promotion."
         }
       ],
-      "status": "not_verified",
+      "status": "partial",
       "shared_evidence": [
         "build/reports/loops/PC0301-run-log/summary.json: partial log identity/failure scope"
       ]
@@ -924,9 +1012,14 @@
       "layer": "integration",
       "runner": "ctest",
       "test_names": [
-        "PC-03 production failure logs preserve exact version reject stale identities and recover"
+        "PC-03 production failure logs preserve exact version reject stale identities and recover",
+        "PC-03.c closing the production panel cancels its Check before destruction and permits reopening",
+        "PC-03.c active Check View destruction and application shutdown reclaim owned work and permit recovery",
+        "PC-03.c queued log delivery after View invalidation releases payloads without touching a replacement",
+        "PC-04.d production historical Run logs do not replace current result or preview",
+        "PC-04.c production twenty success error cancel rounds drain queues processes and log views"
       ],
-      "coverage": "not_implemented",
+      "coverage": "partial",
       "evidence_requirements": [
         "all acceptance clauses in NA-06.b"
       ],
@@ -938,9 +1031,44 @@
           "evidence": "build/reports/loops/PC0301-run-log/direct-regression.xml",
           "command_record": "build/reports/loops/PC0301-run-log/direct-regression.json",
           "snapshot_scope": "executed development subset, full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03.c closing the production panel cancels its Check before destruction and permits reopening",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0304-check-close/direct-regression-bounded.xml",
+          "command_record": "build/reports/loops/PC0304-check-close/direct-regression-bounded.json",
+          "snapshot_scope": "PC0304 Debug panel close only; 8 cases/172 assertions direct subset. Full requirement remains partial; View/application close and desktop not covered."
+        },
+        {
+          "test_name": "PC-03.c active Check View destruction and application shutdown reclaim owned work and permit recovery",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0306-check-view-close/direct-regression-diagnostic.xml",
+          "command_record": "build/reports/loops/PC0306-check-view-close/direct-regression-diagnostic.json",
+          "snapshot_scope": "PC0306 explicit active Check View/application close and queued log lifetime subset; 12 cases, zero failures/skips. Original 11/12 recovery failure retained and cause unresolved; full requirement remains partial."
+        },
+        {
+          "test_name": "PC-03.c queued log delivery after View invalidation releases payloads without touching a replacement",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0306-check-view-close/direct-regression-diagnostic.xml",
+          "command_record": "build/reports/loops/PC0306-check-view-close/direct-regression-diagnostic.json",
+          "snapshot_scope": "PC0306 explicit active Check View/application close and queued log lifetime subset; 12 cases, zero failures/skips. Original 11/12 recovery failure retained and cause unresolved; full requirement remains partial."
+        },
+        {
+          "test_name": "PC-04.d production historical Run logs do not replace current result or preview",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0407-log-history/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0407-log-history/direct-regression.json",
+          "snapshot_scope": "PC0407 logged-history subset: worker-bounded archive read, explicit old/current identity, unchanged current result/preview and queued-history revocation across New/Open. No full requirement promotion."
+        },
+        {
+          "test_name": "PC-04.c production twenty success error cancel rounds drain queues processes and log views",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0408-gui-cycles/focused.xml",
+          "command_record": "build/reports/loops/PC0408-gui-cycles/focused.json",
+          "snapshot_scope": "PC0408 actual production GUI20 rounds,81Runs incl warmup/recoveries, own parent/child exit, unrelated canary survival, active/pending/job0 and stable174 handles at each round,41 independent zero-error outputs; whole requirement partial."
         }
       ],
-      "status": "not_verified",
+      "status": "partial",
       "shared_evidence": [
         "build/reports/loops/PC0301-run-log/summary.json: partial log identity/failure scope"
       ]
@@ -953,9 +1081,12 @@
       "layer": "integration",
       "runner": "ctest",
       "test_names": [
-        "PC-04 supervised logs allow exact sixteen MiB reject one extra byte reclaim floods and preserve archives"
+        "PC-04 supervised logs allow exact sixteen MiB reject one extra byte reclaim floods and preserve archives",
+        "PC-03.c production Check deadline preserves logs reclaims its tree and permits recovery",
+        "PC-04.b production flood enforces complete and UI budgets while remaining responsive and recovering",
+        "PC-04.c production twenty success error cancel rounds drain queues processes and log views"
       ],
-      "coverage": "not_implemented",
+      "coverage": "partial",
       "evidence_requirements": [
         "all acceptance clauses in NA-06.c"
       ],
@@ -967,9 +1098,30 @@
           "evidence": "build/reports/loops/PC0401-log-budget/direct-regression.xml",
           "command_record": "build/reports/loops/PC0401-log-budget/direct-regression.json",
           "snapshot_scope": "full raw task-log budget subset only; live/UI and20-round matrix pending"
+        },
+        {
+          "test_name": "PC-03.c production Check deadline preserves logs reclaims its tree and permits recovery",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0305-check-timeout/direct-regression-current.xml",
+          "command_record": "build/reports/loops/PC0305-check-timeout/direct-regression-current.json",
+          "snapshot_scope": "PC0305 Windows Debug per-task timeout, owned tree, archived log and recovery subset; 9 cases/204 assertions. Not the full requirement/stage."
+        },
+        {
+          "test_name": "PC-04.b production flood enforces complete and UI budgets while remaining responsive and recovering",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0405-live-flood/direct-visible-lines.xml",
+          "command_record": "build/reports/loops/PC0405-live-flood/direct-visible-lines.json",
+          "snapshot_scope": "PC0405 Debug real production flood/tree/recovery, complete retained log UI and original10s/20ms heartbeat subset; raw/source/WAV independently verified. Whole requirement stays partial."
+        },
+        {
+          "test_name": "PC-04.c production twenty success error cancel rounds drain queues processes and log views",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0408-gui-cycles/focused.xml",
+          "command_record": "build/reports/loops/PC0408-gui-cycles/focused.json",
+          "snapshot_scope": "PC0408 actual production GUI20 rounds,81Runs incl warmup/recoveries, own parent/child exit, unrelated canary survival, active/pending/job0 and stable174 handles at each round,41 independent zero-error outputs; whole requirement partial."
         }
       ],
-      "status": "not_verified"
+      "status": "partial"
     },
     {
       "id": "NA-06.d",
@@ -983,9 +1135,16 @@
         "PC-04.d production live log UI meets twenty ms heartbeat over ten seconds",
         "PC-04.d pending log delivery bounds owned bytes records and scheduled callbacks",
         "PC-04 authoring malformed raw logs preserve byte counts without discard underflow",
-        "PC-04.d production run log node filter preserves hidden current run entries"
+        "PC-04.d production run log node filter preserves hidden current run entries",
+        "PC-04.b production flood enforces complete and UI budgets while remaining responsive and recovering",
+        "PC-04.d bounded log rendering preserves retained copy and node filters",
+        "PC-04.d log level and node filters intersect without discarding hidden entries",
+        "PC-04.d production Run level filter separates real stdout and stderr without changing audio",
+        "PC-04.d production historical Run logs do not replace current result or preview",
+        "PC-04.d history reader bounds owned tail and rejects mixed or malformed archives",
+        "PC-04.c production twenty success error cancel rounds drain queues processes and log views"
       ],
-      "coverage": "not_implemented",
+      "coverage": "partial",
       "evidence_requirements": [
         "all acceptance clauses in NA-06.d"
       ],
@@ -1025,9 +1184,58 @@
           "evidence": "build/reports/loops/PC0404-node-filter/direct-regression-final.xml",
           "command_record": "build/reports/loops/PC0404-node-filter/direct-regression-final.json",
           "snapshot_scope": "Current Debug direct production-component regression; 5/5 selected cases, full PC-04 remains partial."
+        },
+        {
+          "test_name": "PC-04.b production flood enforces complete and UI budgets while remaining responsive and recovering",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0405-live-flood/direct-visible-lines.xml",
+          "command_record": "build/reports/loops/PC0405-live-flood/direct-visible-lines.json",
+          "snapshot_scope": "PC0405 Debug real production flood/tree/recovery, complete retained log UI and original10s/20ms heartbeat subset; raw/source/WAV independently verified. Whole requirement stays partial."
+        },
+        {
+          "test_name": "PC-04.d bounded log rendering preserves retained copy and node filters",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0405-live-flood/direct-visible-lines.xml",
+          "command_record": "build/reports/loops/PC0405-live-flood/direct-visible-lines.json",
+          "snapshot_scope": "PC0405 Debug real production flood/tree/recovery, complete retained log UI and original10s/20ms heartbeat subset; raw/source/WAV independently verified. Whole requirement stays partial."
+        },
+        {
+          "test_name": "PC-04.d log level and node filters intersect without discarding hidden entries",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0406-level-filter/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0406-level-filter/direct-regression.json",
+          "snapshot_scope": "PC0406 level/node intersection and real stdout-info/stderr-error production Run, restore/copy/identity/audio subset. Full requirement remains partial."
+        },
+        {
+          "test_name": "PC-04.d production Run level filter separates real stdout and stderr without changing audio",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0406-level-filter/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0406-level-filter/direct-regression.json",
+          "snapshot_scope": "PC0406 level/node intersection and real stdout-info/stderr-error production Run, restore/copy/identity/audio subset. Full requirement remains partial."
+        },
+        {
+          "test_name": "PC-04.d production historical Run logs do not replace current result or preview",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0407-log-history/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0407-log-history/direct-regression.json",
+          "snapshot_scope": "PC0407 logged-history subset: worker-bounded archive read, explicit old/current identity, unchanged current result/preview and queued-history revocation across New/Open. No full requirement promotion."
+        },
+        {
+          "test_name": "PC-04.d history reader bounds owned tail and rejects mixed or malformed archives",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0407-log-history/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0407-log-history/direct-regression.json",
+          "snapshot_scope": "PC0407 logged-history subset: worker-bounded archive read, explicit old/current identity, unchanged current result/preview and queued-history revocation across New/Open. No full requirement promotion."
+        },
+        {
+          "test_name": "PC-04.c production twenty success error cancel rounds drain queues processes and log views",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0408-gui-cycles/focused.xml",
+          "command_record": "build/reports/loops/PC0408-gui-cycles/focused.json",
+          "snapshot_scope": "PC0408 actual production GUI20 rounds,81Runs incl warmup/recoveries, own parent/child exit, unrelated canary survival, active/pending/job0 and stable174 handles at each round,41 independent zero-error outputs; whole requirement partial."
         }
       ],
-      "status": "not_verified"
+      "status": "partial"
     },
     {
       "id": "NA-07.a",
@@ -1331,7 +1539,13 @@
       "runner": "ctest",
       "test_names": [
         "NA-08.c queued production run owns its catalog before a directory refresh",
-        "PC-03 production failure logs preserve exact version reject stale identities and recover"
+        "PC-03 production failure logs preserve exact version reject stale identities and recover",
+        "PC-03.d two versions and two instances keep exact log identity across same revision projects",
+        "PC-03.d active v1 Run retains frozen code and logs while v2 Apply changes the default",
+        "PC-03.a slow production Run cannot pollute a new project revision or replacement Run",
+        "PC-05.a production Run and fresh CLI execute both documented mixed formulas",
+        "PC-05.a GUI CLI mixed formula matrix preserves state across formats frames and host partitions",
+        "PC-05.b production Run and fresh CLI select named outputs with one shared upstream execution"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -1352,6 +1566,48 @@
           "evidence": "build/reports/loops/PC0301-run-log/direct-regression.xml",
           "command_record": "build/reports/loops/PC0301-run-log/direct-regression.json",
           "snapshot_scope": "executed development subset, full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03.d two versions and two instances keep exact log identity across same revision projects",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0307-log-versions/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0307-log-versions/direct-regression.json",
+          "snapshot_scope": "PC0307 two versions/two instances/sequential same-revision project log identity only; 8 cases/7063 assertions. Active Apply/freeze and slow-old/new matrix not covered; full requirement partial."
+        },
+        {
+          "test_name": "PC-03.d active v1 Run retains frozen code and logs while v2 Apply changes the default",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0308-active-version/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0308-active-version/direct-regression.json",
+          "snapshot_scope": "PC0308 service Apply while real production Run is held; changed installed source read back, frozen v1 logs/audio retained, v2/default and v1 reopening correct. 9 cases/8690 assertions; no UI Apply/desktop claim, full requirement partial."
+        },
+        {
+          "test_name": "PC-03.a slow production Run cannot pollute a new project revision or replacement Run",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0309-live-identity/green-owned-artifacts.xml",
+          "command_record": "build/reports/loops/PC0309-live-identity/green-owned-artifacts.json",
+          "snapshot_scope": "PC0309 real held Run across project/revision/request replacement, current logs/output/preview ownership; 1 case/1675 assertions, three independent zero-error outputs. Direct aggregate remains 26/27 with separate PRJ environment recheck; no overall requirement promotion."
+        },
+        {
+          "test_name": "PC-05.a production Run and fresh CLI execute both documented mixed formulas",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0501-mixed-formulas/green-traced.xml",
+          "command_record": "build/reports/loops/PC0501-mixed-formulas/green-traced.json",
+          "snapshot_scope": "PC0501 two mixed formulas,48000/2ch/513/host127;4GUI+2freshCLI independent stage/WAV/NPY/identity/reset proof,maxerror0. Full formats/frame/host matrix and whole requirement remain partial."
+        },
+        {
+          "test_name": "PC-05.a GUI CLI mixed formula matrix preserves state across formats frames and host partitions",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0502-mixed-matrix/matrix.xml",
+          "command_record": "build/reports/loops/PC0502-mixed-matrix/matrix.json",
+          "snapshot_scope": "PC0502:42 unique profiles/84 actual production GUI+fresh CLI Runs; full documented rate/channel/frame/state-host numerical matrix, independent WAV/NPY/code/resource/identity/reset proof maxerror0. Only explicit numerical/state subset; whole requirement remains partial."
+        },
+        {
+          "test_name": "PC-05.b production Run and fresh CLI select named outputs with one shared upstream execution",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0503-named-shared/target.xml",
+          "command_record": "build/reports/loops/PC0503-named-shared/target.json",
+          "snapshot_scope": "PC0503 selected main/side production Run/fresh CLI six actual Runs,36NPY boundaries,maxerror0; one shared upstream five calls per Run. Only explicit graph/numerical subset; entire requirement partial."
         }
       ],
       "status": "partial",
@@ -1373,7 +1629,10 @@
         "NA-08.d fresh CLI restores the installed exact package and rejects a missing lock",
         "NA-09.a production Apply v2 leaves the saved graph on v1 and a new graph selects v2",
         "NA-08.d reopen and fresh CLI resolve the saved v1 after v2 becomes default",
-        "NA-08.d relative CLI project path resolves carried exact code without a global package"
+        "NA-08.d relative CLI project path resolves carried exact code without a global package",
+        "PC-05.a production Run and fresh CLI execute both documented mixed formulas",
+        "PC-05.a GUI CLI mixed formula matrix preserves state across formats frames and host partitions",
+        "PC-05.b production Run and fresh CLI select named outputs with one shared upstream execution"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -1408,6 +1667,27 @@
           "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
           "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
           "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-05.a production Run and fresh CLI execute both documented mixed formulas",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0501-mixed-formulas/green-traced.xml",
+          "command_record": "build/reports/loops/PC0501-mixed-formulas/green-traced.json",
+          "snapshot_scope": "PC0501 two mixed formulas,48000/2ch/513/host127;4GUI+2freshCLI independent stage/WAV/NPY/identity/reset proof,maxerror0. Full formats/frame/host matrix and whole requirement remain partial."
+        },
+        {
+          "test_name": "PC-05.a GUI CLI mixed formula matrix preserves state across formats frames and host partitions",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0502-mixed-matrix/matrix.xml",
+          "command_record": "build/reports/loops/PC0502-mixed-matrix/matrix.json",
+          "snapshot_scope": "PC0502:42 unique profiles/84 actual production GUI+fresh CLI Runs; full documented rate/channel/frame/state-host numerical matrix, independent WAV/NPY/code/resource/identity/reset proof maxerror0. Only explicit numerical/state subset; whole requirement remains partial."
+        },
+        {
+          "test_name": "PC-05.b production Run and fresh CLI select named outputs with one shared upstream execution",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0503-named-shared/target.xml",
+          "command_record": "build/reports/loops/PC0503-named-shared/target.json",
+          "snapshot_scope": "PC0503 selected main/side production Run/fresh CLI six actual Runs,36NPY boundaries,maxerror0; one shared upstream five calls per Run. Only explicit graph/numerical subset; entire requirement partial."
         }
       ],
       "status": "partial",
@@ -1428,7 +1708,9 @@
         "NA-09.a Apply v2 publishes a new default while an owned v1 catalog keeps its exact old code",
         "NA-09.a production Apply v2 leaves the saved graph on v1 and a new graph selects v2",
         "NA-08.d reopen and fresh CLI resolve the saved v1 after v2 becomes default",
-        "NA-08.b late committed Apply cannot install an old graph catalog into a new project"
+        "NA-08.b late committed Apply cannot install an old graph catalog into a new project",
+        "PC-03.d two versions and two instances keep exact log identity across same revision projects",
+        "PC-03.d active v1 Run retains frozen code and logs while v2 Apply changes the default"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -1477,6 +1759,20 @@
           "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
           "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
           "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03.d two versions and two instances keep exact log identity across same revision projects",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0307-log-versions/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0307-log-versions/direct-regression.json",
+          "snapshot_scope": "PC0307 two versions/two instances/sequential same-revision project log identity only; 8 cases/7063 assertions. Active Apply/freeze and slow-old/new matrix not covered; full requirement partial."
+        },
+        {
+          "test_name": "PC-03.d active v1 Run retains frozen code and logs while v2 Apply changes the default",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0308-active-version/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0308-active-version/direct-regression.json",
+          "snapshot_scope": "PC0308 service Apply while real production Run is held; changed installed source read back, frozen v1 logs/audio retained, v2/default and v1 reopening correct. 9 cases/8690 assertions; no UI Apply/desktop claim, full requirement partial."
         }
       ],
       "status": "partial",
@@ -1794,7 +2090,9 @@
         "NA-08.d fresh CLI restores the installed exact package and rejects a missing lock",
         "NA-11.d managed runtime rejects modified installed code before import and recovers exact bytes",
         "NA-08.d reopen and fresh CLI resolve the saved v1 after v2 becomes default",
-        "NA-11.c production Save carries the exact package and refuses conflicting destination bytes"
+        "NA-11.c production Save carries the exact package and refuses conflicting destination bytes",
+        "PC-03.d two versions and two instances keep exact log identity across same revision projects",
+        "PC-03.d active v1 Run retains frozen code and logs while v2 Apply changes the default"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -1829,6 +2127,20 @@
           "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
           "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
           "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03.d two versions and two instances keep exact log identity across same revision projects",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0307-log-versions/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0307-log-versions/direct-regression.json",
+          "snapshot_scope": "PC0307 two versions/two instances/sequential same-revision project log identity only; 8 cases/7063 assertions. Active Apply/freeze and slow-old/new matrix not covered; full requirement partial."
+        },
+        {
+          "test_name": "PC-03.d active v1 Run retains frozen code and logs while v2 Apply changes the default",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0308-active-version/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0308-active-version/direct-regression.json",
+          "snapshot_scope": "PC0308 service Apply while real production Run is held; changed installed source read back, frozen v1 logs/audio retained, v2/default and v1 reopening correct. 9 cases/8690 assertions; no UI Apply/desktop claim, full requirement partial."
         }
       ],
       "status": "partial",
@@ -1843,14 +2155,24 @@
       "required": true,
       "layer": "integration",
       "runner": "ctest",
-      "test_names": [],
-      "coverage": "not_implemented",
+      "test_names": [
+        "PC-06.a/b actual good DLL numerical CLI output"
+      ],
+      "coverage": "partial",
       "evidence_requirements": [
         "all acceptance clauses in NA-12.a"
       ],
       "related_ids": [],
-      "test_results": [],
-      "status": "not_verified"
+      "test_results": [
+        {
+          "test_name": "PC-06.a/b actual good DLL numerical CLI output",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0602-log-negotiation/green.xml",
+          "command_record": "build/reports/loops/PC0602-log-negotiation/green-command.json",
+          "snapshot_scope": "PC0602 current genuine old v1/new external SDK DLL loader/numeric/legacy instance lease subset. Native logging and production C++ authoring/probe/restart/desktop incomplete; whole requirement partial."
+        }
+      ],
+      "status": "partial"
     },
     {
       "id": "NA-12.b",
@@ -1891,14 +2213,112 @@
       "required": true,
       "layer": "integration",
       "runner": "ctest",
-      "test_names": [],
-      "coverage": "not_implemented",
+      "test_names": [
+        "PC-06.a/b actual good DLL numerical CLI output",
+        "PC-06.b native SDK logs reach production mixed Run before terminal with exact instance identity",
+        "PC-06.b real SDK Unicode levels and embedded NUL survive production Run archive history and copy",
+        "PC-06.a real legacy and SDK DLL nodes explain log capability in library Inspector and fresh CLI",
+        "PC-04.b real native task shares exact sixteen MiB log budget across instances and recovers",
+        "PC-06.c real native queue and message rejection preserve prefix fail safely and recover through production controls",
+        "native_log_fault_status",
+        "PC-06.c independent native regions retain separate sixteen MiB budgets through actual mixed Run and recovery",
+        "PC-06.c parallel native consumers own separate near-limit budgets and one failure cannot consume another quota",
+        "PC-04.b native stream keeps exact bounded UTF8 capture tail and independent persisted counters",
+        "PC-06.d accepted synchronous detach logs drain before queue closure for both native instances",
+        "PC-03.c active native production queue cancellation drains final logs removes payload and recovers"
+      ],
+      "coverage": "partial",
       "evidence_requirements": [
         "all acceptance clauses in NA-12.d"
       ],
       "related_ids": [],
-      "test_results": [],
-      "status": "not_verified"
+      "test_results": [
+        {
+          "test_name": "PC-06.a/b actual good DLL numerical CLI output",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0602-log-negotiation/green.xml",
+          "command_record": "build/reports/loops/PC0602-log-negotiation/green-command.json",
+          "snapshot_scope": "PC0602 current genuine old v1/new external SDK DLL loader/numeric/legacy instance lease subset. Native logging and production C++ authoring/probe/restart/desktop incomplete; whole requirement partial."
+        },
+        {
+          "test_name": "PC-06.b native SDK logs reach production mixed Run before terminal with exact instance identity",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0603-native-live/direct-components.xml",
+          "command_record": "build/reports/loops/PC0603-native-live/direct-components.json",
+          "snapshot_scope": "PC0603 basic actual native SDK mixed Run/live/terminal reset log identity and worker/no-allocation/module lease subset only. Independent11WAV/6NPY and8production native streams; entire requirement partial."
+        },
+        {
+          "test_name": "PC-06.b real SDK Unicode levels and embedded NUL survive production Run archive history and copy",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0604-native-text/direct-components.xml",
+          "command_record": "build/reports/loops/PC0604-native-text/direct-components.json",
+          "snapshot_scope": "PC0604 real SDK Unicode/four levels/NUL/C0 GUI+CLI raw/encoded archive/history/copy;four independent ON/OFF WAVs maxerror0. Only subset,entire requirement partial."
+        },
+        {
+          "test_name": "PC-06.a real legacy and SDK DLL nodes explain log capability in library Inspector and fresh CLI",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0605-native-capability/direct-components.xml",
+          "command_record": "build/reports/loops/PC0605-native-capability/direct-components.json",
+          "snapshot_scope": "PC0605 actual true-old/absent/SDK DLL log availability caption/metadata/catalog on ON/OFF plus independently8native WAV/2NUL text WAV;whole requirement partial,no workbench or desktop claim."
+        },
+        {
+          "test_name": "PC-04.b real native task shares exact sixteen MiB log budget across instances and recovers",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0606-native-budget/green.xml",
+          "command_record": "build/reports/loops/PC0606-native-budget/green.json",
+          "snapshot_scope": "PC0606 real SDK same-task single/shared16MiB exact/+1/sustained finite flood,worker+freshCLI,no failed publish,prior success immutable,recovery;ON/OFF independently8WAV and6archives each,maxerror0. Whole C++ workbench/NA/PC remain partial."
+        },
+        {
+          "test_name": "PC-06.c real native queue and message rejection preserve prefix fail safely and recover through production controls",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0607-native-rejection/direct-components.xml",
+          "command_record": "build/reports/loops/PC0607-native-rejection/direct-components.json",
+          "snapshot_scope": "PC0607 actual native SDK full/invalid status/count diagnostics,production controls/prefix/no success/prior-file preservation/recovery;ON/OFF independently9WAV and9failed requests each. One SDK consumer/9modes/host C++ allocations0,not arbitrary DLL CRT proof. Full requirement partial."
+        },
+        {
+          "test_name": "native_log_fault_status",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0607-native-rejection/sdk-consumer.xml",
+          "command_record": "build/reports/loops/PC0607-native-rejection/sdk-consumer.json",
+          "snapshot_scope": "PC0607 actual native SDK full/invalid status/count diagnostics,production controls/prefix/no success/prior-file preservation/recovery;ON/OFF independently9WAV and9failed requests each. One SDK consumer/9modes/host C++ allocations0,not arbitrary DLL CRT proof. Full requirement partial."
+        },
+        {
+          "test_name": "PC-06.c independent native regions retain separate sixteen MiB budgets through actual mixed Run and recovery",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0608-region-budget/target.xml",
+          "command_record": "build/reports/loops/PC0608-region-budget/target.json",
+          "snapshot_scope": "PC0608 actual two native-region tasks each16MiB around frozen managed Python,total32MiB;C+1 fails and exact recovery succeeds;independent2WAV/4NPY/6raw streams,maxerror0. Sequential RunService only,whole requirement partial."
+        },
+        {
+          "test_name": "PC-06.c parallel native consumers own separate near-limit budgets and one failure cannot consume another quota",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0609-parallel-budget/target.xml",
+          "command_record": "build/reports/loops/PC0609-parallel-budget/target.json",
+          "snapshot_scope": "Actual two overlapping independent RunService consumers16MiB each;one+1 fails without consuming other quota. Strict gates/two workers;independent3WAV/4raw streams maxerror0. PythonOFF separately passed. Whole requirement partial."
+        },
+        {
+          "test_name": "PC-04.b native stream keeps exact bounded UTF8 capture tail and independent persisted counters",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0610-native-tail/final-green.xml",
+          "command_record": "build/reports/loops/PC0610-native-tail/final-green.json",
+          "snapshot_scope": "Native64KiB worker capture suffix ASCII exact/+1,wholeUTF8 boundary,NUL;independent4WAV/4raw/summary maxerror0.46direct summaries separately verified;OFF/oldDLL separately passed. Entire requirement partial."
+        },
+        {
+          "test_name": "PC-06.d accepted synchronous detach logs drain before queue closure for both native instances",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0611-detach-drain/green.xml",
+          "command_record": "build/reports/loops/PC0611-detach-drain/green.json",
+          "snapshot_scope": "RealSDK synchronous detach farewell accepted then finalworkerdrain,2instances/2requests4streams;independent2WAV maxerror0. OFF separatelypassed;full activecancel/close/lifetime/workbench remains partial."
+        },
+        {
+          "test_name": "PC-03.c active native production queue cancellation drains final logs removes payload and recovers",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0612-native-cancel/target.xml",
+          "command_record": "build/reports/loops/PC0612-native-cancel/target.json",
+          "snapshot_scope": "Actual native productionqueue cancel at16bytefirstlogbarrier,2instances finaldetach logs,run_cancelled/no payload/emptywaveform,5scleanup,idlecounts0,samequeue recovery;independent2WAV/6streams maxerror0. OFF separatelypasses;full requirements partial."
+        }
+      ],
+      "status": "partial"
     },
     {
       "id": "NA-13.a",
@@ -1923,14 +2343,24 @@
       "required": true,
       "layer": "integration",
       "runner": "ctest",
-      "test_names": [],
-      "coverage": "not_implemented",
+      "test_names": [
+        "PC-06.d accepted synchronous detach logs drain before queue closure for both native instances"
+      ],
+      "coverage": "partial",
       "evidence_requirements": [
         "all acceptance clauses in NA-13.b"
       ],
       "related_ids": [],
-      "test_results": [],
-      "status": "not_verified"
+      "test_results": [
+        {
+          "test_name": "PC-06.d accepted synchronous detach logs drain before queue closure for both native instances",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0611-detach-drain/green.xml",
+          "command_record": "build/reports/loops/PC0611-detach-drain/green.json",
+          "snapshot_scope": "RealSDK synchronous detach farewell accepted then finalworkerdrain,2instances/2requests4streams;independent2WAV maxerror0. OFF separatelypassed;full activecancel/close/lifetime/workbench remains partial."
+        }
+      ],
+      "status": "partial"
     },
     {
       "id": "NA-13.c",
@@ -2003,7 +2433,10 @@
       "test_names": [
         "NA-14.b cancelled completed check cannot deliver Ready to the production panel",
         "PC-03.c production Check cancellation reclaims only its process tree and permits recovery",
-        "NA-08.b late committed Apply cannot install an old graph catalog into a new project"
+        "PC-03.c closing the production panel cancels its Check before destruction and permits reopening",
+        "NA-08.b late committed Apply cannot install an old graph catalog into a new project",
+        "PC-03.c active Check View destruction and application shutdown reclaim owned work and permit recovery",
+        "PC-03.c queued log delivery after View invalidation releases payloads without touching a replacement"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -2026,11 +2459,39 @@
           "snapshot_scope": "Active Check cancellation does not publish Ready, reclaims its own Python parent/child while preserving an unrelated process, retains raw stdout, and recovers on a new draft generation; broader close/timeout and desktop clauses remain partial."
         },
         {
+          "test_name": "PC-03.c closing the production panel cancels its Check before destruction and permits reopening",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0304-check-close/direct-regression-r2.xml",
+          "command_record": "build/reports/loops/PC0304-check-close/direct-regression-r2.json",
+          "snapshot_scope": "Windows Debug production-panel close cancels and reaps only the active Check process tree under five seconds, preserves an unrelated process, pumps dispatch after destruction, and a reopened panel successfully Checks edited source. Four cases/112 assertions with zero failures/skips. Does not simulate a late successful/log completion after teardown or View/application close; NA-14.b remains partial."
+        },
+        {
           "test_name": "NA-08.b late committed Apply cannot install an old graph catalog into a new project",
           "status": "passed",
           "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
           "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
           "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03.c closing the production panel cancels its Check before destruction and permits reopening",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0304-check-close/direct-regression-bounded.xml",
+          "command_record": "build/reports/loops/PC0304-check-close/direct-regression-bounded.json",
+          "snapshot_scope": "PC0304 Debug panel close only; 8 cases/172 assertions direct subset. Full requirement remains partial; View/application close and desktop not covered."
+        },
+        {
+          "test_name": "PC-03.c active Check View destruction and application shutdown reclaim owned work and permit recovery",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0306-check-view-close/direct-regression-diagnostic.xml",
+          "command_record": "build/reports/loops/PC0306-check-view-close/direct-regression-diagnostic.json",
+          "snapshot_scope": "PC0306 explicit active Check View/application close and queued log lifetime subset; 12 cases, zero failures/skips. Original 11/12 recovery failure retained and cause unresolved; full requirement remains partial."
+        },
+        {
+          "test_name": "PC-03.c queued log delivery after View invalidation releases payloads without touching a replacement",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0306-check-view-close/direct-regression-diagnostic.xml",
+          "command_record": "build/reports/loops/PC0306-check-view-close/direct-regression-diagnostic.json",
+          "snapshot_scope": "PC0306 explicit active Check View/application close and queued log lifetime subset; 12 cases, zero failures/skips. Original 11/12 recovery failure retained and cause unresolved; full requirement remains partial."
         }
       ],
       "status": "partial",
@@ -2055,7 +2516,14 @@
         "PC-03 production check logs bind draft hashes and remain separate from Canvas Run",
         "PC-04 supervised logs allow exact sixteen MiB reject one extra byte reclaim floods and preserve archives",
         "PC-04 production Canvas exposes live node logs before termination and clears them on New",
-        "PC-04.d production filter separates live logs from two real node instances while preserving run identity"
+        "PC-04.d production filter separates live logs from two real node instances while preserving run identity",
+        "PC-03.c production Check deadline preserves logs reclaims its tree and permits recovery",
+        "PC-04.b production flood enforces complete and UI budgets while remaining responsive and recovering",
+        "PC-04.d bounded log rendering preserves retained copy and node filters",
+        "PC-04.d log level and node filters intersect without discarding hidden entries",
+        "PC-04.d production Run level filter separates real stdout and stderr without changing audio",
+        "PC-04.d production historical Run logs do not replace current result or preview",
+        "PC-04.d history reader bounds owned tail and rejects mixed or malformed archives"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -2124,7 +2592,7 @@
           "status": "passed",
           "evidence": "build/reports/loops/PC0403-ui-bound/final-ui-regression.xml",
           "command_record": "build/reports/loops/PC0403-ui-bound/final-ui-regression.json",
-          "snapshot_scope": "Current product build/source snapshot; final selected regression 79/79."
+          "snapshot_scope": "Recorded PC0403 product/source snapshot; selected regression 79/79, not current cumulative evidence."
         },
         {
           "test_name": "PC-04.d production filter separates live logs from two real node instances while preserving run identity",
@@ -2132,6 +2600,55 @@
           "evidence": "build/reports/loops/PC0404-node-filter/direct-regression-final.xml",
           "command_record": "build/reports/loops/PC0404-node-filter/direct-regression-final.json",
           "snapshot_scope": "Current production Check/Apply/library-drop/two-instance Run/filter workflow; independent project/audio/log receipt also recorded in PC0404 summary."
+        },
+        {
+          "test_name": "PC-03.c production Check deadline preserves logs reclaims its tree and permits recovery",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0305-check-timeout/direct-regression-current.xml",
+          "command_record": "build/reports/loops/PC0305-check-timeout/direct-regression-current.json",
+          "snapshot_scope": "PC0305 Windows Debug per-task timeout, owned tree, archived log and recovery subset; 9 cases/204 assertions. Not the full requirement/stage."
+        },
+        {
+          "test_name": "PC-04.b production flood enforces complete and UI budgets while remaining responsive and recovering",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0405-live-flood/direct-visible-lines.xml",
+          "command_record": "build/reports/loops/PC0405-live-flood/direct-visible-lines.json",
+          "snapshot_scope": "PC0405 Debug real production flood/tree/recovery, complete retained log UI and original10s/20ms heartbeat subset; raw/source/WAV independently verified. Whole requirement stays partial."
+        },
+        {
+          "test_name": "PC-04.d bounded log rendering preserves retained copy and node filters",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0405-live-flood/direct-visible-lines.xml",
+          "command_record": "build/reports/loops/PC0405-live-flood/direct-visible-lines.json",
+          "snapshot_scope": "PC0405 Debug real production flood/tree/recovery, complete retained log UI and original10s/20ms heartbeat subset; raw/source/WAV independently verified. Whole requirement stays partial."
+        },
+        {
+          "test_name": "PC-04.d log level and node filters intersect without discarding hidden entries",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0406-level-filter/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0406-level-filter/direct-regression.json",
+          "snapshot_scope": "PC0406 level/node intersection and real stdout-info/stderr-error production Run, restore/copy/identity/audio subset. Full requirement remains partial."
+        },
+        {
+          "test_name": "PC-04.d production Run level filter separates real stdout and stderr without changing audio",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0406-level-filter/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0406-level-filter/direct-regression.json",
+          "snapshot_scope": "PC0406 level/node intersection and real stdout-info/stderr-error production Run, restore/copy/identity/audio subset. Full requirement remains partial."
+        },
+        {
+          "test_name": "PC-04.d production historical Run logs do not replace current result or preview",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0407-log-history/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0407-log-history/direct-regression.json",
+          "snapshot_scope": "PC0407 logged-history subset: worker-bounded archive read, explicit old/current identity, unchanged current result/preview and queued-history revocation across New/Open. No full requirement promotion."
+        },
+        {
+          "test_name": "PC-04.d history reader bounds owned tail and rejects mixed or malformed archives",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0407-log-history/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0407-log-history/direct-regression.json",
+          "snapshot_scope": "PC0407 logged-history subset: worker-bounded archive read, explicit old/current identity, unchanged current result/preview and queued-history revocation across New/Open. No full requirement promotion."
         }
       ],
       "status": "partial",
@@ -2166,8 +2683,46 @@
       "required": true,
       "layer": "integration",
       "runner": "ctest",
-      "test_names": [],
-      "coverage": "not_implemented",
+      "test_names": [
+        "PC-05.a production Run and fresh CLI execute both documented mixed formulas",
+        "PC-05.a GUI CLI mixed formula matrix preserves state across formats frames and host partitions",
+        "PC-05.b production Run and fresh CLI select named outputs with one shared upstream execution",
+        "AR-15.c empty streams acknowledge EOS without inventing a padded algorithm frame",
+        "AR-06.e unsupported capabilities are refused before execution starts",
+        "AR-15.c invalid per port counts and no progress fail with bounded diagnostics then recover",
+        "AR-15.e unknown tails flush-only algorithms and insufficient padding budgets fail before factory",
+        "AR-15.c premature invalid and missing output EOS cannot publish success",
+        "AR-15.c partial named port consumption and production retains every sample",
+        "AR-15.d worker waits for message-thread graph preparation before reading latency",
+        "AR-15.c independent output EOS drains the longer stream when selecting the shorter port",
+        "AR-15.c partial stream callbacks allocate no memory after prepare",
+        "AR-15.b fixed FIFO is bounded under seeded random host partitions",
+        "AR-15.c EOS follows each compensated input and independently finishes every output",
+        "AR-15.e finite FIR tails survive fixed frames chain and compensated branch with bounded padding",
+        "AR-15.e finite tail never invents valid samples from an empty or truncated valid interval",
+        "AR-06.e fixed-frame tails and non-audio ports are refused before execution",
+        "AR-15.d known algorithm delay aligns a real JUCE branch and unknown delay is refused",
+        "AR-15.e completed shorter branch stays silent while another branch drains",
+        "AR-15.b fixed 480 and 512 frames preserve samples in the real JUCE graph",
+        "PC-05.b mixed output metadata failures identify the exact port preserve success and recover",
+        "PC-05.b mismatched mixed sources identify their output port before any factory",
+        "UPN external DLL drives generated controls controller and real run service",
+        "UPN instances retain their DLL after catalog destruction and isolate state",
+        "PC-06.a/b actual legacy DLL numerical CLI output",
+        "PC-06.b native SDK logs reach production mixed Run before terminal with exact instance identity",
+        "PC-06.c bound native SDK callback and reset allocate nothing while only the worker consumes logs",
+        "PC-06.b real SDK Unicode levels and embedded NUL survive production Run archive history and copy",
+        "PC-06.a real legacy and SDK DLL nodes explain log capability in library Inspector and fresh CLI",
+        "PC-04.b real native task shares exact sixteen MiB log budget across instances and recovers",
+        "PC-06.c real native queue and message rejection preserve prefix fail safely and recover through production controls",
+        "native_log_fault_status",
+        "PC-06.c independent native regions retain separate sixteen MiB budgets through actual mixed Run and recovery",
+        "PC-06.c parallel native consumers own separate near-limit budgets and one failure cannot consume another quota",
+        "PC-04.b native stream keeps exact bounded UTF8 capture tail and independent persisted counters",
+        "PC-06.d accepted synchronous detach logs drain before queue closure for both native instances",
+        "PC-03.c active native production queue cancellation drains final logs removes payload and recovers"
+      ],
+      "coverage": "partial",
       "evidence_requirements": [
         "all acceptance clauses in NA-15.a"
       ],
@@ -2177,8 +2732,268 @@
         "G",
         "UPN"
       ],
-      "test_results": [],
-      "status": "not_verified"
+      "test_results": [
+        {
+          "test_name": "PC-05.a production Run and fresh CLI execute both documented mixed formulas",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0501-mixed-formulas/green-traced.xml",
+          "command_record": "build/reports/loops/PC0501-mixed-formulas/green-traced.json",
+          "snapshot_scope": "PC0501 two mixed formulas,48000/2ch/513/host127;4GUI+2freshCLI independent stage/WAV/NPY/identity/reset proof,maxerror0. Full formats/frame/host matrix and whole requirement remain partial."
+        },
+        {
+          "test_name": "PC-05.a GUI CLI mixed formula matrix preserves state across formats frames and host partitions",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0502-mixed-matrix/matrix.xml",
+          "command_record": "build/reports/loops/PC0502-mixed-matrix/matrix.json",
+          "snapshot_scope": "PC0502:42 unique profiles/84 actual production GUI+fresh CLI Runs; full documented rate/channel/frame/state-host numerical matrix, independent WAV/NPY/code/resource/identity/reset proof maxerror0. Only explicit numerical/state subset; whole requirement remains partial."
+        },
+        {
+          "test_name": "PC-05.b production Run and fresh CLI select named outputs with one shared upstream execution",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0503-named-shared/target.xml",
+          "command_record": "build/reports/loops/PC0503-named-shared/target.json",
+          "snapshot_scope": "PC0503 selected main/side production Run/fresh CLI six actual Runs,36NPY boundaries,maxerror0; one shared upstream five calls per Run. Only explicit graph/numerical subset; entire requirement partial."
+        },
+        {
+          "test_name": "AR-15.c empty streams acknowledge EOS without inventing a padded algorithm frame",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0504-timing-contracts/native-progress.xml",
+          "command_record": "build/reports/loops/PC0504-timing-contracts/native-progress.json",
+          "snapshot_scope": "PC0504 actual17-case current native numerical/timing/progress/no-allocation regression subset; whole NA-15.a remains partial."
+        },
+        {
+          "test_name": "AR-06.e unsupported capabilities are refused before execution starts",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0504-timing-contracts/native-progress.xml",
+          "command_record": "build/reports/loops/PC0504-timing-contracts/native-progress.json",
+          "snapshot_scope": "PC0504 actual17-case current native numerical/timing/progress/no-allocation regression subset; whole NA-15.a remains partial."
+        },
+        {
+          "test_name": "AR-15.c invalid per port counts and no progress fail with bounded diagnostics then recover",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0504-timing-contracts/native-progress.xml",
+          "command_record": "build/reports/loops/PC0504-timing-contracts/native-progress.json",
+          "snapshot_scope": "PC0504 actual17-case current native numerical/timing/progress/no-allocation regression subset; whole NA-15.a remains partial."
+        },
+        {
+          "test_name": "AR-15.e unknown tails flush-only algorithms and insufficient padding budgets fail before factory",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0504-timing-contracts/native-progress.xml",
+          "command_record": "build/reports/loops/PC0504-timing-contracts/native-progress.json",
+          "snapshot_scope": "PC0504 actual17-case current native numerical/timing/progress/no-allocation regression subset; whole NA-15.a remains partial."
+        },
+        {
+          "test_name": "AR-15.c premature invalid and missing output EOS cannot publish success",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0504-timing-contracts/native-progress.xml",
+          "command_record": "build/reports/loops/PC0504-timing-contracts/native-progress.json",
+          "snapshot_scope": "PC0504 actual17-case current native numerical/timing/progress/no-allocation regression subset; whole NA-15.a remains partial."
+        },
+        {
+          "test_name": "AR-15.c partial named port consumption and production retains every sample",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0504-timing-contracts/native-progress.xml",
+          "command_record": "build/reports/loops/PC0504-timing-contracts/native-progress.json",
+          "snapshot_scope": "PC0504 actual17-case current native numerical/timing/progress/no-allocation regression subset; whole NA-15.a remains partial."
+        },
+        {
+          "test_name": "AR-15.d worker waits for message-thread graph preparation before reading latency",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0504-timing-contracts/native-progress.xml",
+          "command_record": "build/reports/loops/PC0504-timing-contracts/native-progress.json",
+          "snapshot_scope": "PC0504 actual17-case current native numerical/timing/progress/no-allocation regression subset; whole NA-15.a remains partial."
+        },
+        {
+          "test_name": "AR-15.c independent output EOS drains the longer stream when selecting the shorter port",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0504-timing-contracts/native-progress.xml",
+          "command_record": "build/reports/loops/PC0504-timing-contracts/native-progress.json",
+          "snapshot_scope": "PC0504 actual17-case current native numerical/timing/progress/no-allocation regression subset; whole NA-15.a remains partial."
+        },
+        {
+          "test_name": "AR-15.c partial stream callbacks allocate no memory after prepare",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0504-timing-contracts/native-progress.xml",
+          "command_record": "build/reports/loops/PC0504-timing-contracts/native-progress.json",
+          "snapshot_scope": "PC0504 actual17-case current native numerical/timing/progress/no-allocation regression subset; whole NA-15.a remains partial."
+        },
+        {
+          "test_name": "AR-15.b fixed FIFO is bounded under seeded random host partitions",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0504-timing-contracts/native-progress.xml",
+          "command_record": "build/reports/loops/PC0504-timing-contracts/native-progress.json",
+          "snapshot_scope": "PC0504 actual17-case current native numerical/timing/progress/no-allocation regression subset; whole NA-15.a remains partial."
+        },
+        {
+          "test_name": "AR-15.c EOS follows each compensated input and independently finishes every output",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0504-timing-contracts/native-progress.xml",
+          "command_record": "build/reports/loops/PC0504-timing-contracts/native-progress.json",
+          "snapshot_scope": "PC0504 actual17-case current native numerical/timing/progress/no-allocation regression subset; whole NA-15.a remains partial."
+        },
+        {
+          "test_name": "AR-15.e finite FIR tails survive fixed frames chain and compensated branch with bounded padding",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0504-timing-contracts/native-progress.xml",
+          "command_record": "build/reports/loops/PC0504-timing-contracts/native-progress.json",
+          "snapshot_scope": "PC0504 actual17-case current native numerical/timing/progress/no-allocation regression subset; whole NA-15.a remains partial."
+        },
+        {
+          "test_name": "AR-15.e finite tail never invents valid samples from an empty or truncated valid interval",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0504-timing-contracts/native-progress.xml",
+          "command_record": "build/reports/loops/PC0504-timing-contracts/native-progress.json",
+          "snapshot_scope": "PC0504 actual17-case current native numerical/timing/progress/no-allocation regression subset; whole NA-15.a remains partial."
+        },
+        {
+          "test_name": "AR-06.e fixed-frame tails and non-audio ports are refused before execution",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0504-timing-contracts/native-progress.xml",
+          "command_record": "build/reports/loops/PC0504-timing-contracts/native-progress.json",
+          "snapshot_scope": "PC0504 actual17-case current native numerical/timing/progress/no-allocation regression subset; whole NA-15.a remains partial."
+        },
+        {
+          "test_name": "AR-15.d known algorithm delay aligns a real JUCE branch and unknown delay is refused",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0504-timing-contracts/native-progress.xml",
+          "command_record": "build/reports/loops/PC0504-timing-contracts/native-progress.json",
+          "snapshot_scope": "PC0504 actual17-case current native numerical/timing/progress/no-allocation regression subset; whole NA-15.a remains partial."
+        },
+        {
+          "test_name": "AR-15.e completed shorter branch stays silent while another branch drains",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0504-timing-contracts/native-progress.xml",
+          "command_record": "build/reports/loops/PC0504-timing-contracts/native-progress.json",
+          "snapshot_scope": "PC0504 actual17-case current native numerical/timing/progress/no-allocation regression subset; whole NA-15.a remains partial."
+        },
+        {
+          "test_name": "AR-15.b fixed 480 and 512 frames preserve samples in the real JUCE graph",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0504-timing-contracts/native-progress.xml",
+          "command_record": "build/reports/loops/PC0504-timing-contracts/native-progress.json",
+          "snapshot_scope": "PC0504 actual17-case current native numerical/timing/progress/no-allocation regression subset; whole NA-15.a remains partial."
+        },
+        {
+          "test_name": "PC-05.b mixed output metadata failures identify the exact port preserve success and recover",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0505-output-metadata/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0505-output-metadata/direct-regression.json",
+          "snapshot_scope": "PC0505 actual rate/channel identity/interval output errors at python/main,three failures/four independent numerical successes,maxerror0; whole requirement remains partial."
+        },
+        {
+          "test_name": "PC-05.b mismatched mixed sources identify their output port before any factory",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0506-source-port/green.xml",
+          "command_record": "build/reports/loops/PC0506-source-port/green.json",
+          "snapshot_scope": "PC0506 five real worker-source mismatch diagnostics at b/audio before factories; valid two-input control and independent Red/Green inputs/WAV. GUI/CLI and Python checks separately22+4 cases; whole NA partial."
+        },
+        {
+          "test_name": "UPN external DLL drives generated controls controller and real run service",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0602-log-negotiation/legacy-component.xml",
+          "command_record": "build/reports/loops/PC0602-log-negotiation/legacy-component-command.json",
+          "snapshot_scope": "PC0602 current genuine old v1/new external SDK DLL loader/numeric/legacy instance lease subset. Native logging and production C++ authoring/probe/restart/desktop incomplete; whole requirement partial."
+        },
+        {
+          "test_name": "UPN instances retain their DLL after catalog destruction and isolate state",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0602-log-negotiation/legacy-component.xml",
+          "command_record": "build/reports/loops/PC0602-log-negotiation/legacy-component-command.json",
+          "snapshot_scope": "PC0602 current genuine old v1/new external SDK DLL loader/numeric/legacy instance lease subset. Native logging and production C++ authoring/probe/restart/desktop incomplete; whole requirement partial."
+        },
+        {
+          "test_name": "PC-06.a/b actual legacy DLL numerical CLI output",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0602-log-negotiation/green.xml",
+          "command_record": "build/reports/loops/PC0602-log-negotiation/green-command.json",
+          "snapshot_scope": "PC0602 current genuine old v1/new external SDK DLL loader/numeric/legacy instance lease subset. Native logging and production C++ authoring/probe/restart/desktop incomplete; whole requirement partial."
+        },
+        {
+          "test_name": "PC-06.b native SDK logs reach production mixed Run before terminal with exact instance identity",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0603-native-live/direct-components.xml",
+          "command_record": "build/reports/loops/PC0603-native-live/direct-components.json",
+          "snapshot_scope": "PC0603 basic actual native SDK mixed Run/live/terminal reset log identity and worker/no-allocation/module lease subset only. Independent11WAV/6NPY and8production native streams; entire requirement partial."
+        },
+        {
+          "test_name": "PC-06.c bound native SDK callback and reset allocate nothing while only the worker consumes logs",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0603-native-live/direct-components.xml",
+          "command_record": "build/reports/loops/PC0603-native-live/direct-components.json",
+          "snapshot_scope": "PC0603 basic actual native SDK mixed Run/live/terminal reset log identity and worker/no-allocation/module lease subset only. Independent11WAV/6NPY and8production native streams; entire requirement partial."
+        },
+        {
+          "test_name": "PC-06.b real SDK Unicode levels and embedded NUL survive production Run archive history and copy",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0604-native-text/direct-components.xml",
+          "command_record": "build/reports/loops/PC0604-native-text/direct-components.json",
+          "snapshot_scope": "PC0604 real SDK Unicode/four levels/NUL/C0 GUI+CLI raw/encoded archive/history/copy;four independent ON/OFF WAVs maxerror0. Only subset,entire requirement partial."
+        },
+        {
+          "test_name": "PC-06.a real legacy and SDK DLL nodes explain log capability in library Inspector and fresh CLI",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0605-native-capability/direct-components.xml",
+          "command_record": "build/reports/loops/PC0605-native-capability/direct-components.json",
+          "snapshot_scope": "PC0605 actual true-old/absent/SDK DLL log availability caption/metadata/catalog on ON/OFF plus independently8native WAV/2NUL text WAV;whole requirement partial,no workbench or desktop claim."
+        },
+        {
+          "test_name": "PC-04.b real native task shares exact sixteen MiB log budget across instances and recovers",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0606-native-budget/green.xml",
+          "command_record": "build/reports/loops/PC0606-native-budget/green.json",
+          "snapshot_scope": "PC0606 real SDK same-task single/shared16MiB exact/+1/sustained finite flood,worker+freshCLI,no failed publish,prior success immutable,recovery;ON/OFF independently8WAV and6archives each,maxerror0. Whole C++ workbench/NA/PC remain partial."
+        },
+        {
+          "test_name": "PC-06.c real native queue and message rejection preserve prefix fail safely and recover through production controls",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0607-native-rejection/direct-components.xml",
+          "command_record": "build/reports/loops/PC0607-native-rejection/direct-components.json",
+          "snapshot_scope": "PC0607 actual native SDK full/invalid status/count diagnostics,production controls/prefix/no success/prior-file preservation/recovery;ON/OFF independently9WAV and9failed requests each. One SDK consumer/9modes/host C++ allocations0,not arbitrary DLL CRT proof. Full requirement partial."
+        },
+        {
+          "test_name": "native_log_fault_status",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0607-native-rejection/sdk-consumer.xml",
+          "command_record": "build/reports/loops/PC0607-native-rejection/sdk-consumer.json",
+          "snapshot_scope": "PC0607 actual native SDK full/invalid status/count diagnostics,production controls/prefix/no success/prior-file preservation/recovery;ON/OFF independently9WAV and9failed requests each. One SDK consumer/9modes/host C++ allocations0,not arbitrary DLL CRT proof. Full requirement partial."
+        },
+        {
+          "test_name": "PC-06.c independent native regions retain separate sixteen MiB budgets through actual mixed Run and recovery",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0608-region-budget/target.xml",
+          "command_record": "build/reports/loops/PC0608-region-budget/target.json",
+          "snapshot_scope": "PC0608 actual two native-region tasks each16MiB around frozen managed Python,total32MiB;C+1 fails and exact recovery succeeds;independent2WAV/4NPY/6raw streams,maxerror0. Sequential RunService only,whole requirement partial."
+        },
+        {
+          "test_name": "PC-06.c parallel native consumers own separate near-limit budgets and one failure cannot consume another quota",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0609-parallel-budget/target.xml",
+          "command_record": "build/reports/loops/PC0609-parallel-budget/target.json",
+          "snapshot_scope": "Actual two overlapping independent RunService consumers16MiB each;one+1 fails without consuming other quota. Strict gates/two workers;independent3WAV/4raw streams maxerror0. PythonOFF separately passed. Whole requirement partial."
+        },
+        {
+          "test_name": "PC-04.b native stream keeps exact bounded UTF8 capture tail and independent persisted counters",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0610-native-tail/final-green.xml",
+          "command_record": "build/reports/loops/PC0610-native-tail/final-green.json",
+          "snapshot_scope": "Native64KiB worker capture suffix ASCII exact/+1,wholeUTF8 boundary,NUL;independent4WAV/4raw/summary maxerror0.46direct summaries separately verified;OFF/oldDLL separately passed. Entire requirement partial."
+        },
+        {
+          "test_name": "PC-06.d accepted synchronous detach logs drain before queue closure for both native instances",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0611-detach-drain/green.xml",
+          "command_record": "build/reports/loops/PC0611-detach-drain/green.json",
+          "snapshot_scope": "RealSDK synchronous detach farewell accepted then finalworkerdrain,2instances/2requests4streams;independent2WAV maxerror0. OFF separatelypassed;full activecancel/close/lifetime/workbench remains partial."
+        },
+        {
+          "test_name": "PC-03.c active native production queue cancellation drains final logs removes payload and recovers",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0612-native-cancel/target.xml",
+          "command_record": "build/reports/loops/PC0612-native-cancel/target.json",
+          "snapshot_scope": "Actual native productionqueue cancel at16bytefirstlogbarrier,2instances finaldetach logs,run_cancelled/no payload/emptywaveform,5scleanup,idlecounts0,samequeue recovery;independent2WAV/6streams maxerror0. OFF separatelypasses;full requirements partial."
+        }
+      ],
+      "status": "partial"
     },
     {
       "id": "NA-15.b",
@@ -2211,9 +3026,38 @@
       "test_names": [
         "PC-01.a production draft parent preserves volume and UNC roots",
         "PC-01.b extended long draft save recovery binding and directory probe round trip",
-        "PC-03 production failure logs preserve exact version reject stale identities and recover"
+        "PC-03 production failure logs preserve exact version reject stale identities and recover",
+        "PC-03.c active Check View destruction and application shutdown reclaim owned work and permit recovery",
+        "PC-03.c queued log delivery after View invalidation releases payloads without touching a replacement",
+        "PC-03.d two versions and two instances keep exact log identity across same revision projects",
+        "PC-03.a slow production Run cannot pollute a new project revision or replacement Run",
+        "PC-04.d production historical Run logs do not replace current result or preview",
+        "PC-04.c production twenty success error cancel rounds drain queues processes and log views",
+        "native_log_queue_contract",
+        "PC-06.b optional native log API good",
+        "PC-06.b optional native log API size",
+        "PC-06.b optional native log API version",
+        "PC-06.b optional native log API function",
+        "PC-06.b optional native log API rejected",
+        "PC-06.b optional native log API absent",
+        "PC-06.a genuine prebuilt v1 DLL catalog remains available",
+        "PC-06.a/b actual good DLL numerical CLI output",
+        "PC-06.a/b actual absent DLL numerical CLI output",
+        "PC-06.a/b actual legacy DLL numerical CLI output",
+        "PC-06.b native SDK logs reach production mixed Run before terminal with exact instance identity",
+        "PC-06.c bound native SDK callback and reset allocate nothing while only the worker consumes logs",
+        "PC-06.b real SDK Unicode levels and embedded NUL survive production Run archive history and copy",
+        "PC-06.a real legacy and SDK DLL nodes explain log capability in library Inspector and fresh CLI",
+        "PC-04.b real native task shares exact sixteen MiB log budget across instances and recovers",
+        "PC-06.c real native queue and message rejection preserve prefix fail safely and recover through production controls",
+        "native_log_fault_status",
+        "PC-06.c independent native regions retain separate sixteen MiB budgets through actual mixed Run and recovery",
+        "PC-06.c parallel native consumers own separate near-limit budgets and one failure cannot consume another quota",
+        "PC-04.b native stream keeps exact bounded UTF8 capture tail and independent persisted counters",
+        "PC-06.d accepted synchronous detach logs drain before queue closure for both native instances",
+        "PC-03.c active native production queue cancellation drains final logs removes payload and recovers"
       ],
-      "coverage": "not_implemented",
+      "coverage": "partial",
       "evidence_requirements": [
         "all acceptance clauses in NA-15.c"
       ],
@@ -2244,9 +3088,212 @@
           "evidence": "build/reports/loops/PC0301-run-log/direct-regression.xml",
           "command_record": "build/reports/loops/PC0301-run-log/direct-regression.json",
           "snapshot_scope": "executed development subset, full requirement remains partial"
+        },
+        {
+          "test_name": "PC-03.c active Check View destruction and application shutdown reclaim owned work and permit recovery",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0306-check-view-close/direct-regression-diagnostic.xml",
+          "command_record": "build/reports/loops/PC0306-check-view-close/direct-regression-diagnostic.json",
+          "snapshot_scope": "PC0306 explicit active Check View/application close and queued log lifetime subset; 12 cases, zero failures/skips. Original 11/12 recovery failure retained and cause unresolved; full requirement remains partial."
+        },
+        {
+          "test_name": "PC-03.c queued log delivery after View invalidation releases payloads without touching a replacement",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0306-check-view-close/direct-regression-diagnostic.xml",
+          "command_record": "build/reports/loops/PC0306-check-view-close/direct-regression-diagnostic.json",
+          "snapshot_scope": "PC0306 explicit active Check View/application close and queued log lifetime subset; 12 cases, zero failures/skips. Original 11/12 recovery failure retained and cause unresolved; full requirement remains partial."
+        },
+        {
+          "test_name": "PC-03.d two versions and two instances keep exact log identity across same revision projects",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0307-log-versions/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0307-log-versions/direct-regression.json",
+          "snapshot_scope": "PC0307 two versions/two instances/sequential same-revision project log identity only; 8 cases/7063 assertions. Active Apply/freeze and slow-old/new matrix not covered; full requirement partial."
+        },
+        {
+          "test_name": "PC-03.a slow production Run cannot pollute a new project revision or replacement Run",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0309-live-identity/green-owned-artifacts.xml",
+          "command_record": "build/reports/loops/PC0309-live-identity/green-owned-artifacts.json",
+          "snapshot_scope": "PC0309 real held Run across project/revision/request replacement, current logs/output/preview ownership; 1 case/1675 assertions, three independent zero-error outputs. Direct aggregate remains 26/27 with separate PRJ environment recheck; no overall requirement promotion."
+        },
+        {
+          "test_name": "PC-04.d production historical Run logs do not replace current result or preview",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0407-log-history/direct-regression.xml",
+          "command_record": "build/reports/loops/PC0407-log-history/direct-regression.json",
+          "snapshot_scope": "PC0407 logged-history subset: worker-bounded archive read, explicit old/current identity, unchanged current result/preview and queued-history revocation across New/Open. No full requirement promotion."
+        },
+        {
+          "test_name": "PC-04.c production twenty success error cancel rounds drain queues processes and log views",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0408-gui-cycles/focused.xml",
+          "command_record": "build/reports/loops/PC0408-gui-cycles/focused.json",
+          "snapshot_scope": "PC0408 actual production GUI20 rounds,81Runs incl warmup/recoveries, own parent/child exit, unrelated canary survival, active/pending/job0 and stable174 handles at each round,41 independent zero-error outputs; whole requirement partial."
+        },
+        {
+          "test_name": "native_log_queue_contract",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0601-native-log-queue/current-target.xml",
+          "command_record": "build/reports/loops/PC0601-native-log-queue/current-target.json",
+          "snapshot_scope": "PC0601 real SDK-only external C/C++ executable consumer;64slots/1024bytes/20000concurrent/zero callback-pop C++ allocations and v1/header/host identities preserved. Host logging and real extension DLL not yet implemented; whole NA partial."
+        },
+        {
+          "test_name": "PC-06.b optional native log API good",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0602-log-negotiation/green.xml",
+          "command_record": "build/reports/loops/PC0602-log-negotiation/green-command.json",
+          "snapshot_scope": "PC0602 current genuine old v1/new external SDK DLL loader/numeric/legacy instance lease subset. Native logging and production C++ authoring/probe/restart/desktop incomplete; whole requirement partial."
+        },
+        {
+          "test_name": "PC-06.b optional native log API size",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0602-log-negotiation/green.xml",
+          "command_record": "build/reports/loops/PC0602-log-negotiation/green-command.json",
+          "snapshot_scope": "PC0602 current genuine old v1/new external SDK DLL loader/numeric/legacy instance lease subset. Native logging and production C++ authoring/probe/restart/desktop incomplete; whole requirement partial."
+        },
+        {
+          "test_name": "PC-06.b optional native log API version",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0602-log-negotiation/green.xml",
+          "command_record": "build/reports/loops/PC0602-log-negotiation/green-command.json",
+          "snapshot_scope": "PC0602 current genuine old v1/new external SDK DLL loader/numeric/legacy instance lease subset. Native logging and production C++ authoring/probe/restart/desktop incomplete; whole requirement partial."
+        },
+        {
+          "test_name": "PC-06.b optional native log API function",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0602-log-negotiation/green.xml",
+          "command_record": "build/reports/loops/PC0602-log-negotiation/green-command.json",
+          "snapshot_scope": "PC0602 current genuine old v1/new external SDK DLL loader/numeric/legacy instance lease subset. Native logging and production C++ authoring/probe/restart/desktop incomplete; whole requirement partial."
+        },
+        {
+          "test_name": "PC-06.b optional native log API rejected",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0602-log-negotiation/green.xml",
+          "command_record": "build/reports/loops/PC0602-log-negotiation/green-command.json",
+          "snapshot_scope": "PC0602 current genuine old v1/new external SDK DLL loader/numeric/legacy instance lease subset. Native logging and production C++ authoring/probe/restart/desktop incomplete; whole requirement partial."
+        },
+        {
+          "test_name": "PC-06.b optional native log API absent",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0602-log-negotiation/green.xml",
+          "command_record": "build/reports/loops/PC0602-log-negotiation/green-command.json",
+          "snapshot_scope": "PC0602 current genuine old v1/new external SDK DLL loader/numeric/legacy instance lease subset. Native logging and production C++ authoring/probe/restart/desktop incomplete; whole requirement partial."
+        },
+        {
+          "test_name": "PC-06.a genuine prebuilt v1 DLL catalog remains available",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0602-log-negotiation/green.xml",
+          "command_record": "build/reports/loops/PC0602-log-negotiation/green-command.json",
+          "snapshot_scope": "PC0602 current genuine old v1/new external SDK DLL loader/numeric/legacy instance lease subset. Native logging and production C++ authoring/probe/restart/desktop incomplete; whole requirement partial."
+        },
+        {
+          "test_name": "PC-06.a/b actual good DLL numerical CLI output",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0602-log-negotiation/green.xml",
+          "command_record": "build/reports/loops/PC0602-log-negotiation/green-command.json",
+          "snapshot_scope": "PC0602 current genuine old v1/new external SDK DLL loader/numeric/legacy instance lease subset. Native logging and production C++ authoring/probe/restart/desktop incomplete; whole requirement partial."
+        },
+        {
+          "test_name": "PC-06.a/b actual absent DLL numerical CLI output",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0602-log-negotiation/green.xml",
+          "command_record": "build/reports/loops/PC0602-log-negotiation/green-command.json",
+          "snapshot_scope": "PC0602 current genuine old v1/new external SDK DLL loader/numeric/legacy instance lease subset. Native logging and production C++ authoring/probe/restart/desktop incomplete; whole requirement partial."
+        },
+        {
+          "test_name": "PC-06.a/b actual legacy DLL numerical CLI output",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0602-log-negotiation/green.xml",
+          "command_record": "build/reports/loops/PC0602-log-negotiation/green-command.json",
+          "snapshot_scope": "PC0602 current genuine old v1/new external SDK DLL loader/numeric/legacy instance lease subset. Native logging and production C++ authoring/probe/restart/desktop incomplete; whole requirement partial."
+        },
+        {
+          "test_name": "PC-06.b native SDK logs reach production mixed Run before terminal with exact instance identity",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0603-native-live/direct-components.xml",
+          "command_record": "build/reports/loops/PC0603-native-live/direct-components.json",
+          "snapshot_scope": "PC0603 basic actual native SDK mixed Run/live/terminal reset log identity and worker/no-allocation/module lease subset only. Independent11WAV/6NPY and8production native streams; entire requirement partial."
+        },
+        {
+          "test_name": "PC-06.c bound native SDK callback and reset allocate nothing while only the worker consumes logs",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0603-native-live/direct-components.xml",
+          "command_record": "build/reports/loops/PC0603-native-live/direct-components.json",
+          "snapshot_scope": "PC0603 basic actual native SDK mixed Run/live/terminal reset log identity and worker/no-allocation/module lease subset only. Independent11WAV/6NPY and8production native streams; entire requirement partial."
+        },
+        {
+          "test_name": "PC-06.b real SDK Unicode levels and embedded NUL survive production Run archive history and copy",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0604-native-text/direct-components.xml",
+          "command_record": "build/reports/loops/PC0604-native-text/direct-components.json",
+          "snapshot_scope": "PC0604 real SDK Unicode/four levels/NUL/C0 GUI+CLI raw/encoded archive/history/copy;four independent ON/OFF WAVs maxerror0. Only subset,entire requirement partial."
+        },
+        {
+          "test_name": "PC-06.a real legacy and SDK DLL nodes explain log capability in library Inspector and fresh CLI",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0605-native-capability/direct-components.xml",
+          "command_record": "build/reports/loops/PC0605-native-capability/direct-components.json",
+          "snapshot_scope": "PC0605 actual true-old/absent/SDK DLL log availability caption/metadata/catalog on ON/OFF plus independently8native WAV/2NUL text WAV;whole requirement partial,no workbench or desktop claim."
+        },
+        {
+          "test_name": "PC-04.b real native task shares exact sixteen MiB log budget across instances and recovers",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0606-native-budget/green.xml",
+          "command_record": "build/reports/loops/PC0606-native-budget/green.json",
+          "snapshot_scope": "PC0606 real SDK same-task single/shared16MiB exact/+1/sustained finite flood,worker+freshCLI,no failed publish,prior success immutable,recovery;ON/OFF independently8WAV and6archives each,maxerror0. Whole C++ workbench/NA/PC remain partial."
+        },
+        {
+          "test_name": "PC-06.c real native queue and message rejection preserve prefix fail safely and recover through production controls",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0607-native-rejection/direct-components.xml",
+          "command_record": "build/reports/loops/PC0607-native-rejection/direct-components.json",
+          "snapshot_scope": "PC0607 actual native SDK full/invalid status/count diagnostics,production controls/prefix/no success/prior-file preservation/recovery;ON/OFF independently9WAV and9failed requests each. One SDK consumer/9modes/host C++ allocations0,not arbitrary DLL CRT proof. Full requirement partial."
+        },
+        {
+          "test_name": "native_log_fault_status",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0607-native-rejection/sdk-consumer.xml",
+          "command_record": "build/reports/loops/PC0607-native-rejection/sdk-consumer.json",
+          "snapshot_scope": "PC0607 actual native SDK full/invalid status/count diagnostics,production controls/prefix/no success/prior-file preservation/recovery;ON/OFF independently9WAV and9failed requests each. One SDK consumer/9modes/host C++ allocations0,not arbitrary DLL CRT proof. Full requirement partial."
+        },
+        {
+          "test_name": "PC-06.c independent native regions retain separate sixteen MiB budgets through actual mixed Run and recovery",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0608-region-budget/target.xml",
+          "command_record": "build/reports/loops/PC0608-region-budget/target.json",
+          "snapshot_scope": "PC0608 actual two native-region tasks each16MiB around frozen managed Python,total32MiB;C+1 fails and exact recovery succeeds;independent2WAV/4NPY/6raw streams,maxerror0. Sequential RunService only,whole requirement partial."
+        },
+        {
+          "test_name": "PC-06.c parallel native consumers own separate near-limit budgets and one failure cannot consume another quota",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0609-parallel-budget/target.xml",
+          "command_record": "build/reports/loops/PC0609-parallel-budget/target.json",
+          "snapshot_scope": "Actual two overlapping independent RunService consumers16MiB each;one+1 fails without consuming other quota. Strict gates/two workers;independent3WAV/4raw streams maxerror0. PythonOFF separately passed. Whole requirement partial."
+        },
+        {
+          "test_name": "PC-04.b native stream keeps exact bounded UTF8 capture tail and independent persisted counters",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0610-native-tail/final-green.xml",
+          "command_record": "build/reports/loops/PC0610-native-tail/final-green.json",
+          "snapshot_scope": "Native64KiB worker capture suffix ASCII exact/+1,wholeUTF8 boundary,NUL;independent4WAV/4raw/summary maxerror0.46direct summaries separately verified;OFF/oldDLL separately passed. Entire requirement partial."
+        },
+        {
+          "test_name": "PC-06.d accepted synchronous detach logs drain before queue closure for both native instances",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0611-detach-drain/green.xml",
+          "command_record": "build/reports/loops/PC0611-detach-drain/green.json",
+          "snapshot_scope": "RealSDK synchronous detach farewell accepted then finalworkerdrain,2instances/2requests4streams;independent2WAV maxerror0. OFF separatelypassed;full activecancel/close/lifetime/workbench remains partial."
+        },
+        {
+          "test_name": "PC-03.c active native production queue cancellation drains final logs removes payload and recovers",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0612-native-cancel/target.xml",
+          "command_record": "build/reports/loops/PC0612-native-cancel/target.json",
+          "snapshot_scope": "Actual native productionqueue cancel at16bytefirstlogbarrier,2instances finaldetach logs,run_cancelled/no payload/emptywaveform,5scleanup,idlecounts0,samequeue recovery;independent2WAV/6streams maxerror0. OFF separatelypasses;full requirements partial."
         }
       ],
-      "status": "not_verified",
+      "status": "partial",
       "shared_evidence": [
         "build/reports/loops/PC0101-root-save/summary.json: PC-01 path subset; volume-root actual write not_verified",
         "build/reports/loops/PC0301-run-log/summary.json: partial log identity/failure scope"
@@ -2424,7 +3471,7 @@
     }
   ],
   "acceptance_document_sha256": "2fe375ab07622cace39606c9fb425d58ae6ab9c5f64dc60933b2f675cc8c3b50",
-  "current_entry": "PC0402/PC0403/PC0404 evidence synchronized. PC0303 adds active production Check cancellation and recovery: real task parent/child reaped under five seconds while unrelated process survived; archived stdout/source independently verified; direct regression 3 cases/83 assertions. No product Red was observed for this slice. Next: active panel/View close and Check timeout, then PC-03 version/project identity, PC-04 end-to-end flood, and PC-05 bidirectional formula oracle. No PC/NA stage passes; desktop paused.",
+  "current_entry": "PC0612 actual productionqueue active nativecancel firstGreen1/1/2280,direct5/5/2841,OFF1/1/2280. Firstpersisted16byte barrier→realqueuecancel,run_cancelled/no payload/emptywaveform,final2SDKsinks archived,oldsuccess immutable,samequeue recovery/counts0. IndependentON/OFF each2WAV/6streams maxerror0,cancel9.9827/10.7264ms under5000ms. No productchange,exact append/hostidentity reusesPC0610/11 original scopes. Full View-appclose/late/UI flood/workbench/platformpartial,nextPC0613. Desktoppaused.",
   "status_policy": "passed applies only to executed tests in their recorded snapshots; partial is incomplete requirement coverage; failed preserves latest recorded failure; not_verified is absent/unexecuted evidence. No NA stage is passed.",
   "test_inventory": {
     "NA-01.a production draft offers a user chosen Save As target": "tests/unit/test_node_authoring.cpp",
@@ -2486,7 +3533,70 @@
     "PC-04.c twenty success error cancel rounds retain no live Python processes or handles": "tests/integration/test_python_process.cpp",
     "PC-04.d production run log node filter preserves hidden current run entries": "tests/unit/test_node_authoring.cpp",
     "PC-04.d production filter separates live logs from two real node instances while preserving run identity": "tests/unit/test_node_authoring.cpp",
-    "PC-03.c production Check cancellation reclaims only its process tree and permits recovery": "tests/unit/test_node_authoring.cpp"
+    "PC-03.c production Check cancellation reclaims only its process tree and permits recovery": "tests/unit/test_node_authoring.cpp",
+    "PC-03.c closing the production panel cancels its Check before destruction and permits reopening": "tests/unit/test_node_authoring.cpp",
+    "PC-03.c production Check deadline preserves logs reclaims its tree and permits recovery": "tests/unit/test_node_authoring.cpp",
+    "PC-03.c active Check View destruction and application shutdown reclaim owned work and permit recovery": "tests/unit/test_node_authoring.cpp",
+    "PC-03.c queued log delivery after View invalidation releases payloads without touching a replacement": "tests/unit/test_editor_run_job.cpp",
+    "PC-03.d two versions and two instances keep exact log identity across same revision projects": "tests/unit/test_node_authoring.cpp",
+    "PC-03.d active v1 Run retains frozen code and logs while v2 Apply changes the default": "tests/unit/test_node_authoring.cpp",
+    "PC-03.a slow production Run cannot pollute a new project revision or replacement Run": "tests/unit/test_node_authoring.cpp",
+    "PC-04.b production flood enforces complete and UI budgets while remaining responsive and recovering": "tests/unit/test_node_authoring.cpp",
+    "PC-04.d bounded log rendering preserves retained copy and node filters": "tests/unit/test_node_authoring.cpp",
+    "PC-04.d log level and node filters intersect without discarding hidden entries": "tests/unit/test_node_authoring.cpp",
+    "PC-04.d production Run level filter separates real stdout and stderr without changing audio": "tests/unit/test_node_authoring.cpp",
+    "PC-04.d production historical Run logs do not replace current result or preview": "tests/unit/test_node_authoring.cpp",
+    "PC-04.d history reader bounds owned tail and rejects mixed or malformed archives": "tests/unit/test_node_authoring.cpp",
+    "PC-04.c production twenty success error cancel rounds drain queues processes and log views": "tests/unit/test_node_authoring.cpp",
+    "PC-05.a production Run and fresh CLI execute both documented mixed formulas": "tests/unit/test_node_authoring.cpp",
+    "PC-05.a GUI CLI mixed formula matrix preserves state across formats frames and host partitions": "tests/unit/test_node_authoring.cpp",
+    "PC-05.b production Run and fresh CLI select named outputs with one shared upstream execution": "tests/unit/test_node_authoring.cpp",
+    "PC-05.c published v1 rejects unsupported timing capabilities before loading a module": "tests/unit/test_node_authoring.cpp",
+    "AR-15.c empty streams acknowledge EOS without inventing a padded algorithm frame": "tests/unit/test_stream_progress.cpp",
+    "AR-06.e unsupported capabilities are refused before execution starts": "tests/unit/test_native_node_contracts.cpp",
+    "AR-15.c invalid per port counts and no progress fail with bounded diagnostics then recover": "tests/unit/test_stream_progress.cpp",
+    "AR-15.e unknown tails flush-only algorithms and insufficient padding budgets fail before factory": "tests/unit/test_native_tail.cpp",
+    "AR-15.c premature invalid and missing output EOS cannot publish success": "tests/unit/test_stream_progress.cpp",
+    "AR-15.c partial named port consumption and production retains every sample": "tests/unit/test_stream_progress.cpp",
+    "AR-15.d worker waits for message-thread graph preparation before reading latency": "tests/unit/test_fixed_frame_fifo.cpp",
+    "AR-15.c independent output EOS drains the longer stream when selecting the shorter port": "tests/unit/test_stream_progress.cpp",
+    "AR-15.c partial stream callbacks allocate no memory after prepare": "tests/unit/test_stream_progress.cpp",
+    "AR-15.b fixed FIFO is bounded under seeded random host partitions": "tests/unit/test_fixed_frame_fifo.cpp",
+    "AR-15.c EOS follows each compensated input and independently finishes every output": "tests/unit/test_stream_progress.cpp",
+    "AR-15.e finite FIR tails survive fixed frames chain and compensated branch with bounded padding": "tests/unit/test_native_tail.cpp",
+    "AR-15.e finite tail never invents valid samples from an empty or truncated valid interval": "tests/unit/test_native_tail.cpp",
+    "AR-06.e fixed-frame tails and non-audio ports are refused before execution": "tests/unit/test_native_node_contracts.cpp",
+    "AR-15.d known algorithm delay aligns a real JUCE branch and unknown delay is refused": "tests/unit/test_fixed_frame_fifo.cpp",
+    "AR-15.e completed shorter branch stays silent while another branch drains": "tests/unit/test_native_tail.cpp",
+    "AR-15.b fixed 480 and 512 frames preserve samples in the real JUCE graph": "tests/unit/test_fixed_frame_fifo.cpp",
+    "PC-05.b mixed output metadata failures identify the exact port preserve success and recover": "tests/integration/test_python_mixed_recovery.cpp",
+    "PC-05.b mismatched mixed sources identify their output port before any factory": "tests/integration/test_python_mixed.cpp",
+    "native_log_queue_contract": "tests/sdk/native_log_queue/CMakeLists.txt",
+    "PC-06.b optional native log API good": "scripts/verify_native_log_negotiation.py",
+    "PC-06.b optional native log API size": "scripts/verify_native_log_negotiation.py",
+    "PC-06.b optional native log API version": "scripts/verify_native_log_negotiation.py",
+    "PC-06.b optional native log API function": "scripts/verify_native_log_negotiation.py",
+    "PC-06.b optional native log API rejected": "scripts/verify_native_log_negotiation.py",
+    "PC-06.b optional native log API absent": "scripts/verify_native_log_negotiation.py",
+    "PC-06.a genuine prebuilt v1 DLL catalog remains available": "scripts/verify_native_log_negotiation.py",
+    "PC-06.a/b actual good DLL numerical CLI output": "scripts/verify_native_log_negotiation.py",
+    "PC-06.a/b actual absent DLL numerical CLI output": "scripts/verify_native_log_negotiation.py",
+    "PC-06.a/b actual legacy DLL numerical CLI output": "scripts/verify_native_log_negotiation.py",
+    "UPN external DLL drives generated controls controller and real run service": "tests/integration/test_native_plugin.cpp",
+    "UPN instances retain their DLL after catalog destruction and isolate state": "tests/integration/test_native_plugin.cpp",
+    "PC-06.b native SDK logs reach production mixed Run before terminal with exact instance identity": "tests/unit/test_node_authoring.cpp",
+    "PC-06.c bound native SDK callback and reset allocate nothing while only the worker consumes logs": "tests/unit/test_node_authoring.cpp",
+    "PC-06.b real SDK Unicode levels and embedded NUL survive production Run archive history and copy": "tests/unit/test_node_authoring.cpp",
+    "PC-03.c mixed cancellation probe refuses an existing incomplete PID marker": "tests/integration/test_python_mixed_recovery.cpp",
+    "PC-06.a real legacy and SDK DLL nodes explain log capability in library Inspector and fresh CLI": "tests/unit/test_node_authoring.cpp",
+    "PC-04.b real native task shares exact sixteen MiB log budget across instances and recovers": "tests/unit/test_node_authoring.cpp",
+    "PC-06.c real native queue and message rejection preserve prefix fail safely and recover through production controls": "tests/unit/test_node_authoring.cpp",
+    "native_log_fault_status": "tests/sdk/native_log_faults/consumer.cpp",
+    "PC-06.c independent native regions retain separate sixteen MiB budgets through actual mixed Run and recovery": "tests/unit/test_node_authoring.cpp",
+    "PC-06.c parallel native consumers own separate near-limit budgets and one failure cannot consume another quota": "tests/unit/test_node_authoring.cpp",
+    "PC-04.b native stream keeps exact bounded UTF8 capture tail and independent persisted counters": "tests/unit/test_node_authoring.cpp",
+    "PC-06.d accepted synchronous detach logs drain before queue closure for both native instances": "tests/unit/test_node_authoring.cpp",
+    "PC-03.c active native production queue cancellation drains final logs removes payload and recovers": "tests/unit/test_node_authoring.cpp"
   },
   "latest_execution": {
     "ctest_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
@@ -2508,7 +3618,9 @@
       "build/reports/loops/NA0030-draft-close/independent-files.json",
       "build/reports/loops/NA0030-draft-close/independent-library-final.json"
     ],
-    "note": "All 68 required subcases retained; no whole requirement/stage promoted to passed. GUI selection and DPI not verified."
+    "note": "All 68 required subcases retained; no whole requirement/stage promoted to passed. GUI selection and DPI not verified.",
+    "snapshot_only": true,
+    "current_cumulative": false
   },
   "pipeline_execution_closure_supplement": {
     "acceptance_source": "doc/testing_pipeline_execution_closure.md",
@@ -2516,21 +3628,35 @@
     "required_subcase_count_impact": 0,
     "scope": "PC-01..08 supplemental map; separate from 68 required NA subcases",
     "status": "partial",
-    "current_entry": "PC0402/PC0403/PC0404 evidence synchronized. PC0303 adds active production Check cancellation and recovery: real task parent/child reaped under five seconds while unrelated process survived; archived stdout/source independently verified; direct regression 3 cases/83 assertions. No product Red was observed for this slice. Next: active panel/View close and Check timeout, then PC-03 version/project identity, PC-04 end-to-end flood, and PC-05 bidirectional formula oracle. No PC/NA stage passes; desktop paused.",
+    "current_entry": "PC0612 actual productionqueue active nativecancel firstGreen1/1/2280,direct5/5/2841,OFF1/1/2280. Firstpersisted16byte barrier→realqueuecancel,run_cancelled/no payload/emptywaveform,final2SDKsinks archived,oldsuccess immutable,samequeue recovery/counts0. IndependentON/OFF each2WAV/6streams maxerror0,cancel9.9827/10.7264ms under5000ms. No productchange,exact append/hostidentity reusesPC0610/11 original scopes. Full View-appclose/late/UI flood/workbench/platformpartial,nextPC0613. Desktoppaused.",
     "slices": [
       {
         "id": "PC0402-live-log",
         "status": "partial",
         "record": "build/reports/loops/PC0402-live-log/summary.json",
         "loop": "build/reports/loops/PC0402-live-log/loop.md",
+        "acceptance_mapping": [
+          "PC-04.a incremental UTF-8 decoding and live stdout/stderr delivery: decoder and supervised-process exact cases are mapped in test_inventory and the slice reports.",
+          "PC-04.d Canvas displays log events before terminal completion and New clears the current view.",
+          "PC-04.d production chunk join preserves same-stream text without invented line breaks.",
+          "PC-04.d 10-second/20-ms production UI heartbeat; 20-cycle worker lifecycle is an independent related check, not additive test coverage."
+        ],
+        "test_names": [
+          "PC-04.a log text decoder preserves split UTF8 and replaces malformed or unfinished bytes",
+          "PC-04.a supervised stdout stderr arrive before terminal and allow callback driven cancellation",
+          "PC-04 production Canvas exposes live node logs before termination and clears them on New",
+          "PC-04.a production log text joins partial stream chunks without invented newlines",
+          "PC-04.d production live log UI meets twenty ms heartbeat over ten seconds",
+          "PC-04.c twenty success error cancel rounds retain no live Python processes or handles"
+        ],
         "covered": [
-          "PC-04.a current incremental worker decode/stdout/stderr delivery subset",
-          "PC-04.d current Canvas live log and New clear, chunk join, heartbeat subset"
+          "PC-04.a incremental worker decode/stdout/stderr delivery on the recorded PC0403 worker/source snapshot",
+          "PC-04.d Canvas live log/New clear, chunk join and heartbeat on the recorded 51943e4785... build snapshot"
         ],
         "unverified": [
           "PC-04.b combined live flood and UI budget",
-          "PC-04.d node/level filter and previous-run history",
-          "PC-03 check cancellation/timeout/late-delivery and two-version/two-instance identity",
+          "PC-04.d level filter and previous-run history; per-node filter is covered separately by PC0404",
+          "PC-03.a/d two-project/two-revision and two-version/two-instance identity, including Apply-during-Run frozen-version attribution; PC0303/04/05/06 separately cover bounded cancel, panel close, timeout, View/application close and queued late-log subsets",
           "desktop/OS input"
         ]
       },
@@ -2539,15 +3665,38 @@
         "status": "partial",
         "record": "build/reports/loops/PC0403-ui-bound/summary.json",
         "loop": "build/reports/loops/PC0403-ui-bound/loop.md",
+        "acceptance_mapping": [
+          "PC-04.d queued log event values stay within the existing 256 KiB/128-record bounds on the recorded same-case snapshot.",
+          "PC-04.d production Canvas live delivery/New clear, appended chunk rendering, and 10-second/20-ms heartbeat on the recorded UI snapshot.",
+          "PC-04.a malformed UTF-8 raw-byte accounting is revalidated 1/1 on the later PC0404 integration snapshot; this closes the assertion only."
+        ],
+        "test_names": [
+          "PC-04.d pending log delivery bounds owned bytes records and scheduled callbacks",
+          "PC-04 production Canvas exposes live node logs before termination and clears them on New",
+          "PC-04.a production log text joins partial stream chunks without invented newlines",
+          "PC-04.d production live log UI meets twenty ms heartbeat over ten seconds",
+          "PC-04 authoring malformed raw logs preserve byte counts without discard underflow",
+          "PC-04.c twenty success error cancel rounds retain no live Python processes or handles"
+        ],
+        "recorded_identities": {
+          "ui_regression_source_tree_hash": "51943e4785b3560082510c98957f0934bc5bf25a99c6be3b1ae09356cbf83736",
+          "ui_regression_audioalgo_tests_sha256": "f89c0fae0292579e8f3f73c5a86c9e996a38589d4357b5fa1f873172f8e76549",
+          "ui_regression_editor_sha256": "b2f7feecfc52b7c16d5c2d4b3423652316805202e6ae6a2e6d99098487a93d69",
+          "independent_inspector_source_tree_hash": "652ce3b72b4c4bbb2cf55b4f7ffb808f4511dbd05a910665e425b6033aa2df1c",
+          "malformed_revalidation_source_tree_hash": "6bbf14c16152fbf78eadc3b8859c4139334f407c2c3950e753ea1a70997dcc3e",
+          "malformed_revalidation_audioalgo_tests_sha256": "66cc82380fce56fd5dd34302e67d51aff6dc3f514c7213686ca9167de79067ae",
+          "note": "These are overlapping, distinct recorded snapshots. They are not cumulative counts and do not identify the later current on-disk binaries."
+        },
         "covered": [
           "earlier-snapshot mailbox bound same-case Red/Green",
-          "current-source 79/79 UI regression for Canvas live log/New clear, chunk joining and 10s/20ms heartbeat",
-          "independent 20 rounds/60 actual Python tasks, raw/stdout agreement, no processes remaining"
+          "recorded PC0403 snapshot 79/79 UI regression for Canvas live log/New clear, chunk joining and 10s/20ms heartbeat",
+          "independent 20 rounds/60 actual Python tasks, raw/stdout agreement, no processes remaining",
+          "malformed-byte accounting assertion revalidated 1/1 on a later PC0404 integration snapshot; the earlier 0xc0000142 launch failure remains preserved as an environment failure"
         ],
         "unverified": [
-          "current-source malformed-byte accounting; latest process startup failed 0xc0000142 before assertions",
           "combined end-to-end flood budget",
-          "node/level filter and previous-run history",
+          "level filter and previous-run history; per-node filter is covered separately by PC0404",
+          "PC-03.a/d two-project/two-revision and two-version/two-instance identity, including Apply-during-Run frozen-version attribution; PC0303/04/05/06 separately cover bounded cancel, panel close, timeout, View/application close and queued late-log subsets",
           "desktop/OS input"
         ]
       },
@@ -2565,7 +3714,7 @@
         "unverified": [
           "log-level filter and previous-run history",
           "end-to-end flood across worker budget/UI mailbox/display tail/heartbeat",
-          "PC-03 Check cancellation/timeout/late delivery and two-version/two-instance identity",
+          "two-project/two-revision and two-version/two-instance identity, including Apply-during-Run frozen-version attribution; bounded cancel/panel-close/timeout/View-close/late-log subsets are covered by PC0303/04/05/06",
           "desktop/OS pointer route"
         ]
       },
@@ -2586,9 +3735,661 @@
           "direct regression 3 cases/83 assertions includes NA-14.b late completion and NA-08.b project-crossing guard"
         ],
         "unverified": [
-          "Check timeout and active panel/View/application close with late delivery",
+          "Check timeout and active View/application close with late delivery",
           "PC-03.a/d two-project/two-revision and two-version/two-instance identity",
           "remaining PC-03 and full PC-01..08 requirements; desktop remains paused"
+        ]
+      },
+      {
+        "id": "PC0304-check-close",
+        "status": "partial",
+        "record": "build/reports/loops/PC0304-check-close/summary.json",
+        "loop": "build/reports/loops/PC0304-check-close/loop.md",
+        "test_names": [
+          "PC-03.c closing the production panel cancels its Check before destruction and permits reopening"
+        ],
+        "acceptance_mapping": [
+          "PC-03.c.active_panel_close",
+          "NA-06.b panel active-check close/retry subset",
+          "NA-14.b destroyed-panel callback safety subset"
+        ],
+        "covered": [
+          "active production-panel close cancels Check before destruction and reopens for a successful Check",
+          "only the Check parent/child process tree is reaped within five seconds; unrelated ping process remains alive",
+          "the test pumps message dispatch after panel destruction",
+          "same failed cancellation observer case passes 1/1; focused panel-close case passes 1/1 with 29 assertions",
+          "expanded direct regression passes 8/8 cases and 172 assertions with zero failures/skips; the four-case PC03/NA14 subset also passes 4/4 and 112 assertions",
+          "independent raw source/stdout verification passes on two artifact roots with distinct canceled/recovered request ids"
+        ],
+        "unverified": [
+          "Check timeout; deliberately late success/log callback after teardown; active View/application close",
+          "PC-03.a/d two-project/two-revision and two-version/two-instance identity",
+          "all remaining PC/NA/platform gates and real desktop requirements"
+        ]
+      },
+      {
+        "id": "PC0305-check-timeout",
+        "status": "partial",
+        "record": "build/reports/loops/PC0305-check-timeout/summary.json",
+        "loop": "build/reports/loops/PC0305-check-timeout/loop.md",
+        "acceptance_mapping": [
+          "PC-03.c active Check timeout subset",
+          "NA-04.d isolated Check timeout diagnostic/log/recovery subset"
+        ],
+        "test_names": [
+          "PC-03.c production Check deadline preserves logs reclaims its tree and permits recovery"
+        ],
+        "covered": [
+          "PC-03.c per-task Check timeout, stdout archive, owned tree reclamation, unrelated-process survival and same-panel recovery"
+        ],
+        "unverified": [
+          "per-task timeout proven; total Check wallclock including filesystem/freeze and both phases not closed",
+          "active View/application close and controlled late delivery",
+          "two-version/two-instance/cross-project identity",
+          "PC-04 end-to-end flood, level filter/history; PC-05..08",
+          "desktop, normal GUI restart and final Release remain unverified"
+        ]
+      },
+      {
+        "id": "PC0306-check-view-close",
+        "status": "partial",
+        "record": "build/reports/loops/PC0306-check-view-close/summary.json",
+        "loop": "build/reports/loops/PC0306-check-view-close/loop.md",
+        "acceptance_mapping": [
+          "PC-03.c active Check View destruction/application shutdown, process-tree reclamation and fresh recovery subset.",
+          "PC-03.c queued late-log invalidation and owned-payload release subset.",
+          "NA-06.b / NA-14.b / NA-15.c bounded lifecycle/callback-safety evidence only; parent requirements remain partial.",
+          "AR-09.d affected RunJob View-close regression is included in the 12-case direct set."
+        ],
+        "test_names": [
+          "PC-03.c active Check View destruction and application shutdown reclaim owned work and permit recovery",
+          "PC-03.c queued log delivery after View invalidation releases payloads without touching a replacement"
+        ],
+        "covered": [
+          "PC-03.c active Check View destruction/application shutdown coordination and recovery",
+          "queued production log dispatch invalidation and payload release"
+        ],
+        "unverified": [
+          "Intermittent PC0305 recovery failure root cause not confirmed; future terminal evidence is retained for recurrence.",
+          "PC-03.a/d two-version/two-instance/cross-project running log matrix",
+          "Full default Check wallclock/queue/flood/performance budget",
+          "PC-04 level filter/history and flood; PC-05..08",
+          "Real OS close/restart/desktop remain paused; no full PC/NA/platform stage passed"
+        ]
+      },
+      {
+        "id": "PC0307-log-versions",
+        "status": "partial",
+        "record": "build/reports/loops/PC0307-log-versions/summary.json",
+        "loop": "build/reports/loops/PC0307-log-versions/loop.md",
+        "acceptance_mapping": [
+          "PC-03.a same-revision cross-project stale-log rejection bounded subset.",
+          "PC-03.d two-version/two-instance exact package and request identity bounded subset.",
+          "NA-08.c / NA-08.d / NA-09.a / PC-04.d are affected direct-regression cases only; parent requirements remain partial."
+        ],
+        "test_names": [
+          "PC-03.d two versions and two instances keep exact log identity across same revision projects"
+        ],
+        "recorded_identities": {
+          "direct_source_tree_hash": "5d7adfb6ca7bd3d964485ba622cf442ae8d14f3f2fb5764392cbf1ce1ce400f1",
+          "direct_audioalgo_tests_sha256": "432faeae9d111cad3b04a69c3cf0c4a34e5be4f8f87de9fea0632404d4e44cbe",
+          "test_node_authoring_cpp_sha256": "0db0eb07dfd4396f0b8336e2108c38e06933d93437d2d90cf666973564cfe057",
+          "independent_verifier_source_tree_hash": "54ca84ae76f3093339f507eb1d8dd3e6dbc566d445ad61dc264aa3d6e4a6b329",
+          "independent_verifier_sha256": "fa15f80ebdfa45106be3804d5316f0f225f7cab1c23bd962945cc0e06de85ca0",
+          "note": "Independent snapshot contains the same 415 source entries/hashes as the direct run plus only the verifier script; it reads the same artifact root."
+        },
+        "covered": [
+          "two versions/two instances/exact node-type-package-run log identity and sequential same-revision project replacement",
+          "focused 1/1 with 1,620 assertions; direct 8/8 with 7,063 assertions; zero failures/skips",
+          "independent three-run float32 output/raw-log/frozen-source check passed with max error 0"
+        ],
+        "unverified": [
+          "Apply while a v1 Run is actively held at a barrier; modify installed source after freeze",
+          "slow old Run versus new project/revision/new Run event matrix",
+          "intermittent Check recovery observation from PC0306 remains unresolved",
+          "PC-04 flood/level/history, PC-05..08, full PC/NA/AR/G/NED/UPN and desktop/Release remain incomplete"
+        ]
+      },
+      {
+        "id": "PC0308-active-version",
+        "status": "partial",
+        "record": "build/reports/loops/PC0308-active-version/summary.json",
+        "loop": "build/reports/loops/PC0308-active-version/loop.md",
+        "test_names": [
+          "PC-03.d active v1 Run retains frozen code and logs while v2 Apply changes the default"
+        ],
+        "covered": [
+          "PC-03.d service Apply during active production Run, immutable code closure and old/new version log ownership"
+        ],
+        "unverified": [
+          "Apply uses the existing service while production Run is active; this does not claim production UI Apply-during-Run or desktop input.",
+          "Slow old Run versus new project/revision/new Run event matrix remains open.",
+          "PC0306 intermittent Check recovery cause still not confirmed.",
+          "PC-04 full flood/level/history and PC-05..08/NA/AR/G/NED/UPN required clauses remain incomplete; desktop/restart/Release unverified."
+        ]
+      },
+      {
+        "id": "PC0309-live-identity",
+        "status": "partial",
+        "record": "build/reports/loops/PC0309-live-identity/summary.json",
+        "loop": "build/reports/loops/PC0309-live-identity/loop.md",
+        "test_names": [
+          "PC-03.a slow production Run cannot pollute a new project revision or replacement Run"
+        ],
+        "covered": [
+          "PC-03.a real project/revision/request Run overlap, current logs/result/preview ownership; Open starvation repair"
+        ],
+        "unverified": [
+          "real desktop/OS Open/chooser/device playback remain paused",
+          "full PC-03 draft identity and all queue/default whole-Check wallclock clauses not declared complete",
+          "PC0306 intermittent Check recovery cause remains unconfirmed despite later passing direct case",
+          "PC-04 end-to-end flood/level/history, PC-05..08 and full NA/AR/G/NED/UPN/Release remain open"
+        ]
+      },
+      {
+        "id": "PC0405-live-flood",
+        "status": "partial",
+        "record": "build/reports/loops/PC0405-live-flood/summary.json",
+        "loop": "build/reports/loops/PC0405-live-flood/loop.md",
+        "test_names": [
+          "PC-04.b production flood enforces complete and UI budgets while remaining responsive and recovering",
+          "PC-04.d bounded log rendering preserves retained copy and node filters"
+        ],
+        "covered": [
+          "PC-04.b exact16MiB/+1/continuous production flood/tree/recovery",
+          "PC-04.d original10s/20ms heartbeat and full retained/copyable filtered tail"
+        ],
+        "unverified": [
+          "real OS desktop/input/device and normal GUI restart remain paused",
+          "Three modes and two recoveries are not a new20-round end-to-end claim; previous unchanged process/queue evidence remains separately scoped",
+          "Check/probe/C++ build full default wallclock and full NA-06.d clauses remain open",
+          "PC0306 intermittent Check recovery cause remains unconfirmed",
+          "PC-04 level/history; PC-05..08, full NA/AR/G/NED/UPN and final Release remain incomplete"
+        ]
+      },
+      {
+        "id": "PC0406-level-filter",
+        "status": "partial",
+        "record": "build/reports/loops/PC0406-level-filter/summary.json",
+        "loop": "build/reports/loops/PC0406-level-filter/loop.md",
+        "test_names": [
+          "PC-04.d log level and node filters intersect without discarding hidden entries",
+          "PC-04.d production Run level filter separates real stdout and stderr without changing audio"
+        ],
+        "covered": [
+          "PC-04.d actual event-level and node intersection, hidden-entry retention/All/Copy/clear, production stream identity and audio"
+        ],
+        "unverified": [
+          "historical Run browsing is next; no history/desktop claim",
+          "real OS desktop/input/normal restart and final Release remain paused/unverified",
+          "PC0405 three-mode subset does not close every20-round/whole-Check/probe/build budget clause",
+          "PC0306 intermittent Check recovery cause remains unconfirmed",
+          "PC-05..08 and all remaining NA/AR/G/NED/UPN remain incomplete"
+        ]
+      },
+      {
+        "id": "PC0407-log-history",
+        "status": "partial",
+        "record": "build/reports/loops/PC0407-log-history/summary.json",
+        "loop": "build/reports/loops/PC0407-log-history/loop.md",
+        "test_names": [
+          "PC-04.d production historical Run logs do not replace current result or preview",
+          "PC-04.d history reader bounds owned tail and rejects mixed or malformed archives"
+        ],
+        "covered": [
+          "PC-04.d read-only recent logged-Run history, worker-bounded tail and filters",
+          "PC-03.a/c queued old history rejection and current preview ownership"
+        ],
+        "unverified": [
+          "Only logged Runs are listed; logs-free native/success Run history not implemented",
+          "History uses the existing single worker and waits behind an active Render; no low-latency active-render browse claim",
+          "At most128 recent logged Runs and bounded archive suffix/tail; complete-file viewer/pagination and all malformed/permission/link/concurrent-writer matrix remain incomplete",
+          "Real OS desktop/input/restart and final Release remain paused/unverified",
+          "Full PC-04 queue/20-round GUI stable exit and default whole-Check/probe/build budgets not closed",
+          "PC0306 intermittent Check recovery cause remains unconfirmed",
+          "PC-05..08 and remaining NA/AR/G/NED/UPN requirements remain incomplete"
+        ]
+      },
+      {
+        "id": "PC0408-gui-cycles",
+        "status": "partial",
+        "record": "build/reports/loops/PC0408-gui-cycles/summary.json",
+        "loop": "build/reports/loops/PC0408-gui-cycles/loop.md",
+        "test_names": [
+          "PC-04.c production twenty success error cancel rounds drain queues processes and log views"
+        ],
+        "covered": [
+          "PC-04.c repeated actual GUI Run queue/process/tree/handle/log-view bounds and recovery"
+        ],
+        "unverified": [
+          "Whole Check wallclock beyond per-task timeout, full C++ build/probe default budgets and native SDK clauses remain open",
+          "Logged-only history still excludes logs-free Runs/full pagination/malformed-permission-link-concurrent-writer matrix",
+          "PC0306 intermittent Check recovery root cause remains unconfirmed despite subsequent passing executions",
+          "Formal OS/root/UNC/desktop/DPI/device/restart and final Python-ON/Speex-ON Release matrix remain unverified",
+          "PC-05..08 and all remaining required NA/AR/G/NED/UPN remain incomplete"
+        ]
+      },
+      {
+        "id": "PC0501-mixed-formulas",
+        "status": "partial",
+        "record": "build/reports/loops/PC0501-mixed-formulas/summary.json",
+        "loop": "build/reports/loops/PC0501-mixed-formulas/loop.md",
+        "test_names": [
+          "PC-05.a production Run and fresh CLI execute both documented mixed formulas"
+        ],
+        "covered": [
+          "PC-05.a both formulas, each GUI/CLI versus independent stage oracle, repeated state reset and exact locks",
+          "component requested host127 reaches real RunRequest; normal default512 retained"
+        ],
+        "unverified": [
+          "PC0501 covers48000Hz/2channels/513frames/host127 only; full16000/48000×1/2/4×1/513/16037 and state host1/127/512/1024 next",
+          "PC-05.b named multiports/shared branches/error matrix and PC-05.c/d full timing/freeze/failure clauses retain their separate evidence and remaining requirements",
+          "RunConfiguration is a component construction option; normal application default512 remains, no new end-user block-size settings UI or desktop claim",
+          "Python-OFF result is current disabled component/locations contract in editor-OFF headless build, not Python execution or an OFF editor application launch",
+          "Whole Check/native/history and PC0306 recovery uncertainty remain; PC-06..08 and full NA/AR/G/NED/UPN/OS/root/UNC/desktop/Release matrix incomplete"
+        ]
+      },
+      {
+        "id": "PC0502-mixed-matrix",
+        "status": "partial",
+        "record": "build/reports/loops/PC0502-mixed-matrix/summary.json",
+        "loop": "build/reports/loops/PC0502-mixed-matrix/loop.md",
+        "test_names": [
+          "PC-05.a GUI CLI mixed formula matrix preserves state across formats frames and host partitions"
+        ],
+        "covered": [
+          "full documented formula numerical format/frame/state-host development matrix; desktop excluded",
+          "two-instance parameters, cross-block state and fresh Run reset subset",
+          "current mixed consumer20/20 with exact named cases in summary.json"
+        ],
+        "unverified": [
+          "PC-05.b full authored named dual-input/output, shared branch and rejection matrix needs exact remaining-clause audit; current P3 service tests are not the workbench UI flow",
+          "PC-05.c partial progress/zero-progress and v1 capability consumer bindings still require current-source audit; the 20 current mixed cases explicitly cover fixed480/512, latency, finite tails, independent EOS, rejection, replay and recovery",
+          "RunConfiguration is a component construction dependency, not a user-facing block-size setting or desktop evidence",
+          "PC-06..08, remaining NA/AR/G/NED/UPN, whole Check wallclock/native budgets, logs-free history, PC0306 intermittent recovery cause, root/UNC writes, normal GUI restart and final Python/Speex ON Release matrix remain incomplete"
+        ]
+      },
+      {
+        "id": "PC0503-named-shared",
+        "status": "partial",
+        "record": "build/reports/loops/PC0503-named-shared/summary.json",
+        "loop": "build/reports/loops/PC0503-named-shared/loop.md",
+        "test_names": [
+          "PC-05.b production Run and fresh CLI select named outputs with one shared upstream execution"
+        ],
+        "covered": [
+          "named dual inputs/outputs, explicit selection, one shared upstream/fresh Run reset",
+          "same explicit routing/fan-out/selected output subset; diagnostic source mapping still separate",
+          "production Run/fresh exact-lock CLI numerical subset"
+        ],
+        "unverified": [
+          "This slice covers48000Hz/2ch/513frames/host127 named/shared graph, not full named format/rejection matrix or all workbench creation/drag/drop flows",
+          "PC-05.b exact port-level format/length/nonfinite rejection audit and PC-05.c partial progress/zero-progress/v1 capability bindings remain next; previous PC0502 current mixed20-case evidence remains explicit",
+          "PC-06..08 and whole NA/AR/G/NED/UPN, PC0306 unresolved recovery cause, whole Check wallclock, logs-free history, desktop/root/UNC/normal restart/final Python+Speex ON Release remain incomplete"
+        ]
+      },
+      {
+        "id": "PC0504-timing-contracts",
+        "status": "partial",
+        "record": "build/reports/loops/PC0504-timing-contracts/summary.json",
+        "loop": "build/reports/loops/PC0504-timing-contracts/loop.md",
+        "test_names": [
+          "PC-05.c published v1 rejects unsupported timing capabilities before loading a module",
+          "AR-15.c empty streams acknowledge EOS without inventing a padded algorithm frame",
+          "AR-06.e unsupported capabilities are refused before execution starts",
+          "AR-15.c invalid per port counts and no progress fail with bounded diagnostics then recover",
+          "AR-15.e unknown tails flush-only algorithms and insufficient padding budgets fail before factory",
+          "AR-15.c premature invalid and missing output EOS cannot publish success",
+          "AR-15.c partial named port consumption and production retains every sample",
+          "AR-15.d worker waits for message-thread graph preparation before reading latency",
+          "AR-15.c independent output EOS drains the longer stream when selecting the shorter port",
+          "AR-15.c partial stream callbacks allocate no memory after prepare",
+          "AR-15.b fixed FIFO is bounded under seeded random host partitions",
+          "AR-15.c EOS follows each compensated input and independently finishes every output",
+          "AR-15.e finite FIR tails survive fixed frames chain and compensated branch with bounded padding",
+          "AR-15.e finite tail never invents valid samples from an empty or truncated valid interval",
+          "AR-06.e fixed-frame tails and non-audio ports are refused before execution",
+          "AR-15.d known algorithm delay aligns a real JUCE branch and unknown delay is refused",
+          "AR-15.e completed shorter branch stays silent while another branch drains",
+          "AR-15.b fixed 480 and 512 frames preserve samples in the real JUCE graph",
+          "NA-05.b generated Python wrapper rejects invalid outputs and subsequent valid check recovers"
+        ],
+        "covered": [
+          "clause-map.json exact PC-05.a/b/c/d records and names",
+          "v1 unsupported stream/offline/tail pre-load discrimination; static known latency remains supported"
+        ],
+        "unverified": [
+          "Full PC-05.b metadata/rate/channel/valid-interval/length rejection combinations are not inferred from dtype/shape/nonfinite tests",
+          "Native17 tests use independent C++ expected samples; no newly exported/re-read WAV claim for those pure/render checks. Historical stream-port-eos independent WAV evidence keeps its own old snapshot; NodeSDK header changed since then, so it is not relabeled current",
+          "This pre-load sentinel test does not replace PC-06 old genuine DLL compatibility or independent external SDK consumer",
+          "Whole PC/NA/AR/G/NED/UPN remain partial; whole Check wallclock/native logging, logs-free history, unresolved PC0306 recovery, desktop/root/UNC/normal restart/final Python+Speex ON Release remain open"
+        ]
+      },
+      {
+        "id": "PC0505-output-metadata",
+        "status": "partial",
+        "record": "build/reports/loops/PC0505-output-metadata/summary.json",
+        "loop": "build/reports/loops/PC0505-output-metadata/loop.md",
+        "test_names": [
+          "PC-05.b mixed output metadata failures identify the exact port preserve success and recover"
+        ],
+        "covered": [
+          "output sample-rate/channel identity/valid interval rejection at python/main; complements existing dtype/frame/NaN/Inf exact port cases",
+          "same graph error/no downstream publish/prior success and actual code bytes preserved/recovery",
+          "explicit real runner metadata/error recovery subset only"
+        ],
+        "unverified": [
+          "This slice is real middle-node output metadata rejection. Input-source format/frame/channel/interval mismatch attribution remains a separate PC0506 audit; no blanket full PC-05.b pass",
+          "No product/runner/scheduler/ABI change; current three-case direct report does not become a current20-case aggregate",
+          "All whole PC/NA/AR/G/NED/UPN remain partial; PC-06..08, whole Check/native budgets, logs-free history, unresolved PC0306 recovery cause, desktop/root/UNC/normal restart/final Python+Speex ON Release open"
+        ]
+      },
+      {
+        "id": "PC0506-source-port",
+        "status": "partial",
+        "record": "build/reports/loops/PC0506-source-port/summary.json",
+        "loop": "build/reports/loops/PC0506-source-port/loop.md",
+        "test_names": [
+          "PC-05.b mismatched mixed sources identify their output port before any factory",
+          "PC-05.b mixed output metadata failures identify the exact port preserve success and recover",
+          "P3 timeline finite tail preserves leading trailing and empty intervals on both Python outputs",
+          "P3 timeline fixed480 Python fixed512 aligns each owned boundary exactly once",
+          "P3 timeline two native tail ports materialize once before incompatible join rejects",
+          "P3-05 RunService cancellation reclaims real Python process tree within five seconds and recovers",
+          "P3 timeline independent native output tails reach Python with exact selected lengths",
+          "P3-03 mixed instances clip multioutput and shared native branches preserve single execution",
+          "P3-05 mixed failures retain traceback clean temporary output preserve success and recover",
+          "PC-05.b mismatched mixed sources identify their output port before any factory",
+          "P3-03 RunService executes native Python native stateful chain with exact owned boundaries",
+          "P3 timeline invalid mixed partitions reject before native or offline factories",
+          "P3 timeline missing long output EOS cannot publish short success and clean retry recovers",
+          "P3-03 task byte limit rejects before Python payload allocation and import",
+          "P3-03 generated Python parameter control changes controller worker output and report",
+          "P3-04 RunService freezes all Python instances before native execution and next request restarts",
+          "P3 timeline independent stream EOS survives Python while short output stays short",
+          "P3 timeline finite FIR tail crosses Python and native output with exact extended valid interval",
+          "P3-04 relocated replay consumes fixed plugin code and resources after originals disappear",
+          "P3 timeline seeded mixed host partitions reach native callbacks and replay finite tails exactly",
+          "P3-04 changed fixed source is rejected without replacing the previous success",
+          "P3 timeline invalid per-output tail contracts reject before factories",
+          "P3 timeline unknown latency tail flush and independent tail outputs reject before factories",
+          "NA-05.b generated Python wrapper rejects invalid outputs and subsequent valid check recovers",
+          "PC-05.b production Run and fresh CLI select named outputs with one shared upstream execution",
+          "PC-05.a production Run and fresh CLI execute both documented mixed formulas",
+          "AR-14.b mismatched independent sources are rejected before factories"
+        ],
+        "covered": [
+          "rate/channel count/IDs/frame/interval source preflight with exact b/audio,zero factories and same-graph valid control",
+          "mixed/native multi-source numerical/rejection preservation subset only"
+        ],
+        "unverified": [
+          "Input mismatch target is the actual worker mixed backend with a test-owned offline two-input adder; no real Python/GUI/CLI execution is claimed for this target. Current real GUI/CLI and Python regression outputs are separately verified",
+          "Full84Run format/state-host matrix remains the PC0502 source snapshot. Exact one-field failed-branch diff audited, no new current full84-run execution claim",
+          "PC-06..08, all remaining PC/NA/AR/G/NED/UPN, whole Check wallclock/native budgets, logs-free history, PC0306 unresolved recovery cause, desktop/root/UNC/normal restart/final Python+Speex ON Release remain incomplete"
+        ]
+      },
+      {
+        "id": "PC0601-native-log-queue",
+        "status": "partial",
+        "record": "build/reports/loops/PC0601-native-log-queue/summary.json",
+        "loop": "build/reports/loops/PC0601-native-log-queue/loop.md",
+        "test_names": [
+          "native_log_queue_contract"
+        ],
+        "covered": [
+          "provided SDK queue callback/pop no C++ allocation, bounded lengths/full counters/concurrent instance isolation",
+          "additive C size/version/UTF-8 declaration and independently compiled C layouts only; runtime negotiation still open",
+          "SDK-only independent consumer/host binary preservation clause subset"
+        ],
+        "unverified": [
+          "SDK optional entry is declared only. Host loader negotiation/table rejection, real DLL set_sink, native worker drain/raw archive/UI identity/budget/lifecycle are not implemented by this slice",
+          "Old genuine v1 DLL and v1 header/host hashes verified unchanged; old DLL has not yet been run on a logging-extension-enabled host. This does not complete PC-06.a/b/d or independent DLL consumer requirements",
+          "Queue allocation check covers provided SDK callback/pop via C++ new/new[]/aligned-new instrumentation and preallocated implementation; no arbitrary user DLL safety/CPU/IO/crash isolation claim",
+          "External consumer Release is not final application Release; full PC/NA/AR/G/NED/UPN, PC-07..08, whole Check/native budget/logs-free history, unresolved PC0306 recovery, desktop/root/UNC/normal restart/clean OS matrix remain open"
+        ]
+      },
+      {
+        "id": "PC0602-log-negotiation",
+        "status": "partial",
+        "record": "build/reports/loops/PC0602-log-negotiation/summary.json",
+        "loop": "build/reports/loops/PC0602-log-negotiation/loop.md",
+        "test_names": [
+          "PC-06.b optional native log API good",
+          "PC-06.b optional native log API size",
+          "PC-06.b optional native log API version",
+          "PC-06.b optional native log API function",
+          "PC-06.b optional native log API rejected",
+          "PC-06.b optional native log API absent",
+          "PC-06.a genuine prebuilt v1 DLL catalog remains available",
+          "PC-06.a/b actual good DLL numerical CLI output",
+          "PC-06.a/b actual absent DLL numerical CLI output",
+          "PC-06.a/b actual legacy DLL numerical CLI output",
+          "UPN external DLL drives generated controls controller and real run service",
+          "UPN instances retain their DLL after catalog destruction and isolate state",
+          "P3-04 relocated replay consumes fixed plugin code and resources after originals disappear",
+          "PC-05.b mixed output metadata failures identify the exact port preserve success and recover",
+          "P3-03 RunService executes native Python native stateful chain with exact owned boundaries"
+        ],
+        "covered": [
+          "genuine old v1 DLL catalog and actual numerical Run on new host; old DLL never rebuilt",
+          "real external SDK-only DLLs and atomic optional table rejection; descriptor/source/PE identity and numerical calculation; no native logging yet",
+          "external SDK-only DLL build,one generated/embedded manifest and actual C++ formula subset; no workbench flow",
+          "current old two-instance numeric/module lease and new/old SDK CLI rejection compatibility subsets only"
+        ],
+        "unverified": [
+          "Only optional entry/table negotiation implemented. No set_sink call, bound instance log queue, production worker drain/raw archive/UI identity or native budget/lifecycle claimed",
+          "PC-06.a actual old-DLL numerical compatibility now verified, but UI capability explanation and full old-DLL/new-host lifecycle logging clauses remain",
+          "External SDK test DLLs built before platform host upgrade, not through C++ workbench. NA-12/13/17.c build/probe/PendingRestart/normal restart remain open",
+          "External output creation returned Access is denied for original three numerical cases. No token/ACL root cause was proven or changed; outputs relocated to test-owned workspace reports, external SDK-only DLL/source and inputs stayed unchanged",
+          "Whole PC/NA/AR/G/NED/UPN and clean OS/network/desktop/root/UNC/final Python+Speex ON app Release, PC0306 recovery uncertainty and whole Check/native budget/logs-free history remain incomplete"
+        ]
+      },
+      {
+        "id": "PC0603-native-live",
+        "status": "partial",
+        "record": "build/reports/loops/PC0603-native-live/summary.json",
+        "loop": "build/reports/loops/PC0603-native-live/loop.md",
+        "test_names": [
+          "PC-06.b native SDK logs reach production mixed Run before terminal with exact instance identity",
+          "PC-06.c bound native SDK callback and reset allocate nothing while only the worker consumes logs"
+        ],
+        "covered": {
+          "PC-06.a": "Current ON/OFF CLI genuine prebuilt v1 and absent optional export still compute; current two-instance legacy component and catalog-release lease pass. Old-v1 UI capability explanation remains open.",
+          "PC-06.b": "PC-06.b native SDK logs reach production mixed Run before terminal with exact instance identity; actual unchanged SDK-only DLL in two native positions around authored Python; 2 GUI plus fresh CLI; live barrier, full node/package/DLL/run identity and raw archive independent checks.",
+          "PC-06.c": "PC-06.c bound native SDK callback and reset allocate nothing while only the worker consumes logs; native process/reset C++ allocations0, 12 queue messages only consumed on bound worker, ON and OFF. Full native flood/limits remain open.",
+          "PC-06.d": "Successful terminal reset is fenced before final drain/detach; two instances and prior catalog destruction retain module lease. Active cancel/close/late/failure and update/restart lifecycle are not complete.",
+          "NA-12.d": "External SDK-only real DLL executes in production mixed Run and fresh CLI with independent formula; no workbench C++ edit/build/probe or restart claim.",
+          "NA-15.a/c": "Current native timing/queue/no-allocation, shared Python Run/CLI, plan/application and real old DLL compatibility consumer subsets only; entire NA requirements stay partial."
+        },
+        "unverified": [
+          "Native 16MiB exact/+1/continuous flood and region aggregate budget, invalid/control/NUL presentation, all level filtering, old-v1 UI capability hint remain unverified; basic per-instance guard is not full budget acceptance.",
+          "Native cancellation/active View/application close/late delivery and failure-path detach/module lifecycle full matrix remain unverified; terminal reset/drain/detach and catalog-destroyed instance lease only are covered here.",
+          "Allocation probe covers host C++ new/new[] callback/reset and provided queue with this SDK DLL, not arbitrary DLL CRT/malloc or arbitrary in-process native crash safety.",
+          "SDK component fixtures currently consume PC0602 external-path evidence preparation. Clean reusable CTest fixture preparation, SDK release package, C++ workbench build/probe/PendingRestart/normal restart remain open.",
+          "Full PC/NA/AR/G/NED/UPN, whole Check wall clock, logs-free history, PC0306 intermittent recovery root cause, volume-root/UNC actual writes, OS drag/drop, desktop, normal GUI restart and final Python+Speex ON Release matrix remain incomplete."
+        ]
+      },
+      {
+        "id": "PC0604-native-text",
+        "status": "partial",
+        "record": "build/reports/loops/PC0604-native-text/summary.json",
+        "loop": "build/reports/loops/PC0604-native-text/loop.md",
+        "test_names": [
+          "PC-06.b real SDK Unicode levels and embedded NUL survive production Run archive history and copy",
+          "PC-03.c mixed cancellation probe refuses an existing incomplete PID marker"
+        ],
+        "covered": {
+          "PC-06.b": "PC-06.b real SDK Unicode levels and embedded NUL survive production Run archive history and copy; real SDK-only external DLL,GUI+fresh CLI on ON/OFF,97 exact bytes per Run,encoded NUL archive/history and full suffix/copy.",
+          "PC-04.a/d": "Four real SDK levels/plain UTF-8/control presentation plus existing filters/history/flood10s heartbeat/current24-case production regression; not full arbitrary-text/budget matrix.",
+          "PC-03.c": "Existing real mixed wait/spawn cancellation and recovery assertions retained; private atomic PID publication/complete-handle barrier and deterministic incomplete-marker probe2/2; exact original failure cause not claimed.",
+          "NA-12.d/NA-15.a/c": "Actual independent SDK DLL computation and current shared log/archive compatibility subsets only; no workbench C++ build/restart or entire NA completion."
+        },
+        "unverified": [
+          "Full native exact/+1/continuous and aggregate budgets, legacy UI log capability explanation, active native cancel/close/failure/late delivery and update lifecycle remain open.",
+          "Only tested UTF-8 Chinese/emoji,four levels,NUL,C0 01/1b,quotes,shell-like and markup text are covered; arbitrary control sequences and malformed encoded-history matrix remain incomplete.",
+          "First cancellation failure had parent handle null but no recorded PID/Win32 error. Deterministic probe proves an empty-marker publication path yields PID0/error87; exact original PID/cause remains unconfirmed. Atomic publication plus complete live-handle admission eliminates that admitted incomplete-marker path; same wait/spawn test passes.",
+          "Whole Check wall clock,logs-free history,PC0306 intermittent recovery,clean SDK test preparation,C++ workbench build/probe/PendingRestart/normal restart,SaveAs resources,root/UNC/OS drag/drop/desktop/final Python+Speex ON Release and all full PC/NA/platform stages remain incomplete."
+        ]
+      },
+      {
+        "id": "PC0605-native-capability",
+        "status": "partial",
+        "record": "build/reports/loops/PC0605-native-capability/summary.json",
+        "loop": "build/reports/loops/PC0605-native-capability/loop.md",
+        "test_names": [
+          "PC-06.a real legacy and SDK DLL nodes explain log capability in library Inspector and fresh CLI"
+        ],
+        "covered": {
+          "PC-06.a": "Actual preserved prebuilt v1 and optional-entry-absent DLL display unavailable;actual SDK DLL available,library refresh/Inspector and fresh CLI ON/OFF;genuine old-v1 CLI/component numerical outputs,C header/DLL hashes unchanged.",
+          "PC-06.b/d": "Existing real SDK native live/mixed/NUL/queue and genuine old two-instance/module-lease regressions pass after metadata addition;full budget/lifecycle/update remains open.",
+          "NA-12.d/NA-15.a/c/UPN affected portions": "SDK-only/true old DLL compatibility,current controls/library/Inspector/canvas/logging subsets;no whole C++ workbench/desktop or requirement completion."
+        },
+        "unverified": [
+          "Native per-task aggregate/exact16MiB/+1/continuous budget,queue-full/invalid-producer production matrix and complete native active cancel/close/failure/late-delivery/update lifecycle remain open.",
+          "Caption/tooltip/component text and fresh CLI catalog are verified; real tooltip display/desktop/normal GUI restart remain paused and unverified.",
+          "C++ workbench independent build/probe/PendingRestart/restart activation,clean test-fixture preparation,SaveAs resources,whole Check wall clock,logs-free history,PC0306 and PC0604 original intermittent probe precise causes,root/UNC/OS drag/drop/final Python+Speex ON Release/all full PC/NA/AR/G/NED/UPN remain incomplete."
+        ]
+      },
+      {
+        "id": "PC0606-native-budget",
+        "status": "partial",
+        "record": "build/reports/loops/PC0606-native-budget/summary.json",
+        "loop": "build/reports/loops/PC0606-native-budget/loop.md",
+        "test_names": [
+          "PC-04.b real native task shares exact sixteen MiB log budget across instances and recovers"
+        ],
+        "covered": {
+          "PC-04.b": "Native worker and fresh CLI,single/shared same-task16MiB exact succeeds,+1/finite sustained flood emits log_limit,raw aggregate stays16MiB,failed payload/complete absent,old successful bytes immutable and same-graph recovery. No native GUI flood or per-stream tail claim.",
+          "PC-06.c": "Real external SDK-only DLL uses unchanged64-slot/1024-byte queue,at most64 messages per callback;host-owned worker task counter shared across native instances;original C++ callback/reset zero-allocation cases remain current. Queue-full/invalid producer matrix still open.",
+          "PC-06.a/b/d affected subsets": "Current true old v1/new SDK numerical/capability/NUL/live/instance lease compatibility and cancellation consumer regressions only;no full native lifecycle or workbench/restart claim.",
+          "NA-12.d/NA-15.a/c": "External SDK actual native execution and current compatibility/consumer subsets;does not complete C++ workbench or isolated Check/UI budget requirements."
+        },
+        "unverified": [
+          "Per-native-render-region counter allocation is implemented,but separate mixed native regions each approaching16MiB and parallel Runs are not yet a behavioral isolation matrix.",
+          "Native64KiB per-stream capture tail/counter semantics,production queue-full/invalid/oversized SDK messages and native GUI continuous flood/ten-second heartbeat are not closed by worker/CLI finite producer budget tests. Existing Python UI flood retains its own scope.",
+          "Native active cancel/close/late/failure teardown and module lifecycle full matrix,C++ workbench build/probe/PendingRestart/normal restart,clean reusable SDK test preparation and SaveAs resources remain open.",
+          "Whole Check wall clock,logs-free history,PC0306 and PC0604 original intermittent precise causes,root/UNC actual writes,OS drag/drop,desktop,final Python+Speex ON Release and all full PC/NA/AR/G/NED/UPN remain incomplete."
+        ]
+      },
+      {
+        "id": "PC0607-native-rejection",
+        "status": "partial",
+        "record": "build/reports/loops/PC0607-native-rejection/summary.json",
+        "loop": "build/reports/loops/PC0607-native-rejection/loop.md",
+        "test_names": [
+          "PC-06.c real native queue and message rejection preserve prefix fail safely and recover through production controls",
+          "native_log_fault_status"
+        ],
+        "covered": {
+          "PC-06.b/c": "Real SDK-only new DLL production valid/empty/full/UTF8/length/size/version/level/null modes. Producer checks exact callback status;independent SDK consumer verifies queue-full1/1024bytes,invalid1,accepted counts/bytes and host callback/pop C++ allocations0. Queue64/1024 contract and raw prefix/diagnostics independently read.",
+          "PC-03.b/PC-04.a affected native subset": "Production Inspector selects seven failure modes,Run shows owned prefix/status/error with precise request/node/DLL identity,no failed successful payload or old-file mutation,same-panel recovery;two actual failed fresh CLI invocations. Not C++ workbench Check/build or full native cancellation lifecycle.",
+          "NA-12.d/NA-15.a/c": "External SDK producer actual C++ audio/control/logging and compatibility subsets only;all parent requirements remain partial."
+        },
+        "unverified": [
+          "Native near-limit separate-region/parallel budget isolation,64KiB per-stream capture tail/counter semantics,native GUI continuous flood/ten-second heartbeat and rejection combinations/concurrent instances remain open.",
+          "SDK allocation instrumentation covers the host consumer C++ new/new[]/aligned-new callback/pop path and unchanged queue. It does not interpose arbitrary DLL CRT/malloc or prove arbitrary native code safety.",
+          "Native active cancel/View/app close/late/failure lifecycle full matrix,C++ workbench build/probe/PendingRestart/normal restart,clean reusable SDK fixture preparation,SaveAs resources,whole Check wall clock,logs-free history,PC0306/PC0604 original intermittent precise causes,root/UNC/OS drag/drop/desktop/final Python+Speex ON Release/all full PC/NA/AR/G/NED/UPN remain incomplete."
+        ]
+      },
+      {
+        "id": "PC0608-region-budget",
+        "status": "partial",
+        "record": "build/reports/loops/PC0608-region-budget/summary.json",
+        "loop": "build/reports/loops/PC0608-region-budget/loop.md",
+        "test_names": [
+          "PC-06.c independent native regions retain separate sixteen MiB budgets through actual mixed Run and recovery"
+        ],
+        "covered": {
+          "PC-04.b native task ownership": "Two actual native-region tasks around authored Python each allow16MiB(32MiB per mixed Run);second region+1 fails only native-C with log_limit,no output,prior success immutable,exact-budget recovery succeeds.",
+          "PC-06.b/c": "Unchanged externally built SDK budget DLL executes twice around actual exact-locked/frozen Python,worker consumes six raw streams with precise node/request/DLL identity. Per-render counter ownership is behaviorally verified between regions.",
+          "PC-05.a/d affected subset": "Current mixed File→SDK2x→Python.25x→SDK2x→Output independent identity WAV and intermediate2x/.5x NPY/code/resource/runner freeze snapshots;not a new full format/GUI/CLI/active-source-edit matrix.",
+          "NA-12.d/NA-15.a/c": "External native execution and mixed/compatibility subsets only;entire C++ workbench/requirements remain partial."
+        },
+        "unverified": [
+          "Parallel consumers/requests with near-limit log budgets and failure isolation remain open;this slice is sequential three actual mixed Runs.",
+          "Native64KiB per-stream capture tail/counters,native GUI continuous flood/ten-second heartbeat,rejection combinations/concurrency and full active cancel/View/app close/late/failure/module lifecycle remain open.",
+          "Python-OFF not selected for this Python-enabled mixed testcase and not claimed. PC0606/07 OFF/pure/compatibility retain audited original scopes;no full matrix rerun or cumulative number.",
+          "C++ workbench build/probe/PendingRestart/normal restart,clean reusable SDK test preparation,SaveAs resources,whole Check wall clock,logs-free history,PC0306/PC0604 intermittent precise causes,root/UNC/OS drag/drop/desktop/final Python+Speex ON Release/all full PC/NA/AR/G/NED/UPN remain incomplete."
+        ]
+      },
+      {
+        "id": "PC0609-parallel-budget",
+        "status": "partial",
+        "record": "build/reports/loops/PC0609-parallel-budget/summary.json",
+        "loop": "build/reports/loops/PC0609-parallel-budget/loop.md",
+        "test_names": [
+          "PC-06.c parallel native consumers own separate near-limit budgets and one failure cannot consume another quota"
+        ],
+        "covered": {
+          "PC-04.b native task ownership": "Two actual independent concurrent RunService consumers sharing immutable catalog/DLL each own16MiB;one +1 request fails with log_limit while other succeeds and old successful bytes remain unchanged.",
+          "PC-06.c instance concurrency/worker": "Two distinct worker IDs,mandatory published first-event barriers,both futures pending before release,independent raw/identity/queues and fresh budgets across two pairs. Same project/revision/node ID does not combine request quota.",
+          "PC-06.d affected isolation subset": "One-request overflow does not poison concurrent other consumer or previously published output. No claim for native cancel/close/late module lifecycle or editor parallel scheduling.",
+          "NA-12.d/NA-15.a/c": "External native execution and compatibility subsets only;whole requirements remain partial."
+        },
+        "unverified": [
+          "Native64KiB per-stream captured tail/counters,GUI continuous native flood/ten-second heartbeat,and full active cancel/View/app close/late/failure/module lifecycle remain open.",
+          "No new editor parallel scheduling;barriers are test-owned worker observers outside process/reset. No arbitrary DLL crash or hard-preemption claim.",
+          "C++workbench build/probe/PendingRestart/normal restart,SaveAs resource/version carry,whole Check wall clock,logs-free history,unconfirmed older intermittent causes,root/UNC real writes/OS drag-drop/desktop/final Python+Speex ON Release/all full PC/NA/AR/G/NED/UPN incomplete."
+        ]
+      },
+      {
+        "id": "PC0610-native-tail",
+        "status": "partial",
+        "record": "build/reports/loops/PC0610-native-tail/summary.json",
+        "loop": "build/reports/loops/PC0610-native-tail/loop.md",
+        "test_names": [
+          "PC-04.b native stream keeps exact bounded UTF8 capture tail and independent persisted counters"
+        ],
+        "covered": {
+          "PC-04.b native stream capture": "Actual native worker keeps<=65536UTF8 bytes,whole-codepoint suffix and NUL exact Base64;raw remains complete independently of tail eviction. ASCII exact/+1,euro65538 and NUL+1 bounds;persisted/accepted/rejected/tail counts distinct.",
+          "PC-06.c worker/callback affected subset": "Only freeze/worker drain/final summary changed,actual SDK callback/reset zero-allocation still passes.46direct real streams include16MiB/queue rejection/invalid messages,mixed regions and parallel requests;publicSDK unchanged.",
+          "PC-06.a/d compatibility affected subset": "Actual prebuilt oldv1 DLL unchanged/currentconsumer2cases and independently2WAV. Not full cancel/close/late/detach lifecycle.",
+          "NA-12.d/NA-15.a/c": "External native execution/log budget/compatibility subsets only,whole C++workbench/requirements partial."
+        },
+        "unverified": [
+          "Native continuous GUI flood/ten-second heartbeat,full cancel/View/app close/late/failure/module lifecycle and valid messages emitted during detach remain open.",
+          "Native event discarded_bytes still represents SDK queue-full bytes;new sidecar separates tail_discarded_bytes explicitly. No claim of native UI cumulative tail counter wording being fully closed.",
+          "C++workbench build/probe/PendingRestart/normal restart,SaveAs resources/exact versions,wholeCheck wall clock,logs-free history,older intermittent precise causes,root/UNC real writes/OS drag/drop/desktop/final Python+Speex ON Release/all full PC/NA/AR/G/NED/UPN incomplete."
+        ]
+      },
+      {
+        "id": "PC0611-detach-drain",
+        "status": "partial",
+        "record": "build/reports/loops/PC0611-detach-drain/summary.json",
+        "loop": "build/reports/loops/PC0611-detach-drain/loop.md",
+        "test_names": [
+          "PC-06.d accepted synchronous detach logs drain before queue closure for both native instances"
+        ],
+        "covered": {
+          "PC-06.d final sink borrow/queue lifecycle": "Actual conforming SDK DLL emits valid farewell inside serialized set_sink(NULL),before context borrow ends. Worker consumes it after detach returns,before queueclose/summary/instance destruction. Two native nodes/two Run identities,raw/events/counters all exact.",
+          "PC-06.c worker/callback affected subset": "Only worker final drain changed;real existing callback/reset zero-allocation test,SDK rejection,tail and mixedregion directly pass. No public ABI or process/reset changes.",
+          "PC-04.b affected capture completeness": "Accepted36bytes/persisted36bytes perstream;pre-fix accepted36/persisted16 with raw_completefalse but successful output,retained actual Red. Tail/summary now includes farewell without duplicate event/identity.",
+          "NA-12.d/NA-13.b/NA-15.a/c": "Native execution/log teardown/compatibility subsets only;workbench PendingRestart/full module teardown not claimed."
+        },
+        "unverified": [
+          "Full native active cooperative cancel/View/app close/late failure/instance/module lifetime combinations and GUI continuous flood/ten-second heartbeat remain open.",
+          "Native UI discarded_bytes wording still separate issue;SDK queuefull and sidecar tail counters remain distinct.",
+          "C++workbench build/probe/PendingRestart/normal restart,SaveAs resources/exactversions,wholeCheck wallclock,logs-free history,older intermittent exact causes,root/UNC real writes/OS dragdrop/desktop/final Python+Speex ON Release/all full PC/NA/AR/G/NED/UPN incomplete."
+        ]
+      },
+      {
+        "id": "PC0612-native-cancel",
+        "status": "partial",
+        "record": "build/reports/loops/PC0612-native-cancel/summary.json",
+        "loop": "build/reports/loops/PC0612-native-cancel/loop.md",
+        "test_names": [
+          "PC-03.c active native production queue cancellation drains final logs removes payload and recovers"
+        ],
+        "covered": {
+          "PC-03.c active native cancellation subset": "Actual EditorRunQueue with one owned worker receives cancel at first real native raw/event barrier. run_cancelled/no waveform/no output payload,5s cleanup bound,two final sinks archived,baseline immutable,samequeue subsequent success.",
+          "PC-06.d affected cancel teardown subset": "Two actual SDK instances retain final20byte detach events under cancellation,raw/event/capture identity complete;no publicABI/process/reset changes. No full View/app close/late/module sequence claim.",
+          "PC-04.c queue subset": "One baseline/cancel/recovery cycle,active/pending/claimed/jobs0 after each;not new20round/process matrix.",
+          "NA-12.d/NA-15.a/c": "Native execution,failure-recovery/compatibility subsets only;whole workbench/requirements partial."
+        },
+        "unverified": [
+          "Native View/app close/late delivery and full failure/module lifetime sequences,GUI continuous native flood/ten-second heartbeat remain open.",
+          "No outer Editor Run/Cancel button/realdesktop or OS child-process/canary cleanup claim;native DLL runs inprocess and this test drives actual queue component.",
+          "C++workbench build/probe/PendingRestart/normal restart,SaveAs resources/exact versions,wholeCheck wallclock,logs-free history,older intermittent precise causes,root/UNC real writes/OS dragdrop/desktop/final Python+Speex ON Release/all full PC/NA/AR/G/NED/UPN incomplete."
         ]
       }
     ]

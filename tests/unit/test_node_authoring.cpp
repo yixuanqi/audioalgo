@@ -1,11 +1,14 @@
 #include "EditorNodeLibrary.h"
 #include "EditorWorkspace.h"
 #include "audio_node_authoring_runtime/PythonAuthoring.h"
+#include "audio_native_plugins/NativePlugins.h"
+#include "tests/fixtures/AllocationCounter.h"
 #include "plugins/builtin/registration.h"
 #include <catch2/catch_test_macros.hpp>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_cryptography/juce_cryptography.h>
 #include <fstream>
+#include <iostream>
 #include <chrono>
 #include <set>
 #include <tuple>
@@ -36,7 +39,8 @@ public:
 };
 class Preview final : public audioalgo::AudioPreviewService {
 public:
-    audioalgo::AudioPreviewOutcome play(const std::filesystem::path&) override { return std::monostate{}; }
+    std::filesystem::path played;
+    audioalgo::AudioPreviewOutcome play(const std::filesystem::path& path) override { played=path;return std::monostate{}; }
     void pause() override {} void stop() override {} void shutdown() override {}
     bool is_playing() const noexcept override { return false; }
     double position_seconds() const noexcept override { return 0; }
@@ -76,6 +80,34 @@ template<class Predicate> bool without_ui(Predicate ready) {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
     while (!ready() && std::chrono::steady_clock::now() < deadline) std::this_thread::yield();
     return ready();
+}
+// Only inspect the managed request/task or request/log levels. Recursive
+// traversal enters long frozen-code paths and protected python-result folders.
+// skip_permission_denied does not suppress path-length/status-query errors.
+std::vector<std::filesystem::path> check_files(const std::filesystem::path& staging,
+                                              const char* directory_prefix, const char* filename) {
+    std::vector<std::filesystem::path> files;
+    std::error_code ec;
+    for (std::filesystem::directory_iterator requests(staging, ec), end; !ec && requests != end; requests.increment(ec)) {
+        std::error_code request_ec;
+        for (std::filesystem::directory_iterator entries(requests->path(), request_ec), entries_end;
+             !request_ec && entries != entries_end; entries.increment(request_ec)) {
+            if (entries->path().filename().string().starts_with(directory_prefix))
+                files.push_back(entries->path() / filename);
+        }
+    }
+    return files;
+}
+bool check_process_barrier(const std::filesystem::path& staging, std::filesystem::path& marker,
+                           unsigned long& parent_pid, unsigned long& child_pid) {
+    for (const auto& path : check_files(staging, "python-task-", "pc03-check-processes.txt")) {
+        unsigned long parent = 0, child = 0;
+        std::ifstream in(path);
+        if (in >> parent >> child && parent != 0 && child != 0) {
+            marker = path; parent_pid = parent; child_pid = child; return true;
+        }
+    }
+    return false;
 }
 void wire_workspace(audioalgo::editor::EditorComponent& workspace, const audioalgo::NodeRegistry& registry,
                     const std::string& from_node, const std::string& from_port,
@@ -436,8 +468,10 @@ import threading
 
 def process(inputs, params, state):
     child = subprocess.Popen([sys.executable, "-c", "import threading; threading.Event().wait()"])
-    pathlib.Path("pc03-check-processes.txt").write_text(f"{os.getpid()} {child.pid}\n", encoding="ascii")
     print("pc03-check-entered", flush=True)
+    marker = pathlib.Path("pc03-check-processes.tmp")
+    marker.write_text(f"{os.getpid()} {child.pid}\n", encoding="ascii")
+    marker.replace("pc03-check-processes.txt")
     threading.Event().wait()
     return {"audio_out": inputs["audio_in"]}
 )PY";
@@ -470,21 +504,9 @@ def process(inputs, params, state):
     std::filesystem::path marker;
     DWORD parent_pid = 0, child_pid = 0;
     REQUIRE(pump([&] {
-        std::error_code ec;
-        const auto staging = checks->work_directory() / "staging";
-        if (!std::filesystem::exists(staging, ec) || ec) return false;
-        for (std::filesystem::recursive_directory_iterator it(staging, std::filesystem::directory_options::skip_permission_denied, ec), end;
-             !ec && it != end; it.increment(ec)) {
-            if (it->is_regular_file(ec) && it->path().filename() == "pc03-check-processes.txt") {
-                DWORD observed_parent = 0, observed_child = 0;
-                std::ifstream in(it->path());
-                if (in >> observed_parent >> observed_child) {
-                    marker = it->path(); parent_pid = observed_parent; child_pid = observed_child; return true;
-                }
-            }
-        }
-        return false;
+        return check_process_barrier(checks->work_directory() / "staging", marker, parent_pid, child_pid);
     }, 15000));
+    { std::ofstream observed(root / "check-process-barrier.txt"); observed << parent_pid << ' ' << child_pid << '\n' << marker.generic_string() << '\n'; }
     REQUIRE(parent_pid != 0); REQUIRE(child_pid != 0); REQUIRE(parent_pid != child_pid);
     struct WaitHandle final { HANDLE value = nullptr; ~WaitHandle() { if (value) CloseHandle(value); } } parent, child;
     parent.value = OpenProcess(SYNCHRONIZE, FALSE, parent_pid);
@@ -504,12 +526,8 @@ def process(inputs, params, state):
     CHECK(WaitForSingleObject(unrelated.info.hProcess, 0) == WAIT_TIMEOUT);
 
     bool archived_marker = false;
-    std::error_code archive_ec;
-    for (std::filesystem::recursive_directory_iterator it(checks->work_directory() / "staging",
-             std::filesystem::directory_options::skip_permission_denied, archive_ec), end;
-         !archive_ec && it != end; it.increment(archive_ec)) {
-        if (!it->is_regular_file(archive_ec) || it->path().filename() != "stdout.log") continue;
-        std::ifstream in(it->path(), std::ios::binary);
+    for (const auto& path : check_files(checks->work_directory() / "staging", "python-log-", "stdout.log")) {
+        std::ifstream in(path, std::ios::binary);
         const std::string bytes(std::istreambuf_iterator<char>(in), {});
         if (bytes.find("pc03-check-entered") != std::string::npos) { archived_marker = true; break; }
     }
@@ -520,7 +538,107 @@ def process(inputs, params, state):
     source->insertTextAtCaret("def process(inputs, params, state):\n    print('pc03-check-recovered', flush=True)\n    return {'audio_out': inputs['audio_in']}\n");
     click(panel, "authoring.check");
     REQUIRE(pump([&] { return panel.ready().has_value(); }, 15000));
-    auto* check_log = control<juce::TextEditor>(panel, "authoring.check_logs"); REQUIRE(check_log);
+    auto* check_log = control<audioalgo::editor::RunLogTextView>(panel, "authoring.check_logs"); REQUIRE(check_log);
+    CHECK(check_log->getText().contains("pc03-check-recovered"));
+#endif
+}
+
+TEST_CASE("PC-03.c production Check deadline preserves logs reclaims its tree and permits recovery",
+          "[PC-03.c][PC-03][node_authoring][component]") {
+#if !defined(_WIN32) || !AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    SKIP("The production authoring process-tree check requires the Windows Python-enabled build");
+#else
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) / "build/reports/loops/PC0305-check-timeout/artifacts" / juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root);
+    auto checks = std::make_shared<PythonAuthoring>(root / "library", std::filesystem::path{}, std::filesystem::path{},
+        std::function<bool(ApplyPhase)>{}, root / "work", std::chrono::seconds(3));
+    auto draft = python_draft("pc03-active-check-timeout");
+    draft.source = R"PY(import os
+import pathlib
+import subprocess
+import sys
+import threading
+
+def process(inputs, params, state):
+    child = subprocess.Popen([sys.executable, "-c", "import threading; threading.Event().wait()"])
+    print("pc03-check-entered", flush=True)
+    marker = pathlib.Path("pc03-check-processes.tmp")
+    marker.write_text(f"{os.getpid()} {child.pid}\n", encoding="ascii")
+    marker.replace("pc03-check-processes.txt")
+    threading.Event().wait()
+    return {"audio_out": inputs["audio_in"]}
+)PY";
+    auto storage = std::make_shared<FileDraftStorage>(root / "recovery");
+    audioalgo::editor::NodeAuthoringPanel panel(draft, false, storage, [] {}, checks);
+
+    struct OwnedProcess final {
+        PROCESS_INFORMATION info{};
+        ~OwnedProcess() {
+            if (info.hProcess) {
+                if (WaitForSingleObject(info.hProcess, 0) == WAIT_TIMEOUT) TerminateProcess(info.hProcess, 1);
+                WaitForSingleObject(info.hProcess, 5000);
+                CloseHandle(info.hProcess);
+            }
+            if (info.hThread) CloseHandle(info.hThread);
+        }
+    } unrelated;
+    std::wstring system_directory(MAX_PATH, L'\0');
+    const auto system_directory_size = GetSystemDirectoryW(system_directory.data(), static_cast<UINT>(system_directory.size()));
+    REQUIRE(system_directory_size > 0); REQUIRE(system_directory_size < system_directory.size());
+    system_directory.resize(system_directory_size);
+    const auto canary_executable = std::filesystem::path(system_directory) / "ping.exe";
+    std::wstring canary_command = L"\"" + canary_executable.wstring() + L"\" -t 127.0.0.1";
+    STARTUPINFOW startup{}; startup.cb = sizeof(startup);
+    REQUIRE(CreateProcessW(canary_executable.c_str(), canary_command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW,
+        nullptr, nullptr, &startup, &unrelated.info) != 0);
+    REQUIRE(WaitForSingleObject(unrelated.info.hProcess, 100) == WAIT_TIMEOUT);
+
+    click(panel, "authoring.check");
+    std::filesystem::path marker;
+    DWORD parent_pid = 0, child_pid = 0;
+    REQUIRE(pump([&] {
+        return check_process_barrier(checks->work_directory() / "staging", marker, parent_pid, child_pid);
+    }, 15000));
+    { std::ofstream observed(root / "check-process-barrier.txt"); observed << parent_pid << ' ' << child_pid << '\n' << marker.generic_string() << '\n'; }
+    REQUIRE(parent_pid != 0); REQUIRE(child_pid != 0); REQUIRE(parent_pid != child_pid);
+    struct WaitHandle final { HANDLE value = nullptr; ~WaitHandle() { if (value) CloseHandle(value); } } parent, child;
+    parent.value = OpenProcess(SYNCHRONIZE, FALSE, parent_pid);
+    child.value = OpenProcess(SYNCHRONIZE, FALSE, child_pid);
+    REQUIRE(parent.value); REQUIRE(child.value);
+    CHECK(WaitForSingleObject(parent.value, 0) == WAIT_TIMEOUT);
+    CHECK(WaitForSingleObject(child.value, 0) == WAIT_TIMEOUT);
+
+    const auto cancelled_at = std::chrono::steady_clock::now();
+    REQUIRE(pump([&] { return !panel.check_in_progress(); }, 5000));
+    CHECK(std::chrono::steady_clock::now() - cancelled_at < std::chrono::seconds(5));
+    CHECK_FALSE(panel.ready());
+    CHECK(control<juce::TextButton>(panel, "authoring.diagnostic")->getButtonText().contains("python_execution_timeout"));
+    CHECK(control<audioalgo::editor::RunLogTextView>(panel, "authoring.check_logs")->getText().contains("pc03-check-entered"));
+    CHECK(control<juce::Label>(panel, "authoring.check_status")->getText().contains("failed"));
+    CHECK(WaitForSingleObject(parent.value, 0) == WAIT_OBJECT_0);
+    CHECK(WaitForSingleObject(child.value, 0) == WAIT_OBJECT_0);
+    CHECK(WaitForSingleObject(unrelated.info.hProcess, 0) == WAIT_TIMEOUT);
+
+    bool archived_marker = false;
+    for (const auto& path : check_files(checks->work_directory() / "staging", "python-log-", "stdout.log")) {
+        std::ifstream in(path, std::ios::binary);
+        const std::string bytes(std::istreambuf_iterator<char>(in), {});
+        if (bytes.find("pc03-check-entered") != std::string::npos) { archived_marker = true; break; }
+    }
+    CHECK(archived_marker);
+
+    auto* source = control<juce::CodeEditorComponent>(panel, "authoring.source"); REQUIRE(source);
+    source->selectAll();
+    source->insertTextAtCaret("def process(inputs, params, state):\n    print('pc03-check-recovered', flush=True)\n    return {'audio_out': inputs['audio_in']}\n");
+    click(panel, "authoring.check");
+    REQUIRE(pump([&] { return !panel.check_in_progress(); }, 15000));
+    const auto terminal = control<juce::TextButton>(panel, "authoring.diagnostic")->getButtonText().toStdString();
+    std::ofstream(root / "recovery-terminal.txt") << terminal;
+    INFO(terminal);
+    REQUIRE(panel.ready().has_value());
+    auto* check_log = control<audioalgo::editor::RunLogTextView>(panel, "authoring.check_logs"); REQUIRE(check_log);
     CHECK(check_log->getText().contains("pc03-check-recovered"));
 #endif
 }
@@ -545,8 +663,10 @@ import threading
 
 def process(inputs, params, state):
     child = subprocess.Popen([sys.executable, "-c", "import threading; threading.Event().wait()"])
-    pathlib.Path("pc03-check-processes.txt").write_text(f"{os.getpid()} {child.pid}\n", encoding="ascii")
     print("pc03-check-entered", flush=True)
+    marker = pathlib.Path("pc03-check-processes.tmp")
+    marker.write_text(f"{os.getpid()} {child.pid}\n", encoding="ascii")
+    marker.replace("pc03-check-processes.txt")
     threading.Event().wait()
     return {"audio_out": inputs["audio_in"]}
 )PY";
@@ -581,21 +701,9 @@ def process(inputs, params, state):
     std::filesystem::path marker;
     DWORD parent_pid = 0, child_pid = 0;
     REQUIRE(pump([&] {
-        std::error_code ec;
-        const auto staging = checks->work_directory() / "staging";
-        if (!std::filesystem::exists(staging, ec) || ec) return false;
-        for (std::filesystem::recursive_directory_iterator it(staging, std::filesystem::directory_options::skip_permission_denied, ec), end;
-             !ec && it != end; it.increment(ec)) {
-            if (it->is_regular_file(ec) && it->path().filename() == "pc03-check-processes.txt") {
-                DWORD observed_parent = 0, observed_child = 0;
-                std::ifstream in(it->path());
-                if (in >> observed_parent >> observed_child) {
-                    marker = it->path(); parent_pid = observed_parent; child_pid = observed_child; return true;
-                }
-            }
-        }
-        return false;
+        return check_process_barrier(checks->work_directory() / "staging", marker, parent_pid, child_pid);
     }, 15000));
+    { std::ofstream observed(root / "check-process-barrier.txt"); observed << parent_pid << ' ' << child_pid << '\n' << marker.generic_string() << '\n'; }
     REQUIRE(parent_pid != 0); REQUIRE(child_pid != 0); REQUIRE(parent_pid != child_pid);
     struct WaitHandle final { HANDLE value = nullptr; ~WaitHandle() { if (value) CloseHandle(value); } } parent, child;
     parent.value = OpenProcess(SYNCHRONIZE, FALSE, parent_pid);
@@ -619,9 +727,123 @@ def process(inputs, params, state):
     panel = std::make_unique<audioalgo::editor::NodeAuthoringPanel>(recovered, true, storage, [&] { ++reopened; }, checks);
     click(*panel, "authoring.check");
     REQUIRE(pump([&] { return panel && panel->ready().has_value(); }, 15000));
-    auto* check_log = control<juce::TextEditor>(*panel, "authoring.check_logs"); REQUIRE(check_log);
+    auto* check_log = control<audioalgo::editor::RunLogTextView>(*panel, "authoring.check_logs"); REQUIRE(check_log);
     CHECK(check_log->getText().contains("pc03-check-recovered"));
     panel.reset();
+#endif
+}
+
+TEST_CASE("PC-03.c active Check View destruction and application shutdown reclaim owned work and permit recovery",
+          "[PC-03.c][node_authoring][component]") {
+#if !defined(_WIN32) || !AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    SKIP("The production authoring process-tree check requires the Windows Python-enabled build");
+#else
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    for (const bool application_shutdown : {false, true}) {
+    INFO(application_shutdown);
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) / "build/reports/loops/PC0306-check-view-close/artifacts" / juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root);
+    auto checks = std::make_shared<PythonAuthoring>(root / "library", std::filesystem::path{}, std::filesystem::path{},
+        std::function<bool(ApplyPhase)>{}, root / "work");
+    auto draft = python_draft("pc03-active-check-close");
+    draft.source = R"PY(import os
+import pathlib
+import subprocess
+import sys
+import threading
+
+def process(inputs, params, state):
+    child = subprocess.Popen([sys.executable, "-c", "import threading; threading.Event().wait()"])
+    print("pc03-check-entered", flush=True)
+    marker = pathlib.Path("pc03-check-processes.tmp")
+    marker.write_text(f"{os.getpid()} {child.pid}\n", encoding="ascii")
+    marker.replace("pc03-check-processes.txt")
+    threading.Event().wait()
+    return {"audio_out": inputs["audio_in"]}
+)PY";
+    auto storage = std::make_shared<FileDraftStorage>(root / "recovery");
+    auto registry = std::make_shared<audioalgo::NodeRegistry>(); REQUIRE(audioalgo::register_builtin_nodes(*registry));
+    auto make_workspace = [&] {
+        return std::make_unique<audioalgo::editor::EditorComponent>(registry, std::make_shared<Documents>(),
+            std::make_shared<audioalgo::ProjectResourceService>(), std::make_shared<Preview>(), storage, false, checks);
+    };
+    auto workspace = make_workspace();
+    click(*workspace, "authoring.new");
+    auto* panel = control<audioalgo::editor::NodeAuthoringPanel>(*workspace, "authoring.panel"); REQUIRE(panel);
+    auto* editor = control<juce::CodeEditorComponent>(*panel, "authoring.source"); REQUIRE(editor);
+    editor->selectAll(); editor->insertTextAtCaret(juce::String::fromUTF8(draft.source.c_str()));
+
+    struct OwnedProcess final {
+        PROCESS_INFORMATION info{};
+        ~OwnedProcess() {
+            if (info.hProcess) {
+                if (WaitForSingleObject(info.hProcess, 0) == WAIT_TIMEOUT) TerminateProcess(info.hProcess, 1);
+                WaitForSingleObject(info.hProcess, 5000);
+                CloseHandle(info.hProcess);
+            }
+            if (info.hThread) CloseHandle(info.hThread);
+        }
+    } unrelated;
+    std::wstring system_directory(MAX_PATH, L'\0');
+    const auto system_directory_size = GetSystemDirectoryW(system_directory.data(), static_cast<UINT>(system_directory.size()));
+    REQUIRE(system_directory_size > 0); REQUIRE(system_directory_size < system_directory.size());
+    system_directory.resize(system_directory_size);
+    const auto canary_executable = std::filesystem::path(system_directory) / "ping.exe";
+    std::wstring canary_command = L"\"" + canary_executable.wstring() + L"\" -t 127.0.0.1";
+    STARTUPINFOW startup{}; startup.cb = sizeof(startup);
+    REQUIRE(CreateProcessW(canary_executable.c_str(), canary_command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW,
+        nullptr, nullptr, &startup, &unrelated.info) != 0);
+    REQUIRE(WaitForSingleObject(unrelated.info.hProcess, 100) == WAIT_TIMEOUT);
+
+    click(*panel, "authoring.check");
+    std::filesystem::path marker;
+    DWORD parent_pid = 0, child_pid = 0;
+    REQUIRE(pump([&] {
+        return check_process_barrier(checks->work_directory() / "staging", marker, parent_pid, child_pid);
+    }, 15000));
+    { std::ofstream observed(root / "check-process-barrier.txt"); observed << parent_pid << ' ' << child_pid << '\n' << marker.generic_string() << '\n'; }
+    REQUIRE(parent_pid != 0); REQUIRE(child_pid != 0); REQUIRE(parent_pid != child_pid);
+    struct WaitHandle final { HANDLE value = nullptr; ~WaitHandle() { if (value) CloseHandle(value); } } parent, child;
+    parent.value = OpenProcess(SYNCHRONIZE, FALSE, parent_pid);
+    child.value = OpenProcess(SYNCHRONIZE, FALSE, child_pid);
+    REQUIRE(parent.value); REQUIRE(child.value);
+    CHECK(WaitForSingleObject(parent.value, 0) == WAIT_TIMEOUT);
+    CHECK(WaitForSingleObject(child.value, 0) == WAIT_TIMEOUT);
+
+    const auto close_at = std::chrono::steady_clock::now();
+    int drained = 0;
+    if (application_shutdown) {
+        workspace->begin_shutdown([&] { ++drained; });
+        REQUIRE(pump([&] { return drained == 1; }, 5000));
+        CHECK_FALSE(control<audioalgo::editor::NodeAuthoringPanel>(*workspace, "authoring.panel"));
+        CHECK_FALSE(workspace->isEnabled());
+    }
+    workspace.reset(); panel = nullptr;
+    CHECK(std::chrono::steady_clock::now() - close_at < std::chrono::seconds(5));
+    CHECK(WaitForSingleObject(parent.value, 0) == WAIT_OBJECT_0);
+    CHECK(WaitForSingleObject(child.value, 0) == WAIT_OBJECT_0);
+    CHECK(WaitForSingleObject(unrelated.info.hProcess, 0) == WAIT_TIMEOUT);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil(100);
+
+    workspace = make_workspace();
+    click(*workspace, "authoring.new");
+    panel = control<audioalgo::editor::NodeAuthoringPanel>(*workspace, "authoring.panel"); REQUIRE(panel);
+    CHECK_FALSE(panel->ready());
+    CHECK(control<audioalgo::editor::RunLogTextView>(*panel, "authoring.check_logs")->getText().isEmpty());
+    editor = control<juce::CodeEditorComponent>(*panel, "authoring.source"); REQUIRE(editor);
+    editor->selectAll(); editor->insertTextAtCaret("def process(inputs, params, state):\n    print('pc03-check-recovered', flush=True)\n    return {'audio_out': inputs['audio_in']}\n");
+    click(*panel, "authoring.check");
+    REQUIRE(pump([&] { return panel->ready().has_value(); }, 15000));
+    auto* check_log = control<audioalgo::editor::RunLogTextView>(*panel, "authoring.check_logs"); REQUIRE(check_log);
+    CHECK(check_log->getText().contains("pc03-check-recovered"));
+    CHECK_FALSE(check_log->getText().contains("pc03-check-entered"));
+    int reopened_drained = 0;
+    workspace->begin_shutdown([&] { ++reopened_drained; });
+    REQUIRE(pump([&] { return reopened_drained == 1; }, 5000));
+    workspace.reset();
+    std::ofstream(root / "scenario.txt") << (application_shutdown ? "application_shutdown" : "view_destruction") << '\n';
+    }
 #endif
 }
 
@@ -1072,10 +1294,12 @@ TEST_CASE("NA-08.a production Apply library insertion Inspector and Run execute 
 }
 
 namespace {
-void print_workspace_scenario(bool failure_checks, bool check_log_checks = false, bool live_checks = false, bool heartbeat_checks = false, bool filter_checks = false) {
+void print_workspace_scenario(bool failure_checks, bool check_log_checks = false, bool live_checks = false, bool heartbeat_checks = false, bool filter_checks = false, bool level_checks = false, bool history_checks = false) {
     juce::ScopedJuceInitialiser_GUI gui;
-    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) / (filter_checks ? "build/reports/loops/PC0404-node-filter/artifacts" : failure_checks ? "build/reports/loops/PC0301-run-log/artifacts" : "build/reports/loops/PC0201-print/artifacts") / juce::Uuid().toString().toStdString();
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) / (history_checks ? "build/reports/loops/PC0407-log-history/artifacts" : level_checks ? "build/reports/loops/PC0406-level-filter/artifacts" : filter_checks ? "build/reports/loops/PC0404-node-filter/artifacts" : failure_checks ? "build/reports/loops/PC0301-run-log/artifacts" : "build/reports/loops/PC0201-print/artifacts") / juce::Uuid().toString().toStdString();
     std::filesystem::create_directories(root);
+    if (level_checks) std::cout << "PC0406_ARTIFACT_ROOT=" << root.generic_string() << '\n';
+    if (history_checks) std::cout << "PC0407_ARTIFACT_ROOT=" << root.generic_string() << '\n';
     audioalgo::AudioBuffer input(16000, {"mono"}, 513);
     for (std::size_t n = 0; n < 513; ++n) input.mutable_channel(0)[n] = static_cast<float>(0.2 * std::sin(0.03 * (n + 1)));
     REQUIRE(std::holds_alternative<audioalgo::WavWriteSummary>(audioalgo::write_wav_file(root / "input.wav", input, audioalgo::WavEncoding::float32)));
@@ -1085,8 +1309,9 @@ void print_workspace_scenario(bool failure_checks, bool check_log_checks = false
     auto registry = std::make_shared<audioalgo::NodeRegistry>(); REQUIRE(audioalgo::register_builtin_nodes(*registry));
     auto storage = std::make_shared<audioalgo::authoring::FileDraftStorage>(root / "authoring/drafts");
     auto checks = std::make_shared<audioalgo::authoring::PythonAuthoring>(root / "authoring");
+    auto preview=std::make_shared<Preview>();
     audioalgo::editor::EditorComponent workspace(registry, std::make_shared<FileDocuments>(), std::make_shared<audioalgo::ProjectResourceService>(),
-        std::make_shared<Preview>(), storage, false, checks);
+        preview, storage, false, checks);
     workspace.open_project_file(root / "project.aaproj");
     REQUIRE(pump([&] { return workspace.controller().project().project_id == project.project_id; }));
     click(workspace, "authoring.new");
@@ -1094,6 +1319,11 @@ void print_workspace_scenario(bool failure_checks, bool check_log_checks = false
     control<juce::TextEditor>(workspace, "authoring.display_name")->setText("Print", true);
     auto* editor = control<juce::CodeEditorComponent>(workspace, "authoring.source"); REQUIRE(editor);
     std::string body = "def process(inputs, params, state):\n    print('aaaaaaa', flush=True)\n";
+    if (level_checks) body += "    import sys\n    print('level-error-marker', file=sys.stderr, flush=True)\n";
+    if (history_checks) {
+        const auto literal=juce::JSON::toString(juce::var(juce::String(root.generic_string())),true).toStdString();
+        body += "    if params['gain'] < 0:\n        import pathlib, time\n        root=pathlib.Path("+literal+")\n        (root/'history-entered.txt').write_text('entered',encoding='ascii')\n        while (root/'history-hold.txt').exists(): time.sleep(.005)\n";
+    }
     if (failure_checks) body += "    if params['gain'] < 0: raise RuntimeError('pc03 failure after print')\n";
     if (live_checks) {
         body += "    if params['gain'] < -1:\n        import time\n        print('live-before-terminal', flush=True)\n";
@@ -1108,7 +1338,7 @@ void print_workspace_scenario(bool failure_checks, bool check_log_checks = false
     REQUIRE(pump([&] { return control<juce::TextButton>(workspace, "authoring.apply")->isEnabled(); }));
     CHECK_FALSE(control<juce::TextButton>(workspace, "library.user.pc02_print"));
     if (check_log_checks) {
-        auto* check_logs = control<juce::TextEditor>(workspace, "authoring.check_logs"); REQUIRE(check_logs);
+        auto* check_logs = control<audioalgo::editor::RunLogTextView>(workspace, "authoring.check_logs"); REQUIRE(check_logs);
         auto* panel = control<audioalgo::editor::NodeAuthoringPanel>(workspace, "authoring.panel"); REQUIRE(panel);
         const auto text = check_logs->getText();
         CHECK(text.contains("Check")); CHECK(text.contains("contract")); CHECK(text.contains(panel->session().document().id));
@@ -1117,7 +1347,7 @@ void print_workspace_scenario(bool failure_checks, bool check_log_checks = false
         const auto raw = text.toStdString(); std::size_t count = 0, offset = 0;
         while ((offset = raw.find("aaaaaaa", offset)) != std::string::npos) { ++count; offset += 7; }
         CHECK(count == 5); // independent probe contract: 513 frames, host127
-        auto* run_logs = control<juce::TextEditor>(workspace, "project.run_logs"); REQUIRE(run_logs);
+        auto* run_logs = control<audioalgo::editor::RunLogTextView>(workspace, "project.run_logs"); REQUIRE(run_logs);
         CHECK(run_logs->getText().isEmpty());
         std::ofstream(root / "check-ui-log.txt", std::ios::binary) << text.toStdString();
     }
@@ -1158,7 +1388,7 @@ void print_workspace_scenario(bool failure_checks, bool check_log_checks = false
         click(workspace, "project.run");
         auto* status = control<audioalgo::editor::RunStatusPanel>(workspace, "project.status"); REQUIRE(status);
         REQUIRE(pump([&] { return status->status_text().contains("Completed run"); }));
-        auto* logs = control<juce::TextEditor>(workspace, "project.run_logs"); REQUIRE(logs);
+        auto* logs = control<audioalgo::editor::RunLogTextView>(workspace, "project.run_logs"); REQUIRE(logs);
         const auto text = logs->getText();
         CHECK(text.contains(custom)); CHECK(text.contains("user.pc02_print")); CHECK(text.contains("pc02-print"));
         CHECK(text.contains("aaaaaaa\n")); // ADR0039: chunk headers may split the two records
@@ -1168,8 +1398,51 @@ void print_workspace_scenario(bool failure_checks, bool check_log_checks = false
         CHECK(text != juce::String(previous)); previous = text.toStdString();
         std::ofstream(root / ("ui-log-" + std::to_string(attempt) + ".txt"), std::ios::binary) << previous;
     }
+    if (history_checks) {
+        auto* logs=control<audioalgo::editor::RunLogTextView>(workspace,"project.run_logs");REQUIRE(logs);
+        auto* status=control<audioalgo::editor::RunStatusPanel>(workspace,"project.status");REQUIRE(status);
+        const auto current=logs->getText(),terminal=status->status_text();
+        const auto request_from=[](const juce::String& text){auto start=text.indexOf("[Run ");REQUIRE(start>=0);auto end=text.indexOfChar(start+5,' ');REQUIRE(end>start+5);return text.substring(start+5,end);};
+        const auto old_request=request_from(juce::File((root/"ui-log-0.txt").generic_string()).loadFileAsString());
+        const auto current_request=request_from(current);REQUIRE(old_request!=current_request);
+        const auto revision=workspace.controller().revision();const auto dirty=workspace.controller().dirty();
+        click(workspace,"project.run_logs.history_refresh");
+        auto* history=control<juce::ComboBox>(workspace,"project.run_logs.history");REQUIRE(history);
+        REQUIRE(pump([&]{return history->getNumItems()>=3&&history->isEnabled();}));
+        int old_id=0;for(int i=0;i<history->getNumItems();++i)if(history->getItemText(i).contains(old_request))old_id=history->getItemId(i);REQUIRE(old_id>1);
+        history->setSelectedId(old_id,juce::sendNotificationSync);
+        REQUIRE(pump([&]{return logs->getText().contains(old_request)&&history->isEnabled();}));
+        CHECK_FALSE(logs->getText().contains(current_request));CHECK(logs->getText().contains("aaaaaaa"));CHECK(status->status_text()==terminal);
+        CHECK(workspace.controller().revision()==revision);CHECK(workspace.controller().dirty()==dirty);
+        std::ofstream(root/"history-old-ui.log",std::ios::binary)<<logs->getText().toStdString();
+        click(workspace,"project.play");
+        std::filesystem::path current_output;
+        for(const auto& run:std::filesystem::directory_iterator(root/"runs")){
+            auto record=juce::JSON::parse(juce::File((run.path()/"run.json").generic_string()));if(record["request_id"].toString()==current_request)current_output=run.path()/"output.wav";
+        }
+        REQUIRE_FALSE(current_output.empty());CHECK(preview->played==current_output);
+        history->setSelectedId(1,juce::sendNotificationSync);REQUIRE(pump([&]{return logs->getText().contains(current_request)&&history->isEnabled();}));
+        CHECK_FALSE(logs->getText().contains(old_request));CHECK(preview->played==current_output);
+        std::ofstream(root/"history-current-ui.log",std::ios::binary)<<logs->getText().toStdString();
+        {std::ofstream(root/"history-hold.txt")<<"hold";}
+        struct ReleaseHistoryGate{std::filesystem::path path;~ReleaseHistoryGate(){std::error_code ec;std::filesystem::remove(path,ec);}}release{root/"history-hold.txt"};
+        auto* gain=control<juce::Slider>(workspace,"parameter.gain");REQUIRE(gain);gain->setValue(-1,juce::sendNotificationSync);click(workspace,"project.run");
+        REQUIRE(pump([&]{return std::filesystem::is_regular_file(root/"history-entered.txt");}));
+        click(workspace,"project.run_logs.history_refresh");CHECK_FALSE(history->isEnabled());
+        // The render occupies the sole worker, so this read is definitely queued.
+        // New/Open revoke its generation before the worker can deliver anything.
+        click(workspace,"project.new");
+        audioalgo::ProjectModel replacement;replacement.project_id="history-replacement";
+        REQUIRE(std::holds_alternative<std::monostate>(audioalgo::save_project_file(root/"replacement.aaproj",replacement)));
+        workspace.open_project_file(root/"replacement.aaproj");REQUIRE(pump([&]{return workspace.controller().project().project_id=="history-replacement";}));
+        CHECK(logs->getText().isEmpty());CHECK(history->getNumItems()==1);CHECK(history->getSelectedId()==1);
+        click(workspace,"project.play");CHECK(status->status_text().contains("Run the graph before previewing audio"));CHECK(preview->played==current_output);
+        int drained=0;workspace.begin_shutdown([&]{++drained;});REQUIRE(pump([&]{return drained==1;}));CHECK(logs->getText().isEmpty());
+        std::ofstream(root/"history-cleared-ui.log",std::ios::binary)<<logs->getText().toStdString();
+        std::ofstream(root/"history-demo.json")<<"{\"old_request\":\""<<old_request<<"\",\"current_request\":\""<<current_request<<"\",\"preview\":\""<<current_output.generic_string()<<"\",\"stale_history_cleared\":true}";
+    }
     if (filter_checks) {
-        auto* logs = control<juce::TextEditor>(workspace, "project.run_logs"); REQUIRE(logs);
+        auto* logs = control<audioalgo::editor::RunLogTextView>(workspace, "project.run_logs"); REQUIRE(logs);
         auto* filter = control<juce::ComboBox>(workspace, "project.run_logs.node_filter"); REQUIRE(filter);
         auto find_filter_id = [&](const std::string& node_id) {
             for (int i = 0; i < filter->getNumItems(); ++i)
@@ -1205,10 +1478,26 @@ void print_workspace_scenario(bool failure_checks, bool check_log_checks = false
         std::ofstream(root / "filter-demo.json") << "{\"project_file\":\"project.aaproj\",\"request_id\":\"" << request_id.toStdString()
             << "\",\"node_ids\":[\"" << custom << "\",\"" << second_custom << "\"],\"samples\":513,\"expected_print_records_per_node\":2}\n";
     }
+    if (level_checks) {
+        auto* logs=control<audioalgo::editor::RunLogTextView>(workspace,"project.run_logs");REQUIRE(logs);
+        auto* levels=control<juce::ComboBox>(workspace,"project.run_logs.level_filter");REQUIRE(levels);
+        const auto all=logs->getText();CHECK(all.contains("aaaaaaa"));CHECK(all.contains("level-error-marker"));
+        const auto start=all.indexOf("[Run ");REQUIRE(start>=0);const auto end=all.indexOfChar(start+5,' ');REQUIRE(end>start+5);
+        const auto request=all.substring(start+5,end);
+        for(const auto& level:{"info","error"}){
+            int id=0;for(int i=0;i<levels->getNumItems();++i)if(levels->getItemText(i)==level)id=levels->getItemId(i);REQUIRE(id>1);
+            levels->setSelectedId(id,juce::sendNotificationSync);const auto visible=logs->getText();CHECK(visible.contains(request));CHECK(visible.contains(custom));
+            CHECK(visible.contains(level==std::string("info")?"aaaaaaa":"level-error-marker"));CHECK_FALSE(visible.contains(level==std::string("info")?"level-error-marker":"aaaaaaa"));
+            std::ofstream(root/("ui-level-"+std::string(level)+".log"),std::ios::binary)<<visible.toStdString();
+        }
+        levels->setSelectedId(1,juce::sendNotificationSync);CHECK(logs->getText()==all);
+        std::ofstream(root/"ui-level-all.log",std::ios::binary)<<logs->getText().toStdString();
+        std::ofstream(root/"level-demo.json")<<"{\"request_id\":\""<<request<<"\",\"node_id\":\""<<custom<<"\",\"project_file\":\"project.aaproj\"}";
+    }
     if (live_checks) {
         auto* gain = control<juce::Slider>(workspace, "parameter.gain"); REQUIRE(gain);
         gain->setValue(heartbeat_checks ? -2 : -1.5, juce::sendNotificationSync); click(workspace, "project.run");
-        auto* logs = control<juce::TextEditor>(workspace, "project.run_logs"); REQUIRE(logs);
+        auto* logs = control<audioalgo::editor::RunLogTextView>(workspace, "project.run_logs"); REQUIRE(logs);
         REQUIRE(pump([&] { return logs->getText().contains("live-before-terminal"); }));
         auto* status = control<audioalgo::editor::RunStatusPanel>(workspace, "project.status"); REQUIRE(status);
         CHECK_FALSE(status->status_text().contains("Completed run"));
@@ -1234,7 +1523,7 @@ void print_workspace_scenario(bool failure_checks, bool check_log_checks = false
         click(workspace, "project.new"); CHECK(logs->getText().isEmpty());
     }
     if (failure_checks) {
-        auto* logs = control<juce::TextEditor>(workspace, "project.run_logs"); REQUIRE(logs);
+        auto* logs = control<audioalgo::editor::RunLogTextView>(workspace, "project.run_logs"); REQUIRE(logs);
         const auto& locked = workspace.controller().project().nodes.back().managed_version; REQUIRE(locked);
         CHECK(logs->getText().contains(locked->content_sha256));
         audioalgo::NodeLogEvent late; late.node_id = custom; late.type_id = "user.pc02_print"; late.text = "must-not-leak";
@@ -1294,19 +1583,21 @@ TEST_CASE("PC-03 production check logs bind draft hashes and remain separate fro
 TEST_CASE("PC-04 production Canvas exposes live node logs before termination and clears them on New", "[PC-04][node_authoring][component]") { print_workspace_scenario(false, false, true); }
 TEST_CASE("PC-04.d production live log UI meets twenty ms heartbeat over ten seconds", "[PC-04.d][node_authoring][component]") { print_workspace_scenario(false, false, true, true); }
 TEST_CASE("PC-04.d production filter separates live logs from two real node instances while preserving run identity", "[PC-04.d][node_authoring][component]") { print_workspace_scenario(false, false, false, false, true); }
+TEST_CASE("PC-04.d production Run level filter separates real stdout and stderr without changing audio", "[PC-04.d][node_authoring][component]") { print_workspace_scenario(false, false, false, false, false, true); }
+TEST_CASE("PC-04.d production historical Run logs do not replace current result or preview", "[PC-04.d][node_authoring][component]") { print_workspace_scenario(false, false, false, false, false, false, true); }
 TEST_CASE("PC-04.a production log text joins partial stream chunks without invented newlines", "[PC-04.a][component]") {
     juce::ScopedJuceInitialiser_GUI gui;
     audioalgo::editor::RunLogPanel panel; panel.setSize(600,150);
     audioalgo::NodeLogEvent event;event.identity={"project",1,"request",2};event.node_id="node";event.source="stdout";event.level="info";
     event.text="part";panel.append(event);event.text="ial without newline";panel.append(event);
-    auto* text=control<juce::TextEditor>(panel,"project.run_logs");REQUIRE(text);
+    auto* text=control<audioalgo::editor::RunLogTextView>(panel,"project.run_logs");REQUIRE(text);
     CHECK(text->getText().contains("partial without newline"));
 }
 
 TEST_CASE("PC-04.d production run log node filter preserves hidden current run entries", "[PC-04.d][component]") {
     juce::ScopedJuceInitialiser_GUI gui;
     audioalgo::editor::RunLogPanel panel; panel.setSize(720,240);
-    auto* text=control<juce::TextEditor>(panel,"project.run_logs"); REQUIRE(text);
+    auto* text=control<audioalgo::editor::RunLogTextView>(panel,"project.run_logs"); REQUIRE(text);
     auto* filter=control<juce::ComboBox>(panel,"project.run_logs.node_filter"); REQUIRE(filter);
     audioalgo::NodeLogEvent event; event.identity={"project",1,"request",2}; event.source="stdout"; event.level="info";
     event.node_id="first-node"; event.type_id="user.first"; event.text="first-only\n"; panel.append(event);
@@ -1324,6 +1615,49 @@ TEST_CASE("PC-04.d production run log node filter preserves hidden current run e
     filter->setSelectedId(1,juce::sendNotificationSync);
     CHECK(text->getText().contains("first-only"));
     CHECK(text->getText().contains("second-before-filter")); CHECK(text->getText().contains("second-after-filter"));
+}
+
+TEST_CASE("PC-04.d log level and node filters intersect without discarding hidden entries", "[PC-04.d][component]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    audioalgo::editor::RunLogPanel panel;panel.setSize(720,240);
+    auto* levels=control<juce::ComboBox>(panel,"project.run_logs.level_filter");REQUIRE(levels);
+    auto* nodes=control<juce::ComboBox>(panel,"project.run_logs.node_filter");REQUIRE(nodes);
+    auto* text=control<audioalgo::editor::RunLogTextView>(panel,"project.run_logs");REQUIRE(text);
+    audioalgo::NodeLogEvent event;event.identity={"project",1,"request",2};event.source="sdk";
+    for(const auto& node:{"first","second"})for(const auto& level:{"info","error"}){
+        event.node_id=node;event.level=level;event.text=std::string(node)+"-"+level+"\n";panel.append(event);
+    }
+    auto select=[](juce::ComboBox& box,const juce::String& label){int id=0;for(int i=0;i<box.getNumItems();++i)if(box.getItemText(i)==label)id=box.getItemId(i);REQUIRE(id>1);box.setSelectedId(id,juce::sendNotificationSync);};
+    select(*levels,"error");CHECK(text->getText().contains("first-error"));CHECK(text->getText().contains("second-error"));CHECK_FALSE(text->getText().contains("first-info"));
+    select(*nodes,"first");CHECK(text->getText().contains("first-error"));CHECK_FALSE(text->getText().contains("second-error"));
+    event.node_id="second";event.level="info";event.text="hidden-later-info\n";panel.append(event);CHECK_FALSE(text->getText().contains("hidden-later-info"));
+    levels->setSelectedId(1,juce::sendNotificationSync);CHECK(text->getText().contains("first-info"));CHECK_FALSE(text->getText().contains("hidden-later-info"));
+    nodes->setSelectedId(1,juce::sendNotificationSync);CHECK(text->getText().contains("hidden-later-info"));CHECK(text->getText().contains("second-error"));CHECK(text->getText().contains("request"));
+    CHECK(panel.text_for_copy()==text->getText());
+    panel.clear();CHECK(text->getText().isEmpty());CHECK(levels->getNumItems()==1);CHECK(levels->getSelectedId()==1);CHECK(nodes->getNumItems()==1);
+}
+
+TEST_CASE("PC-04.d history reader bounds owned tail and rejects mixed or malformed archives", "[PC-04.d][component]") {
+    using namespace audioalgo::editor;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0407-log-history/reader"/juce::Uuid().toString().toStdString();
+    std::cout<<"PC0407_READER_ROOT="<<root.generic_string()<<'\n';
+    std::filesystem::create_directories(root/"valid");const auto file=root/"valid/events.jsonl";
+    const auto row=[](int sequence,const std::string& request){return std::string("{\"project_id\":\"reader\",\"session_epoch\":1,\"request_id\":\"")+request+"\",\"revision\":7,\"node_id\":\"node\",\"type_id\":\"type\",\"package_id\":\"package\",\"content_sha256\":\"hash\",\"version\":\"1\",\"sequence\":"+std::to_string(sequence)+",\"received_unix_ms\":1,\"source\":\"stdout\",\"level\":\"info\",\"text\":\""+std::string(1024,'F')+"\",\"total_bytes\":1024,\"discarded_bytes\":0,\"dropped_text_bytes\":0,\"raw_log_file\":\"stdout.log\"}\n";};
+    {std::ofstream output(file,std::ios::binary);for(int n=1;n<=7000;++n)output<<row(n,"request");REQUIRE(output.good());}
+    const auto listing=std::async(std::launch::async,[&]{return RunLogArchiveReader::list(root,"reader",[]{return false;});}).get();
+    REQUIRE(listing.runs.size()==1);const auto reference=listing.runs.front();
+    const auto loaded=std::async(std::launch::async,[&]{return RunLogArchiveReader::load(reference,[]{return false;});}).get();
+    REQUIRE_FALSE(loaded.events.empty());CHECK_FALSE(loaded.notice.empty());CHECK(loaded.events.front().sequence>1);CHECK(loaded.events.back().sequence==7000);
+    std::size_t owned=0;for(const auto& event:loaded.events){owned+=RunLogMailbox::weight(event);CHECK(event.identity==reference.identity);}
+    CHECK(owned<=256*1024);
+    std::ofstream(root/"reader-result.json")<<"{\"owned_bytes\":"<<owned<<",\"first_sequence\":"<<loaded.events.front().sequence<<",\"last_sequence\":"<<loaded.events.back().sequence<<",\"events\":"<<loaded.events.size()<<"}";
+    std::filesystem::create_directories(root/"mixed");std::filesystem::copy_file(file,root/"mixed/events.jsonl");
+    {std::ofstream output(root/"mixed/events.jsonl",std::ios::binary|std::ios::app);output<<row(7001,"different-request");}
+    auto mixed=reference;mixed.file=root/"mixed/events.jsonl";const auto rejected=RunLogArchiveReader::load(mixed,[]{return false;});CHECK(rejected.events.empty());CHECK(rejected.notice.find("identity")!=std::string::npos);
+    std::filesystem::create_directories(root/"broken");{std::ofstream(root/"broken/events.jsonl")<<"{broken}\n";}
+    auto broken=reference;broken.file=root/"broken/events.jsonl";const auto invalid=RunLogArchiveReader::load(broken,[]{return false;});CHECK(invalid.events.empty());CHECK_FALSE(invalid.notice.empty());
+    CHECK(RunLogArchiveReader::load(reference,[]{return true;}).events.empty());
+    const auto partial=RunLogArchiveReader::list(root,"reader",[]{return false;});CHECK_FALSE(partial.notice.empty());
 }
 
 TEST_CASE("PC-04 authoring malformed raw logs preserve byte counts without discard underflow", "[PC-04][node_authoring][component]") {
@@ -1874,6 +2208,856 @@ TEST_CASE("NA-09.a production Apply v2 leaves the saved graph on v1 and a new gr
     REQUIRE(workspace.controller().project().nodes.front().managed_version); CHECK(workspace.controller().project().nodes.front().managed_version->content_sha256 == v2);
 #else
     REQUIRE(pump([&] { return control<juce::TextButton>(workspace, "authoring.diagnostic")->getButtonText().contains("python_disabled"); }));
+#endif
+}
+
+namespace {
+void log_versions_scenario(bool active_apply) {
+#if !AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    SKIP("Requires Python-enabled production Run");
+#else
+    using namespace audioalgo;
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) / (active_apply ? "build/reports/loops/PC0308-active-version/artifacts" : "build/reports/loops/PC0307-log-versions/artifacts") / juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root);
+    auto base = std::make_shared<NodeRegistry>(); REQUIRE(register_builtin_nodes(*base));
+    auto service = std::make_shared<PythonAuthoring>(root / "library");
+    auto draft = python_draft("pc03-version-identity");
+    auto cancel = std::make_shared<std::atomic<bool>>(false);
+    std::vector<AppliedPackage> versions;
+    std::optional<ReadyPackage> pending_v2;
+    const auto gate = root / "run-gate.txt";
+    const auto gate_literal = juce::JSON::toString(juce::var(juce::String(gate.generic_string())), true).toStdString();
+    for (int version = 1; version <= 2; ++version) {
+        draft.source = "def process(inputs, params, state):\n    print('pc03-v" + std::to_string(version) + " gain=' + str(params['gain']), flush=True)\n    return {'audio_out': inputs['audio_in'] * params['gain'] * " + std::to_string(version) + "}\n";
+        if (active_apply && version == 1)
+            draft.source = "import pathlib\nimport time\n" + draft.source.substr(0, draft.source.find("    print(")) +
+                "    gate = pathlib.Path(" + gate_literal + ")\n    if gate.exists():\n        gate.with_name('run-entered.txt').write_text('entered', encoding='ascii')\n        while gate.exists():\n            time.sleep(.005)\n" + draft.source.substr(draft.source.find("    print("));
+        ++draft.generation;
+        const auto checked = service->check(draft, cancel);
+        REQUIRE(std::holds_alternative<ReadyPackage>(checked));
+        if (active_apply && version == 2) { pending_v2 = std::get<ReadyPackage>(checked); break; }
+        const auto applied = service->apply(std::get<ReadyPackage>(checked), draft, versions.empty() ? base : versions.back().catalog, cancel);
+        REQUIRE(std::holds_alternative<AppliedPackage>(applied)); versions.push_back(std::get<AppliedPackage>(applied));
+    }
+    if (!active_apply) REQUIRE(versions[0].content_sha256 != versions[1].content_sha256);
+    AudioBuffer input(16000, {"ch0"}, 513);
+    for (std::size_t n = 0; n < input.frame_count(); ++n) input.mutable_channel(0)[n] = static_cast<float>(.2 * std::sin(.03 * (n + 1)));
+    REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root / "input.wav", input, WavEncoding::float32)));
+    const auto save_version_project = [&](int index) {
+        ProjectModel project; project.schema_version = 2; project.project_id = "pc03-project-v" + std::to_string(index + 1);
+        project.revision = 7; project.selected_output_node_id = "output";
+        auto first = editor::make_node_instance(*versions[index].catalog, {}, "user.custom_node", "first", 240, 100);
+        auto second = editor::make_node_instance(*versions[index].catalog, {}, "user.custom_node", "second", 440, 100);
+        REQUIRE(first); REQUIRE(second); first->parameters["gain"] = .5; second->parameters["gain"] = .25;
+        project.nodes = {{"file", "builtin.file_source", {{"path", std::string("input.wav")}}, 40, 100}, *first, *second, {"output", "builtin.output", {}, 640, 100}};
+        project.connections = {{"file", "audio", "first", "audio_in"}, {"first", "audio_out", "second", "audio_in"}, {"second", "audio_out", "output", "audio"}};
+        REQUIRE(std::holds_alternative<std::monostate>(save_project_file(root / ("v" + std::to_string(index + 1) + ".aaproj"), project)));
+    };
+    save_version_project(0);
+    if (!active_apply) save_version_project(1);
+    auto registry = std::make_shared<NodeRegistry>(*versions.back().catalog);
+    editor::EditorComponent workspace(registry, std::make_shared<FileDocuments>(), std::make_shared<ProjectResourceService>(),
+        std::make_shared<Preview>(), std::make_shared<FileDraftStorage>(root / "drafts"), false, service);
+    std::set<std::filesystem::path> seen;
+    std::optional<NodeLogEvent> old_log;
+    juce::Array<juce::var> receipts;
+    for (int pass = 0; pass < 3; ++pass) {
+        const int index = pass == 1 ? 1 : 0;
+        const auto project_file = root / ("v" + std::to_string(index + 1) + ".aaproj");
+        workspace.open_project_file(project_file);
+        REQUIRE(pump([&] { return workspace.controller().project().project_id == "pc03-project-v" + std::to_string(index + 1); }));
+        REQUIRE(workspace.controller().project().revision == 7);
+        auto* logs = control<audioalgo::editor::RunLogTextView>(workspace, "project.run_logs"); REQUIRE(logs); CHECK(logs->getText().isEmpty());
+        if (old_log) { workspace.run_log_received(*old_log); CHECK(logs->getText().isEmpty()); }
+        struct RestoreOriginal final {
+            std::filesystem::path path, gate;
+            std::string bytes;
+            ~RestoreOriginal() {
+                if (!path.empty()) { std::ofstream restore(path, std::ios::binary); restore << bytes; }
+                if (!gate.empty()) { std::error_code ec; std::filesystem::remove(gate, ec); }
+            }
+        } restore;
+        if (active_apply && pass == 0) { std::ofstream(gate) << "hold"; restore.gate = gate; }
+        click(workspace, "project.run");
+        if (active_apply && pass == 0) {
+            REQUIRE(pump([&] { return std::filesystem::is_regular_file(root / "run-entered.txt"); }, 15000));
+            REQUIRE(pending_v2);
+            const auto applied = service->apply(*pending_v2, draft, versions[0].catalog, cancel);
+            REQUIRE(std::holds_alternative<AppliedPackage>(applied)); versions.push_back(std::get<AppliedPackage>(applied));
+            REQUIRE(versions[0].content_sha256 != versions[1].content_sha256);
+            save_version_project(1);
+            restore.path = std::filesystem::path(L"\\\\?\\" + std::filesystem::absolute(versions[0].package_root / "user_source.py").wstring());
+            { std::ifstream original(restore.path, std::ios::binary); REQUIRE(original); restore.bytes.assign(std::istreambuf_iterator<char>(original), {}); }
+            const std::string changed = "raise AssertionError('installed source changed after freeze')\n";
+            { std::ofstream modified(restore.path, std::ios::binary); modified << changed; modified.close(); REQUIRE(modified); }
+            { std::ifstream observed(restore.path, std::ios::binary); REQUIRE(observed);
+              REQUIRE(std::string(std::istreambuf_iterator<char>(observed), {}) == changed); }
+            std::ofstream(root / "mutation-receipt.txt") << versions[0].content_sha256 << '\n'
+                << juce::SHA256(restore.bytes.data(), restore.bytes.size()).toHexString() << '\n'
+                << juce::SHA256(changed.data(), changed.size()).toHexString() << '\n';
+            REQUIRE(std::filesystem::remove(gate));
+        }
+        auto* status = control<editor::RunStatusPanel>(workspace, "project.status"); REQUIRE(status);
+        REQUIRE(pump([&] { return status->status_text().contains("Completed run"); }, 15000));
+        const auto text = logs->getText();
+        CHECK(text.contains("node=first")); CHECK(text.contains("node=second")); CHECK(text.contains(versions[index].content_sha256));
+        CHECK_FALSE(text.contains(versions[1-index].content_sha256));
+        CHECK(text.contains("pc03-v" + juce::String(index+1) + " gain=0.5"));
+        CHECK(text.contains("pc03-v" + juce::String(index+1) + " gain=0.25"));
+        std::filesystem::path run;
+        for (const auto& entry : std::filesystem::directory_iterator(root / "runs"))
+            if (std::filesystem::is_regular_file(entry.path() / "run.json") && !seen.contains(entry.path())) { REQUIRE(run.empty()); run = entry.path(); }
+        REQUIRE_FALSE(run.empty()); seen.insert(run);
+        const auto record = juce::JSON::parse(juce::File((run / "run.json").generic_string()));
+        const auto request_id = record["request_id"].toString(); CHECK(text.contains(request_id));
+        const auto audio = read_wav_file(run / "output.wav"); REQUIRE(std::holds_alternative<AudioBuffer>(audio));
+        const auto& output = std::get<AudioBuffer>(audio); REQUIRE(output.frame_count() == 513); CHECK(output.channel_ids() == input.channel_ids());
+        for (std::size_t n = 0; n < 513; ++n) {
+            const float stage = input.channel(0)[n] * .5f * static_cast<float>(index+1);
+            const float expected = stage * .25f * static_cast<float>(index+1);
+            CHECK(std::abs(output.channel(0)[n]-expected) <= 2e-6 + 1e-5*std::abs(expected));
+        }
+        const auto ui_file = "ui-" + std::to_string(pass) + ".log";
+        std::ofstream(root / ui_file, std::ios::binary) << text.toStdString();
+        if (old_log) { workspace.run_log_received(*old_log); CHECK(logs->getText() == text); }
+        NodeLogEvent late; late.identity = {record["project_id"].toString().toStdString(),
+            static_cast<std::uint64_t>(static_cast<juce::int64>(record["session_epoch"])), request_id.toStdString(), 7};
+        late.node_id = "first"; late.content_sha256 = versions[index].content_sha256; late.text = "late-old-project"; old_log = late;
+        juce::DynamicObject::Ptr receipt = new juce::DynamicObject;
+        receipt->setProperty("project_file", juce::String(project_file.filename().string())); receipt->setProperty("run_directory", juce::String(run.lexically_relative(root).generic_string()));
+        receipt->setProperty("request_id", request_id); receipt->setProperty("content_sha256", juce::String(versions[index].content_sha256));
+        receipt->setProperty("version", index + 1); receipt->setProperty("ui_log", juce::String(ui_file)); receipts.add(juce::var(receipt.get()));
+    }
+    std::ofstream(root / "identity-demo.json") << juce::JSON::toString(receipts, false).toStdString();
+    int drained = 0; workspace.begin_shutdown([&] { ++drained; }); REQUIRE(pump([&] { return drained == 1; }));
+#endif
+}
+
+}
+TEST_CASE("PC-03.d two versions and two instances keep exact log identity across same revision projects",
+          "[PC-03.d][node_authoring][component]") { log_versions_scenario(false); }
+TEST_CASE("PC-03.d active v1 Run retains frozen code and logs while v2 Apply changes the default",
+          "[PC-03.d][node_authoring][component]") { log_versions_scenario(true); }
+
+TEST_CASE("PC-03.a slow production Run cannot pollute a new project revision or replacement Run",
+          "[PC-03.a][node_authoring][component]") {
+#if !defined(_WIN32) || !AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    SKIP("Requires Windows Python-enabled production Run");
+#else
+    using namespace audioalgo;
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    juce::Array<juce::var> artifact_roots;
+    for (int mode = 0; mode < 3; ++mode) {
+        INFO(mode);
+        const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) / "build/reports/loops/PC0309-live-identity/artifacts" / juce::Uuid().toString().toStdString();
+        std::filesystem::create_directories(root);
+        const auto gate = root / "gate.txt", marker = root / "entered.txt";
+        auto registry = std::make_shared<NodeRegistry>(); REQUIRE(register_builtin_nodes(*registry));
+        auto service = std::make_shared<PythonAuthoring>(root / "library");
+        auto draft = python_draft("pc03-live-identity");
+        auto definition = juce::JSON::parse(draft.declaration);
+        auto* parameters = definition["parameters"].getArray(); REQUIRE(parameters); REQUIRE(parameters->size() == 1);
+        (*parameters)[0].getDynamicObject()->setProperty("step", .01);
+        draft.declaration = juce::JSON::toString(definition, false).toStdString();
+        const auto literal = juce::JSON::toString(juce::var(juce::String(gate.generic_string())), true).toStdString();
+        draft.source = "import os\nimport pathlib\nimport time\ndef process(inputs, params, state):\n    print('pc03-live gain=' + str(params['gain']), flush=True)\n    gate = pathlib.Path(" + literal + ")\n    if params['gain'] == .5 and gate.exists():\n        gate.with_name('entered.txt').write_text(str(os.getpid()), encoding='ascii')\n        while gate.exists():\n            time.sleep(.005)\n    return {'audio_out': inputs['audio_in'] * params['gain']}\n";
+        auto cancel = std::make_shared<std::atomic<bool>>(false);
+        const auto checked = service->check(draft, cancel); REQUIRE(std::holds_alternative<ReadyPackage>(checked));
+        const auto applied = service->apply(std::get<ReadyPackage>(checked), draft, registry, cancel); REQUIRE(std::holds_alternative<AppliedPackage>(applied));
+        const auto installed = std::get<AppliedPackage>(applied); *registry = *installed.catalog;
+        AudioBuffer input(16000, {"ch0"}, 513);
+        for (std::size_t n = 0; n < 513; ++n) input.mutable_channel(0)[n] = static_cast<float>(.2 * std::sin(.03*(n+1)));
+        REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root/"input.wav", input, WavEncoding::float32)));
+        for (int index = 0; index < 2; ++index) {
+            ProjectModel project; project.schema_version=2; project.project_id=index==0 ? "live-A" : "live-B"; project.revision=7; project.selected_output_node_id="output";
+            auto custom=editor::make_node_instance(*registry, {}, "user.custom_node", "custom", 240, 100); REQUIRE(custom);
+            custom->parameters["gain"]=index==0 ? .5 : .25;
+            project.nodes={{"file","builtin.file_source",{{"path",std::string("input.wav")}},40,100},*custom,{"output","builtin.output",{},640,100}};
+            project.connections={{"file","audio","custom","audio_in"},{"custom","audio_out","output","audio"}};
+            REQUIRE(std::holds_alternative<std::monostate>(save_project_file(root/(index==0 ? "A.aaproj" : "B.aaproj"),project)));
+        }
+        struct TrackedPreview final : AudioPreviewService {
+            std::filesystem::path played;
+            AudioPreviewOutcome play(const std::filesystem::path& path) override { played=path;return std::monostate{}; }
+            void pause() override {} void stop() override {} void shutdown() override {}
+            bool is_playing() const noexcept override { return false; }
+            double position_seconds() const noexcept override { return 0; }
+        };
+        auto preview = std::make_shared<TrackedPreview>();
+        editor::EditorComponent workspace(registry,std::make_shared<FileDocuments>(),std::make_shared<ProjectResourceService>(),preview,
+            std::make_shared<FileDraftStorage>(root/"drafts"),false,service);
+        workspace.open_project_file(root/"A.aaproj"); REQUIRE(pump([&]{return workspace.controller().project().project_id=="live-A";}));
+        struct ReleaseGate { std::filesystem::path path; ~ReleaseGate(){std::error_code ec;std::filesystem::remove(path,ec);} } release{gate};
+        {std::ofstream(gate)<<"hold";}
+        click(workspace,"project.run");
+        DWORD old_pid=0;
+        REQUIRE(pump([&]{std::ifstream in(marker);return static_cast<bool>(in>>old_pid) && old_pid!=0;},15000));
+        struct ProcessHandle { HANDLE value=nullptr; ~ProcessHandle(){if(value)CloseHandle(value);} } process;
+        process.value=OpenProcess(SYNCHRONIZE,FALSE,old_pid); REQUIRE(process.value); CHECK(WaitForSingleObject(process.value,0)==WAIT_TIMEOUT);
+        juce::var archived;
+        REQUIRE(pump([&]{
+            for(const auto& dir:std::filesystem::directory_iterator(root/"run-logs")) {
+                std::ifstream in(dir.path()/"events.jsonl");std::string line;
+                while(std::getline(in,line)){auto value=juce::JSON::parse(line);if(value["text"].toString().contains("pc03-live")){archived=value;return true;}}
+            }
+            return false;
+        }));
+        NodeLogEvent old; old.identity={archived["project_id"].toString().toStdString(),static_cast<std::uint64_t>(static_cast<juce::int64>(archived["session_epoch"])),
+            archived["request_id"].toString().toStdString(),7}; old.node_id="custom";old.text="late-A-must-not-leak";
+        std::ofstream(root/"old-event.json")<<juce::JSON::toString(archived,false).toStdString();
+        auto* logs=control<audioalgo::editor::RunLogTextView>(workspace,"project.run_logs"); REQUIRE(logs);
+        if(mode==0){
+            workspace.open_project_file(root/"B.aaproj"); REQUIRE(pump([&]{return workspace.controller().project().project_id=="live-B";}));
+            CHECK(workspace.controller().revision()==7);CHECK(logs->getText().isEmpty());
+        } else if(mode==1) {
+            auto* canvas=control<editor::GraphCanvas>(workspace,"project.canvas");REQUIRE(canvas);canvas->select("custom");
+            auto* gain=control<juce::Slider>(workspace,"parameter.gain");REQUIRE(gain);gain->setValue(.25,juce::sendNotificationSync);
+            CHECK(std::abs(gain->getValue()-.25)<1e-12);
+            REQUIRE(workspace.controller().revision()==8);
+        }
+        if(mode!=2){const auto before=logs->getText();workspace.run_log_received(old);CHECK(logs->getText()==before);}
+        click(workspace,"project.run");
+        // Replace the request before releasing A. Even a fast A terminal now
+        // belongs to the revoked identity, while the queued Run gets fresh state.
+        if(mode==2) REQUIRE(std::filesystem::remove(gate));
+        const auto submitted=logs->getText();workspace.run_log_received(old);CHECK(logs->getText()==submitted);
+        auto* status=control<editor::RunStatusPanel>(workspace,"project.status");REQUIRE(status);
+        REQUIRE(pump([&]{return status->status_text().contains("Completed run");},15000));
+        CHECK(WaitForSingleObject(process.value,0)==WAIT_OBJECT_0);
+        CHECK_FALSE(logs->getText().contains(old.identity.request_id));CHECK_FALSE(logs->getText().contains("late-A-must-not-leak"));
+        const auto baseline=logs->getText();workspace.run_log_received(old);CHECK(logs->getText()==baseline);
+        std::filesystem::path success;
+        for(const auto& dir:std::filesystem::directory_iterator(root/"runs"))if(std::filesystem::is_regular_file(dir.path()/"run.json")){
+            REQUIRE(success.empty());success=dir.path();
+        }
+        REQUIRE_FALSE(success.empty());
+        click(workspace,"project.play"); CHECK(preview->played == success/"output.wav");
+        const auto playing_status = status->status_text();
+        workspace.run_log_received(old); CHECK(status->status_text() == playing_status); CHECK(preview->played == success/"output.wav");
+        std::ofstream(root/"playback-file.txt")<<preview->played.generic_string();
+        const auto receipt=juce::JSON::parse(juce::File((success/"run.json").generic_string()));
+        CHECK(receipt["request_id"].toString().toStdString()!=old.identity.request_id);CHECK(logs->getText().contains(receipt["request_id"].toString()));
+        const auto audio=read_wav_file(success/"output.wav");REQUIRE(std::holds_alternative<AudioBuffer>(audio));
+        const auto& output=std::get<AudioBuffer>(audio);REQUIRE(output.frame_count()==513);
+        const float gain=mode==2 ? .5f : .25f;
+        for(std::size_t n=0;n<513;++n){const float expected=input.channel(0)[n]*gain;CHECK(std::abs(output.channel(0)[n]-expected)<=2e-6+1e-5*std::abs(expected));}
+        std::ofstream(root/"current-ui.log",std::ios::binary)<<logs->getText().toStdString();
+        std::ofstream(root/"scenario.json")<<"{\"mode\":"<<mode<<",\"old_pid\":"<<old_pid<<",\"old_request\":\""<<old.identity.request_id<<"\",\"current_request\":\""<<receipt["request_id"].toString()<<"\"}";
+        artifact_roots.add(juce::String(root.generic_string()));
+        int drained=0;workspace.begin_shutdown([&]{++drained;});REQUIRE(pump([&]{return drained==1;}));
+    }
+    std::cout << "PC0309_ARTIFACT_ROOTS=" << juce::JSON::toString(artifact_roots,true).toStdString() << '\n';
+#endif
+}
+
+TEST_CASE("PC-04.b production flood enforces complete and UI budgets while remaining responsive and recovering",
+          "[PC-04.b][PC-04.d][node_authoring][component]") {
+#if !defined(_WIN32) || !AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    SKIP("Requires Windows Python-enabled production Run");
+#else
+    using namespace audioalgo;
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0405-live-flood/artifacts"/juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root);
+    std::cout<<"PC0405_ARTIFACT_ROOT="<<root.generic_string()<<'\n';
+    auto registry=std::make_shared<NodeRegistry>(); REQUIRE(register_builtin_nodes(*registry));
+    auto service=std::make_shared<PythonAuthoring>(root/"library");
+    auto draft=python_draft("pc04-live-flood");
+    const auto literal=juce::JSON::toString(juce::var(juce::String(root.generic_string())),true).toStdString();
+    draft.source="import os\nimport pathlib\nimport subprocess\nimport sys\nimport time\ndef process(inputs, params, state):\n    root=pathlib.Path("+literal+")\n    mode=int(-params['gain'])\n    if mode>0 and not state.get('printed'):\n        state['printed']=True\n        child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(120)'],creationflags=0x08000000)\n        temporary=root/'entered.tmp'\n        temporary.write_text(str(os.getpid())+' '+str(child.pid),encoding='ascii')\n        temporary.replace(root/'entered.txt')\n        while not (root/'start.txt').exists(): time.sleep(.005)\n        chunk=b'F'*4096\n        for n in range(4096): os.write(1,chunk)\n        if mode==2: os.write(1,b'X')\n        if mode==3:\n            while True: os.write(1,chunk)\n        (root/'burst.txt').write_text('complete',encoding='ascii')\n        while not (root/'finish.txt').exists(): time.sleep(.005)\n        child.terminate()\n        child.wait()\n    return {'audio_out':inputs['audio_in']}\n";
+    // Three integer modes without relying on Inspector quantization.
+    auto definition=juce::JSON::parse(draft.declaration);
+    auto* parameters=definition["parameters"].getArray(); REQUIRE(parameters);
+    (*parameters)[0].getDynamicObject()->setProperty("minimum",-3.0);
+    draft.declaration=juce::JSON::toString(definition,false).toStdString();
+    auto cancel=std::make_shared<std::atomic<bool>>(false);
+    auto checked=service->check(draft,cancel); REQUIRE(std::holds_alternative<ReadyPackage>(checked));
+    auto applied=service->apply(std::get<ReadyPackage>(checked),draft,registry,cancel); REQUIRE(std::holds_alternative<AppliedPackage>(applied));
+    *registry=*std::get<AppliedPackage>(applied).catalog;
+    AudioBuffer input(16000,{"ch0"},513);
+    for(std::size_t n=0;n<513;++n)input.mutable_channel(0)[n]=static_cast<float>(.2*std::sin(.03*(n+1)));
+    REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root/"input.wav",input,WavEncoding::float32)));
+    ProjectModel project;project.schema_version=2;project.project_id="pc04-flood";project.selected_output_node_id="output";
+    auto custom=editor::make_node_instance(*registry,{},"user.custom_node","custom",240,100);REQUIRE(custom);
+    project.nodes={{"file","builtin.file_source",{{"path",std::string("input.wav")}},40,100},*custom,{"output","builtin.output",{},640,100}};
+    project.connections={{"file","audio","custom","audio_in"},{"custom","audio_out","output","audio"}};
+    REQUIRE(std::holds_alternative<std::monostate>(save_project_file(root/"project.aaproj",project)));
+    struct FloodPreview final:AudioPreviewService{
+        int calls=0;AudioPreviewOutcome play(const std::filesystem::path&)override{++calls;return std::monostate{};}
+        void pause()override{}void stop()override{}void shutdown()override{}bool is_playing()const noexcept override{return false;}double position_seconds()const noexcept override{return 0;}
+    };
+    auto preview=std::make_shared<FloodPreview>();
+    editor::EditorComponent workspace(registry,std::make_shared<FileDocuments>(),std::make_shared<ProjectResourceService>(),preview,
+        std::make_shared<FileDraftStorage>(root/"drafts"),false,service);
+    workspace.open_project_file(root/"project.aaproj");REQUIRE(pump([&]{return workspace.controller().project().project_id==project.project_id;}));
+    auto* canvas=control<editor::GraphCanvas>(workspace,"project.canvas");REQUIRE(canvas);canvas->select("custom");
+    auto* gain=control<juce::Slider>(workspace,"parameter.gain");REQUIRE(gain);
+    auto* logs=control<audioalgo::editor::RunLogTextView>(workspace,"project.run_logs");REQUIRE(logs);
+    auto* status=control<editor::RunStatusPanel>(workspace,"project.status");REQUIRE(status);
+    struct OwnedProcess { HANDLE handle=nullptr;bool terminate=false;~OwnedProcess(){if(handle){if(terminate)TerminateProcess(handle,0);CloseHandle(handle);}} } canary;
+    wchar_t system_directory[MAX_PATH]{};REQUIRE(GetSystemDirectoryW(system_directory,MAX_PATH)>0);
+    auto ping=std::filesystem::path(system_directory)/"ping.exe";auto command=L"\""+ping.wstring()+L"\" -t 127.0.0.1";
+    STARTUPINFOW startup{};startup.cb=sizeof(startup);PROCESS_INFORMATION pi{};
+    REQUIRE(CreateProcessW(ping.c_str(),command.data(),nullptr,nullptr,FALSE,CREATE_NO_WINDOW,nullptr,nullptr,&startup,&pi));
+    CloseHandle(pi.hThread);canary.handle=pi.hProcess;canary.terminate=true;
+    std::set<std::filesystem::path> successes;
+    juce::Array<juce::var> receipts;
+    for(int mode=1;mode<=3;++mode){
+        INFO(mode);
+        for(const auto* name:{"entered.txt","start.txt","finish.txt","burst.txt"})std::filesystem::remove(root/name);
+        gain->setValue(-mode,juce::sendNotificationSync);REQUIRE(gain->getValue()==-mode);
+        click(workspace,"project.run");
+        DWORD parent_pid=0,child_pid=0;
+        REQUIRE(pump([&]{std::ifstream in(root/"entered.txt");return static_cast<bool>(in>>parent_pid>>child_pid)&&parent_pid&&child_pid;},15000));
+        OwnedProcess parent{OpenProcess(SYNCHRONIZE,FALSE,parent_pid)},child{OpenProcess(SYNCHRONIZE,FALSE,child_pid)};
+        REQUIRE(parent.handle);REQUIRE(child.handle);CHECK(WaitForSingleObject(parent.handle,0)==WAIT_TIMEOUT);CHECK(WaitForSingleObject(child.handle,0)==WAIT_TIMEOUT);
+        struct Heartbeat final:juce::Timer{
+            editor::RunLogTextView* logs=nullptr;std::chrono::steady_clock::time_point previous;std::vector<double> gaps;std::size_t maximum_bytes=0;
+            void timerCallback()override{auto now=std::chrono::steady_clock::now();gaps.push_back(std::chrono::duration<double,std::milli>(now-previous).count());previous=now;maximum_bytes=std::max(maximum_bytes,logs->getText().getNumBytesAsUTF8());}
+        } heartbeat;
+        const auto started=std::chrono::steady_clock::now();heartbeat.logs=logs;heartbeat.previous=started;heartbeat.startTimer(20);
+        {std::ofstream(root/"start.txt")<<"release";}
+        if(mode==1){
+            REQUIRE(pump([&]{return std::chrono::steady_clock::now()-started>=std::chrono::seconds(10);},11000));
+            CHECK(std::filesystem::is_regular_file(root/"burst.txt"));CHECK_FALSE(status->status_text().contains("Completed run"));
+        }else{REQUIRE(pump([&]{return status->status_text().contains("log_limit");},5000));}
+        heartbeat.stopTimer();const auto finished=std::chrono::steady_clock::now();
+        heartbeat.gaps.push_back(std::chrono::duration<double,std::milli>(finished-heartbeat.previous).count());
+        std::sort(heartbeat.gaps.begin(),heartbeat.gaps.end());REQUIRE_FALSE(heartbeat.gaps.empty());
+        const auto p95=heartbeat.gaps[static_cast<std::size_t>(.95*(heartbeat.gaps.size()-1))],maximum=heartbeat.gaps.back();
+        const auto duration=std::chrono::duration<double,std::milli>(finished-started).count();
+        const auto terminal=status->status_text();
+        CHECK(heartbeat.maximum_bytes<=256*1024);CHECK(logs->getText().getNumBytesAsUTF8()<=256*1024);
+        // The text editor owns the ID; retrieve the production panel via parent.
+        auto* log_panel=dynamic_cast<editor::RunLogPanel*>(logs->getParentComponent());REQUIRE(log_panel);
+        CHECK(log_panel->text_for_copy().getNumBytesAsUTF8()<=256*1024);
+        CHECK(logs->getText().contains("stream tail discarded"));CHECK(logs->getText().contains("pc04-flood"));
+        if(mode!=1)CHECK(duration<=5000);
+        if(mode==1){CHECK(duration>=10000);CHECK(p95<=100);CHECK(maximum<=500);std::ofstream(root/"finish.txt")<<"release";
+            REQUIRE(pump([&]{return status->status_text().contains("Completed run");},5000));
+        }else{CHECK_FALSE(status->status_text().contains("Completed run"));click(workspace,"project.play");CHECK(preview->calls==0);CHECK(status->status_text().contains("Run the graph before previewing audio"));}
+        REQUIRE(pump([&]{return WaitForSingleObject(parent.handle,0)==WAIT_OBJECT_0&&WaitForSingleObject(child.handle,0)==WAIT_OBJECT_0;},5000));
+        CHECK(WaitForSingleObject(canary.handle,0)==WAIT_TIMEOUT);
+        std::ofstream(root/("ui-"+std::to_string(mode)+".log"),std::ios::binary)<<logs->getText().toStdString();
+        juce::DynamicObject::Ptr receipt=new juce::DynamicObject;
+        receipt->setProperty("mode",mode);receipt->setProperty("window_ms",duration);receipt->setProperty("interval_ms",20);receipt->setProperty("samples",static_cast<int>(heartbeat.gaps.size()));
+        receipt->setProperty("p95_ms",p95);receipt->setProperty("max_ms",maximum);receipt->setProperty("maximum_ui_bytes",static_cast<juce::int64>(heartbeat.maximum_bytes));
+        receipt->setProperty("parent_pid",static_cast<juce::int64>(parent_pid));receipt->setProperty("child_pid",static_cast<juce::int64>(child_pid));receipt->setProperty("terminal",mode==1?status->status_text():terminal);receipts.add(juce::var(receipt.get()));
+        if(mode!=1){gain->setValue(.5,juce::sendNotificationSync);click(workspace,"project.run");REQUIRE(pump([&]{return status->status_text().contains("Completed run");},5000));}
+        for(const auto& dir:std::filesystem::directory_iterator(root/"runs"))if(std::filesystem::is_regular_file(dir.path()/"run.json"))successes.insert(dir.path());
+        CHECK(successes.size()==static_cast<std::size_t>(mode));
+    }
+    for(const auto& run:successes){auto read=read_wav_file(run/"output.wav");REQUIRE(std::holds_alternative<AudioBuffer>(read));const auto& output=std::get<AudioBuffer>(read);REQUIRE(output.frame_count()==513);
+        for(std::size_t n=0;n<513;++n)CHECK(output.channel(0)[n]==input.channel(0)[n]);}
+    std::ofstream(root/"flood-demo.json")<<juce::JSON::toString(receipts,false).toStdString();
+    int drained=0;workspace.begin_shutdown([&]{++drained;});REQUIRE(pump([&]{return drained==1;}));
+#endif
+}
+
+TEST_CASE("PC-04.d bounded log rendering preserves retained copy and node filters", "[PC-04.d][component]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    audioalgo::editor::RunLogPanel panel;panel.setSize(720,240);
+    audioalgo::NodeLogEvent event;event.identity={"project",1,"request",1};event.node_id="first";event.source="stdout";event.level="info";
+    event.text="retained-first-prefix\n"+std::string(65536,'F');panel.append(event);
+    auto* text=control<audioalgo::editor::RunLogTextView>(panel,"project.run_logs");REQUIRE(text);
+    CHECK(text->getText().contains("retained-first-prefix"));CHECK(text->getText().contains("request"));CHECK(text->getText().getNumBytesAsUTF8()<=256*1024);
+    const auto first=panel.text_for_copy();CHECK(first.contains("retained-first-prefix"));CHECK(first.contains(event.text));CHECK_FALSE(first.contains("UI visible tail omitted"));
+    event.node_id="second";event.text="second-only";panel.append(event);
+    auto* filter=control<juce::ComboBox>(panel,"project.run_logs.node_filter");REQUIRE(filter);
+    int second_id=0;for(int i=0;i<filter->getNumItems();++i)if(filter->getItemText(i)=="second")second_id=filter->getItemId(i);REQUIRE(second_id>1);
+    filter->setSelectedId(second_id,juce::sendNotificationSync);CHECK(text->getText().contains("second-only"));CHECK_FALSE(panel.text_for_copy().contains("retained-first-prefix"));
+    filter->setSelectedId(1,juce::sendNotificationSync);CHECK(panel.text_for_copy().contains("retained-first-prefix"));CHECK(panel.text_for_copy().contains("second-only"));
+}
+
+TEST_CASE("PC-04.d flood layout diagnostic isolates long paragraphs", "[PC0405-diagnostic][component]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    for(bool line_breaks:{false,true}){
+        audioalgo::editor::RunLogPanel panel;panel.setSize(720,240);
+        audioalgo::NodeLogEvent event;event.identity={"diagnostic",1,"request",1};event.node_id="node";event.source="stdout";event.level="info";
+        event.text=std::string(65536,'F');if(line_breaks)for(std::size_t n=63;n<event.text.size();n+=64)event.text[n]='\n';
+        for(int i=0;i<4;++i){auto started=std::chrono::steady_clock::now();panel.append(event);
+            std::cout<<"line_breaks="<<line_breaks<<" append="<<i<<" ms="<<std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-started).count()<<'\n';}
+        REQUIRE(pump([&]{return control<audioalgo::editor::RunLogTextView>(panel,"project.run_logs")->getText().isNotEmpty();}));
+    }
+}
+
+TEST_CASE("PC-04.c production twenty success error cancel rounds drain queues processes and log views",
+          "[PC-04.c][PC0408][node_authoring][component]") {
+#if !defined(_WIN32) || !AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    SKIP("Requires Windows Python-enabled production Run");
+#else
+    using namespace audioalgo;using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0408-gui-cycles/artifacts"/juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root);std::cout<<"PC0408_ARTIFACT_ROOT="<<root.generic_string()<<'\n';
+    auto registry=std::make_shared<NodeRegistry>();REQUIRE(register_builtin_nodes(*registry));auto service=std::make_shared<PythonAuthoring>(root/"library");
+    auto draft=python_draft("pc04-gui-cycles");const auto literal=juce::JSON::toString(juce::var(juce::String(root.generic_string())),true).toStdString();
+    draft.source="import os\nimport pathlib\nimport subprocess\nimport sys\nimport time\ndef process(inputs, params, state):\n    if not state.get('entered'):\n        state['entered']=True\n        root=pathlib.Path("+literal+")\n        child=None\n        if params['gain']==-2: child=subprocess.Popen([sys.executable,'-c','import time; time.sleep(120)'],creationflags=0x08000000)\n        temporary=root/'processes.tmp'\n        temporary.write_text(str(os.getpid())+' '+str(child.pid if child else 0),encoding='ascii')\n        temporary.replace(root/'processes.txt')\n        while (root/'entry-hold.txt').exists(): time.sleep(.005)\n        print('cycle-log gain='+str(params['gain'])+' pid='+str(os.getpid()),flush=True)\n        if params['gain']==-1: raise RuntimeError('cycle-failure')\n        if params['gain']==-2:\n            while True: time.sleep(.005)\n    return {'audio_out':inputs['audio_in']}\n";
+    auto cancel=std::make_shared<std::atomic<bool>>(false);const auto checked=service->check(draft,cancel);REQUIRE(std::holds_alternative<ReadyPackage>(checked));
+    const auto applied=service->apply(std::get<ReadyPackage>(checked),draft,registry,cancel);REQUIRE(std::holds_alternative<AppliedPackage>(applied));*registry=*std::get<AppliedPackage>(applied).catalog;
+    AudioBuffer input(16000,{"ch0"},513);for(std::size_t n=0;n<513;++n)input.mutable_channel(0)[n]=static_cast<float>(.2*std::sin(.03*(n+1)));
+    REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root/"input.wav",input,WavEncoding::float32)));
+    ProjectModel project;project.schema_version=2;project.project_id="pc04-gui-cycles";project.selected_output_node_id="output";
+    auto custom=editor::make_node_instance(*registry,{},"user.custom_node","custom",240,100);REQUIRE(custom);
+    project.nodes={{"file","builtin.file_source",{{"path",std::string("input.wav")}},40,100},*custom,{"output","builtin.output",{},640,100}};
+    project.connections={{"file","audio","custom","audio_in"},{"custom","audio_out","output","audio"}};
+    REQUIRE(std::holds_alternative<std::monostate>(save_project_file(root/"project.aaproj",project)));
+    editor::EditorComponent workspace(registry,std::make_shared<FileDocuments>(),std::make_shared<ProjectResourceService>(),std::make_shared<Preview>(),std::make_shared<FileDraftStorage>(root/"drafts"),false,service);
+    workspace.open_project_file(root/"project.aaproj");REQUIRE(pump([&]{return workspace.controller().project().project_id==project.project_id;}));
+    control<editor::GraphCanvas>(workspace,"project.canvas")->select("custom");auto* gain=control<juce::Slider>(workspace,"parameter.gain");REQUIRE(gain);
+    auto* logs=control<editor::RunLogTextView>(workspace,"project.run_logs");REQUIRE(logs);auto* status=control<editor::RunStatusPanel>(workspace,"project.status");REQUIRE(status);
+    struct Process {HANDLE handle=nullptr;bool terminate=false;~Process(){if(handle){if(terminate)TerminateProcess(handle,0);CloseHandle(handle);}}};
+    Process canary;wchar_t system_directory[MAX_PATH]{};REQUIRE(GetSystemDirectoryW(system_directory,MAX_PATH)>0);const auto ping=std::filesystem::path(system_directory)/"ping.exe";
+    auto command=L"\""+ping.wstring()+L"\" -t 127.0.0.1";STARTUPINFOW startup{};startup.cb=sizeof(startup);PROCESS_INFORMATION pi{};
+    REQUIRE(CreateProcessW(ping.c_str(),command.data(),nullptr,nullptr,FALSE,CREATE_NO_WINDOW,nullptr,nullptr,&startup,&pi));CloseHandle(pi.hThread);canary.handle=pi.hProcess;canary.terminate=true;
+    struct Entered {DWORD parent_pid=0,child_pid=0;Process parent,child;};
+    std::set<std::filesystem::path> seen;juce::Array<juce::var> receipts,rounds;std::size_t maximum_ui_bytes=0;
+    const auto idle=[&]{const auto counts=workspace.background_run_counts();return counts.active==0&&counts.pending==0&&!counts.worker_claimed&&workspace.background_job_count()==0;};
+    const auto observe=[&]{const auto counts=workspace.background_run_counts();CHECK(counts.active<=1);CHECK(counts.pending<=1);CHECK(workspace.background_job_count()<=1);maximum_ui_bytes=std::max(maximum_ui_bytes,logs->getText().getNumBytesAsUTF8());CHECK(maximum_ui_bytes<=256*1024);};
+    const auto begin=[&](double value,Entered* old=nullptr){
+        std::filesystem::remove(root/"processes.txt");{std::ofstream(root/"entry-hold.txt")<<"hold";}
+        gain->setValue(value,juce::sendNotificationSync);const auto started=std::chrono::steady_clock::now();click(workspace,"project.run");
+        if(old){REQUIRE(pump([&]{observe();return WaitForSingleObject(old->parent.handle,0)==WAIT_OBJECT_0&&WaitForSingleObject(old->child.handle,0)==WAIT_OBJECT_0;},5000));CHECK(std::chrono::steady_clock::now()-started<=std::chrono::seconds(5));}
+        auto entry=std::make_unique<Entered>();REQUIRE(pump([&]{std::ifstream in(root/"processes.txt");observe();return static_cast<bool>(in>>entry->parent_pid>>entry->child_pid)&&entry->parent_pid!=0;}));
+        entry->parent.handle=OpenProcess(SYNCHRONIZE,FALSE,entry->parent_pid);REQUIRE(entry->parent.handle);CHECK(WaitForSingleObject(entry->parent.handle,0)==WAIT_TIMEOUT);
+        if(value==-2){REQUIRE(entry->child_pid!=0);entry->child.handle=OpenProcess(SYNCHRONIZE,FALSE,entry->child_pid);REQUIRE(entry->child.handle);CHECK(WaitForSingleObject(entry->child.handle,0)==WAIT_TIMEOUT);}
+        const auto counts=workspace.background_run_counts();CHECK(counts.active==1);CHECK(counts.pending==0);REQUIRE(std::filesystem::remove(root/"entry-hold.txt"));return entry;
+    };
+    const auto record=[&](int round,const std::string& phase,const Entered& entry){
+        std::filesystem::path archive;for(const auto& dir:std::filesystem::directory_iterator(root/"run-logs"))if(!seen.contains(dir.path())&&std::filesystem::is_regular_file(dir.path()/"events.jsonl")){REQUIRE(archive.empty());archive=dir.path();}
+        REQUIRE_FALSE(archive.empty());seen.insert(archive);std::ifstream in(archive/"events.jsonl");std::string line;REQUIRE(static_cast<bool>(std::getline(in,line)));const auto row=juce::JSON::parse(line);
+        CHECK(row["text"].toString().contains("pid="+juce::String(entry.parent_pid)));
+        juce::DynamicObject::Ptr receipt=new juce::DynamicObject;receipt->setProperty("round",round);receipt->setProperty("phase",juce::String(phase));receipt->setProperty("parent_pid",static_cast<juce::int64>(entry.parent_pid));receipt->setProperty("child_pid",static_cast<juce::int64>(entry.child_pid));receipt->setProperty("request_id",row["request_id"]);receipt->setProperty("archive",juce::String((archive/"events.jsonl").lexically_relative(root).generic_string()));receipts.add(juce::var(receipt.get()));
+    };
+    const auto finish=[&](bool error){REQUIRE(pump([&]{observe();return error?status->status_text().contains("cycle-failure"):status->status_text().contains("Completed run");}));REQUIRE(pump(idle));observe();CHECK(WaitForSingleObject(canary.handle,0)==WAIT_TIMEOUT);};
+    {auto warmup=begin(.5);finish(false);CHECK(WaitForSingleObject(warmup->parent.handle,0)==WAIT_OBJECT_0);record(-1,"warmup",*warmup);}
+    DWORD baseline=0;REQUIRE(GetProcessHandleCount(GetCurrentProcess(),&baseline));
+    for(int round=0;round<20;++round){INFO(round);
+        {auto success=begin(.5);finish(false);CHECK(WaitForSingleObject(success->parent.handle,0)==WAIT_OBJECT_0);record(round,"success",*success);}
+        {auto error=begin(-1);finish(true);CHECK(WaitForSingleObject(error->parent.handle,0)==WAIT_OBJECT_0);CHECK(logs->getText().contains("cycle-log"));CHECK_FALSE(status->status_text().contains("Completed run"));record(round,"error",*error);}
+        {auto cancelled=begin(-2);REQUIRE(pump([&]{observe();return logs->getText().contains("cycle-log");}));record(round,"cancel",*cancelled);
+            auto recovery=begin(.5,cancelled.get());finish(false);CHECK(WaitForSingleObject(recovery->parent.handle,0)==WAIT_OBJECT_0);record(round,"recovery",*recovery);}
+        REQUIRE(idle());DWORD handles=0;REQUIRE(GetProcessHandleCount(GetCurrentProcess(),&handles));CHECK(handles<=baseline);
+        juce::DynamicObject::Ptr receipt=new juce::DynamicObject;receipt->setProperty("round",round);receipt->setProperty("handles",static_cast<juce::int64>(handles));receipt->setProperty("active",static_cast<int>(workspace.background_run_counts().active));receipt->setProperty("pending",static_cast<int>(workspace.background_run_counts().pending));receipt->setProperty("worker_jobs",workspace.background_job_count());receipt->setProperty("ui_bytes",static_cast<juce::int64>(logs->getText().getNumBytesAsUTF8()));rounds.add(juce::var(receipt.get()));
+        std::ofstream(root/"cycles-progress.json")<<juce::JSON::toString(rounds,false).toStdString();
+    }
+    std::size_t success_count=0;for(const auto& dir:std::filesystem::directory_iterator(root/"runs"))if(std::filesystem::is_regular_file(dir.path()/"run.json")){
+        ++success_count;const auto read=read_wav_file(dir.path()/"output.wav");REQUIRE(std::holds_alternative<AudioBuffer>(read));const auto& output=std::get<AudioBuffer>(read);REQUIRE(output.frame_count()==513);for(std::size_t n=0;n<513;++n)CHECK(output.channel(0)[n]==input.channel(0)[n]);}
+    CHECK(success_count==41);CHECK(receipts.size()==81);CHECK(WaitForSingleObject(canary.handle,0)==WAIT_TIMEOUT);
+    std::ofstream(root/"cycles.json")<<juce::JSON::toString(receipts,false).toStdString();
+    std::ofstream(root/"cycle-limits.json")<<"{\"rounds\":20,\"tasks\":81,\"baseline_handles\":"<<baseline<<",\"maximum_ui_bytes\":"<<maximum_ui_bytes<<",\"success_outputs\":"<<success_count<<"}";
+    int drained=0;workspace.begin_shutdown([&]{++drained;});REQUIRE(pump([&]{return drained==1;}));CHECK(workspace.background_job_count()==0);
+#endif
+}
+
+namespace {
+struct MixedFormulaProfile {int direction,sample_rate,channels,frames,host;};
+void mixed_formula_scenario(const std::vector<MixedFormulaProfile>& profiles,const char* slice,int gui_repeats=1) {
+#if !defined(_WIN32) || !AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    SKIP("Requires Windows Python-enabled editor and fresh CLI");
+#else
+    using namespace audioalgo;using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops"/slice/"artifacts"/juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root);std::cout<<"PC05_FORMULA_ROOT="<<root.generic_string()<<'\n';
+    auto registry=std::make_shared<NodeRegistry>();REQUIRE(register_builtin_nodes(*registry));auto service=std::make_shared<PythonAuthoring>(root/"library");
+    auto draft=python_draft("pc05-stateful-formula",PythonTemplate::stateful_ramp);
+    auto definition=juce::JSON::parse(draft.declaration);definition.getDynamicObject()->setProperty("type_id","user.pc05_transform");
+    draft.declaration=juce::JSON::toString(definition,false).toStdString();
+    draft.source="import numpy as np\ndef process(inputs, params, state):\n    audio=inputs['audio_in']\n    start=int(state.get('frame',0))\n    if start==0: print('pc05-start gain='+str(params['gain'])+' step='+str(params['step']),flush=True)\n    n=np.arange(start,start+audio.shape[1],dtype=np.float64)\n    ramp=np.asarray(n*float(params['step']),dtype=np.float32)\n    state['frame']=start+audio.shape[1]\n    state['calls']=int(state.get('calls',0))+1\n    state['maximum_block']=max(int(state.get('maximum_block',0)),audio.shape[1])\n    return {'audio_out':np.asarray(audio*np.float32(params['gain'])+ramp[None,:],dtype=np.float32)}\n\ndef reset(state,reason):\n    print('pc05-end frames='+str(state.get('frame',0))+' calls='+str(state.get('calls',0))+' max_block='+str(state.get('maximum_block',0))+' reason='+str(reason),flush=True)\n    state.clear()\n";
+    const auto test_host=juce::File::getSpecialLocation(juce::File::currentExecutableFile);const auto host_hash=juce::SHA256(test_host).toHexString();
+    auto cancel=std::make_shared<std::atomic<bool>>(false);const auto checked=service->check(draft,cancel);REQUIRE(std::holds_alternative<ReadyPackage>(checked));
+    const auto applied=service->apply(std::get<ReadyPackage>(checked),draft,registry,cancel);REQUIRE(std::holds_alternative<AppliedPackage>(applied));*registry=*std::get<AppliedPackage>(applied).catalog;
+    CHECK(juce::SHA256(test_host).toHexString()==host_hash);
+    const auto previous=juce::SystemStats::getEnvironmentVariable("AUDIOALGO_AUTHORING_ROOT",{}).toStdString();
+    struct RestoreEnv{std::string value;~RestoreEnv(){_putenv_s("AUDIOALGO_AUTHORING_ROOT",value.c_str());}}restore{previous};
+    REQUIRE(_putenv_s("AUDIOALGO_AUTHORING_ROOT",(root/"library").string().c_str())==0);
+    const auto cli=test_host.getSiblingFile("audio_cli.exe");REQUIRE(cli.existsAsFile());const auto cli_hash=juce::SHA256(cli).toHexString();
+    juce::Array<juce::var> receipts;
+    for(std::size_t index=0;index<profiles.size();++index){
+        const auto profile=profiles[index];INFO(index);INFO(profile.direction);
+        const auto folder=root/("case-"+std::to_string(index));std::filesystem::create_directories(folder);
+        std::vector<std::string> channels;for(int c=0;c<profile.channels;++c)channels.push_back("ch"+std::to_string(c));
+        AudioBuffer input(profile.sample_rate,channels,profile.frames);
+        for(int c=0;c<profile.channels;++c)for(int n=0;n<profile.frames;++n)input.mutable_channel(c)[n]=static_cast<float>(.2*std::sin(.03*(n+1))+.02*c);
+        REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(folder/"input.wav",input,WavEncoding::float32)));
+        ProjectModel project;project.schema_version=2;project.project_id="pc05-formula-"+std::to_string(index);project.revision=7;project.selected_output_node_id="output";
+        project.nodes={{"file","builtin.file_source",{{"path",std::string("input.wav")}},20,100}};
+        const auto python_node=[&](const char* id,double gain,double step){auto node=editor::make_node_instance(*registry,{},"user.pc05_transform",id,220+200*(id[0]-'A'),100);REQUIRE(node);node->parameters["gain"]=gain;node->parameters["step"]=step;return *node;};
+        constexpr double twice_db=6.020599913279624;
+        if(profile.direction==0){project.nodes.push_back({"A","builtin.gain",{{"gain_db",twice_db}},220,100});project.nodes.push_back(python_node("B",.25,.00001));project.nodes.push_back({"C","builtin.gain",{{"gain_db",-twice_db}},620,100});}
+        else{project.nodes.push_back(python_node("A",.5,.00001));project.nodes.push_back({"B","builtin.gain",{{"gain_db",twice_db}},420,100});project.nodes.push_back(python_node("C",.25,0));}
+        project.nodes.push_back({"output","builtin.output",{},820,100});
+        project.connections={{"file","audio","A","audio_in"},{"A","audio_out","B","audio_in"},{"B","audio_out","C","audio_in"},{"C","audio_out","output","audio"}};
+        const auto project_file=folder/"project.aaproj";REQUIRE(std::holds_alternative<std::monostate>(save_project_file(project_file,project)));
+        std::set<std::filesystem::path> seen;std::set<std::string> requests;
+        const auto verify=[&](const std::filesystem::path& run,const char* origin,int repeat){
+            const auto read=read_wav_file(run/"output.wav");REQUIRE(std::holds_alternative<AudioBuffer>(read));const auto& output=std::get<AudioBuffer>(read);
+            REQUIRE(output.frame_count()==static_cast<std::size_t>(profile.frames));CHECK(output.sample_rate_hz()==profile.sample_rate);CHECK(output.channel_ids()==input.channel_ids());CHECK(output.valid_interval()==input.valid_interval());
+            for(int c=0;c<profile.channels;++c)for(int n=0;n<profile.frames;++n){
+                const float x=input.channel(c)[n],state=static_cast<float>(1e-5*static_cast<double>(n));float expected=0;
+                if(profile.direction==0){const float a=x*2.f;const float b=static_cast<float>(a*.25f)+state;expected=b*.5f;}
+                else{const float a=static_cast<float>(x*.5f)+state;const float b=a*2.f;expected=b*.25f;}
+                CHECK(std::abs(output.channel(c)[n]-expected)<=2e-6+1e-5*std::abs(expected));
+            }
+            const auto record=juce::JSON::parse(juce::File((run/"run.json").generic_string()));REQUIRE(record.isObject());
+            CHECK(static_cast<int>(record["block_size"])==profile.host);CHECK(static_cast<int>(record["frames"])==profile.frames);CHECK(static_cast<int>(record["valid_start_frame"])==0);CHECK(static_cast<int>(record["valid_frame_count"])==profile.frames);
+            CHECK(record["project_id"].toString()==juce::String(project.project_id));CHECK(requests.insert(record["request_id"].toString().toStdString()).second);
+            juce::DynamicObject::Ptr receipt=new juce::DynamicObject;receipt->setProperty("profile",static_cast<int>(index));receipt->setProperty("direction",profile.direction);receipt->setProperty("sample_rate",profile.sample_rate);receipt->setProperty("channels",profile.channels);receipt->setProperty("frames",profile.frames);receipt->setProperty("host",profile.host);receipt->setProperty("origin",origin);receipt->setProperty("repeat",repeat);receipt->setProperty("project_file",juce::String(project_file.lexically_relative(root).generic_string()));receipt->setProperty("run",juce::String(run.lexically_relative(root).generic_string()));receipt->setProperty("request_id",record["request_id"]);receipts.add(juce::var(receipt.get()));
+        };
+        {
+            editor::EditorComponent workspace(registry,std::make_shared<FileDocuments>(),std::make_shared<ProjectResourceService>(),std::make_shared<Preview>(),std::make_shared<FileDraftStorage>(root/"drafts"),false,service,{},false,{},{},{},editor::RunConfiguration{profile.host});
+            workspace.open_project_file(project_file);REQUIRE(pump([&]{return workspace.controller().project().project_id==project.project_id;}));
+            for(int repeat=0;repeat<gui_repeats;++repeat){
+                click(workspace,"project.run");auto* status=control<editor::RunStatusPanel>(workspace,"project.status");REQUIRE(status);
+                const auto finished=pump([&]{return status->status_text().contains("Completed run");},10000);std::ofstream(folder/("gui-status-"+std::to_string(repeat)+".txt"))<<status->status_text().toStdString();INFO(status->status_text().toStdString());REQUIRE(finished);
+                auto* logs=control<editor::RunLogTextView>(workspace,"project.run_logs");REQUIRE(logs);CHECK(logs->getText().contains("pc05-start"));
+                std::filesystem::path run;for(const auto& dir:std::filesystem::directory_iterator(folder/"runs"))if(std::filesystem::is_regular_file(dir.path()/"run.json")&&!seen.contains(dir.path())){REQUIRE(run.empty());run=dir.path();}
+                REQUIRE_FALSE(run.empty());seen.insert(run);verify(run,"gui",repeat);std::ofstream(folder/("gui-log-"+std::to_string(repeat)+".txt"),std::ios::binary)<<logs->getText().toStdString();
+            }
+            int drained=0;workspace.begin_shutdown([&]{++drained;});REQUIRE(pump([&]{return drained==1;}));
+        }
+        const auto cli_run=folder/"cli-runs/run";
+        std::filesystem::create_directories(cli_run.parent_path());
+        struct CliResult{bool started=false,finished=false;int code=-1;juce::String output;};
+        auto future=std::async(std::launch::async,[&]{CliResult result;juce::ChildProcess child;result.started=child.start(juce::StringArray{cli.getFullPathName(),"run",juce::String(project_file.generic_string()),juce::String(cli_run.generic_string()),juce::String(profile.host)});if(!result.started)return result;auto reader=std::async(std::launch::async,[&]{return child.readAllProcessOutput();});result.finished=child.waitForProcessToFinish(10000);if(!result.finished)child.kill();result.output=reader.get();result.code=child.getExitCode();return result;});
+        REQUIRE(pump([&]{return future.wait_for(std::chrono::milliseconds(0))==std::future_status::ready;},11000));const auto outcome=future.get();
+        std::ofstream(folder/"cli-stdout.txt",std::ios::binary)<<outcome.output.toStdString();INFO(outcome.output.toStdString());REQUIRE(outcome.started);REQUIRE(outcome.finished);REQUIRE(outcome.code==0);verify(cli_run,"cli",0);
+        std::ofstream(root/"formula-progress.json")<<juce::JSON::toString(receipts,false).toStdString();
+    }
+    CHECK(juce::SHA256(test_host).toHexString()==host_hash);CHECK(juce::SHA256(cli).toHexString()==cli_hash);
+    std::ofstream(root/"formula-demo.json")<<juce::JSON::toString(receipts,false).toStdString();
+    std::ofstream(root/"host-hashes.json")<<"{\"test_host\":\""<<host_hash<<"\",\"cli\":\""<<cli_hash<<"\"}";
+#endif
+}
+} // namespace
+
+TEST_CASE("PC-05.a production Run and fresh CLI execute both documented mixed formulas", "[PC-05.a][node_authoring][component]") {
+    mixed_formula_scenario({{0,48000,2,513,127},{1,48000,2,513,127}},"PC0501-mixed-formulas",2);
+}
+
+TEST_CASE("PC-05.a GUI CLI mixed formula matrix preserves state across formats frames and host partitions", "[PC-05.a][PC0502][node_authoring][component]") {
+    std::vector<MixedFormulaProfile> profiles;
+    for(int direction:{0,1})for(int rate:{16000,48000})for(int channels:{1,2,4})for(int frames:{1,513,16037})profiles.push_back({direction,rate,channels,frames,127});
+    // host127 is already present above; do not duplicate or add its count.
+    for(int direction:{0,1})for(int host:{1,512,1024})profiles.push_back({direction,48000,2,16037,host});
+    mixed_formula_scenario(profiles,"PC0502-mixed-matrix");
+}
+
+TEST_CASE("PC-05.b production Run and fresh CLI select named outputs with one shared upstream execution", "[PC-05.b][PC0503][node_authoring][component]") {
+#if !defined(_WIN32) || !AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    SKIP("Requires Windows Python-enabled editor and fresh CLI");
+#else
+    using namespace audioalgo;using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0503-named-shared/artifacts"/juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root);std::cout<<"PC05_NAMED_ROOT="<<root.generic_string()<<'\n';
+    auto registry=std::make_shared<NodeRegistry>();REQUIRE(register_builtin_nodes(*registry));auto service=std::make_shared<PythonAuthoring>(root/"library");
+    auto shared=python_draft("pc05-shared",PythonTemplate::stateful_ramp);
+    auto declaration=juce::JSON::parse(shared.declaration);declaration.getDynamicObject()->setProperty("type_id","user.pc05_shared");shared.declaration=juce::JSON::toString(declaration,false).toStdString();
+    shared.source=R"PY(import numpy as np
+def process(inputs,params,state):
+    audio=inputs['audio_in']
+    print('pc05-shared frame='+str(state.get('frame',0))+' count='+str(audio.shape[1]),flush=True)
+    state['frame']=int(state.get('frame',0))+audio.shape[1]
+    state['calls']=int(state.get('calls',0))+1
+    return {'audio_out':audio*np.float32(params['gain'])}
+def reset(state,reason):
+    print('pc05-shared-reset frames='+str(state.get('frame',0))+' calls='+str(state.get('calls',0))+' reason='+str(reason),flush=True)
+    state.clear()
+)PY";
+    auto named=python_draft("pc05-named",PythonTemplate::named_router);
+    declaration=juce::JSON::parse(named.declaration);declaration.getDynamicObject()->setProperty("type_id","user.pc05_named");named.declaration=juce::JSON::toString(declaration,false).toStdString();
+    named.source="import numpy as np\ndef process(inputs,params,state):\n    primary=inputs['primary']\n    reference=inputs['reference']\n    print('pc05-join count='+str(primary.shape[1]),flush=True)\n    return {'main':(np.float32(2)*primary+np.float32(3)*reference)*np.float32(params['gain']), 'side':primary-reference}\n";
+    auto cancel=std::make_shared<std::atomic<bool>>(false);
+    const auto install=[&](const Draft& draft){const auto checked=service->check(draft,cancel);if(auto* e=std::get_if<SourceDiagnostic>(&checked))INFO(e->code+": "+e->message);REQUIRE(std::holds_alternative<ReadyPackage>(checked));const auto applied=service->apply(std::get<ReadyPackage>(checked),draft,registry,cancel);REQUIRE(std::holds_alternative<AppliedPackage>(applied));*registry=*std::get<AppliedPackage>(applied).catalog;};
+    const auto host=juce::File::getSpecialLocation(juce::File::currentExecutableFile);const auto cli=host.getSiblingFile("audio_cli.exe");REQUIRE(cli.existsAsFile());const auto host_hash=juce::SHA256(host).toHexString(),cli_hash=juce::SHA256(cli).toHexString();
+    install(shared);install(named);
+    const auto previous=juce::SystemStats::getEnvironmentVariable("AUDIOALGO_AUTHORING_ROOT",{}).toStdString();struct RestoreNamedEnv{std::string value;~RestoreNamedEnv(){_putenv_s("AUDIOALGO_AUTHORING_ROOT",value.c_str());}}restore{previous};REQUIRE(_putenv_s("AUDIOALGO_AUTHORING_ROOT",(root/"library").string().c_str())==0);
+    AudioBuffer input(48000,{"ch0","ch1"},513);for(int c=0;c<2;++c)for(int n=0;n<513;++n)input.mutable_channel(c)[n]=static_cast<float>(.2*std::sin(.03*(n+1))+.02*c);
+    REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root/"input.wav",input,WavEncoding::float32)));
+    ProjectModel project;project.schema_version=2;project.project_id="pc05-named-shared";project.revision=7;project.selected_output_node_id="named";
+    const auto shared_node=editor::make_node_instance(*registry,{},"user.pc05_shared","shared",220,100),named_node=editor::make_node_instance(*registry,{},"user.pc05_named","named",640,100);REQUIRE(shared_node);REQUIRE(named_node);
+    constexpr double db=6.020599913279624;
+    project.nodes={{"file","builtin.file_source",{{"path",std::string("input.wav")}},20,100},*shared_node,{"primary-gain","builtin.gain",{{"gain_db",db}},430,40},{"reference-gain","builtin.gain",{{"gain_db",-db}},430,240},*named_node};
+    project.connections={{"file","audio","shared","audio_in"},{"shared","audio_out","primary-gain","audio_in"},{"shared","audio_out","reference-gain","audio_in"},{"primary-gain","audio_out","named","primary"},{"reference-gain","audio_out","named","reference"}};
+    juce::Array<juce::var> receipts;std::set<std::filesystem::path> seen;std::set<std::string> requests;
+    const auto verify=[&](const std::filesystem::path& run,const std::string& port,const char* origin,int repeat){
+        const auto read=read_wav_file(run/"output.wav");REQUIRE(std::holds_alternative<AudioBuffer>(read));const auto& audio=std::get<AudioBuffer>(read);REQUIRE(audio.frame_count()==513);CHECK(audio.sample_rate_hz()==48000);CHECK(audio.channel_ids()==input.channel_ids());CHECK(audio.valid_interval()==input.valid_interval());
+        for(int c=0;c<2;++c)for(int n=0;n<513;++n){const float upstream=input.channel(c)[n]*.5f,primary=upstream*2.f,reference=upstream*.5f;const float expected=port=="main"?(primary*2.f+reference*3.f)*.5f:primary-reference;CHECK(std::abs(audio.channel(c)[n]-expected)<=2e-6+1e-5*std::abs(expected));}
+        const auto record=juce::JSON::parse(juce::File((run/"run.json").generic_string()));CHECK(static_cast<int>(record["block_size"])==127);const auto saved=load_project_file(run/record["project_snapshot"].toString().toStdString());REQUIRE(std::holds_alternative<ProjectModel>(saved));CHECK(std::get<ProjectModel>(saved).selected_output_port_id==port);CHECK(requests.insert(record["request_id"].toString().toStdString()).second);
+        REQUIRE(record["task_artifacts"].getArray());REQUIRE(record["task_artifacts"].getArray()->size()==2);
+        for(const auto& artifact:*record["task_artifacts"].getArray()){const auto p=artifact["provenance"];const auto raw=juce::File(p["logs"]["complete_directory"].toString()).getChildFile("stdout.log").loadFileAsString();if(p["node_id"].toString()=="shared"){CHECK(raw.contains("pc05-shared frame=0 count=127"));CHECK(raw.contains("pc05-shared frame=508 count=5"));CHECK(raw.contains("pc05-shared-reset frames=513 calls=5 reason=run_complete"));CHECK(juce::StringArray::fromLines(raw).joinIntoString("|").contains("pc05-shared frame=381 count=127"));}else{CHECK(p["node_id"].toString()=="named");CHECK(raw.contains("pc05-join count=5"));}}
+        juce::DynamicObject::Ptr row=new juce::DynamicObject;row->setProperty("port",juce::String(port));row->setProperty("origin",origin);row->setProperty("repeat",repeat);row->setProperty("run",juce::String(run.lexically_relative(root).generic_string()));row->setProperty("project",juce::String(port+".aaproj"));row->setProperty("request_id",record["request_id"]);receipts.add(juce::var(row.get()));
+    };
+    editor::EditorComponent workspace(registry,std::make_shared<FileDocuments>(),std::make_shared<ProjectResourceService>(),std::make_shared<Preview>(),std::make_shared<FileDraftStorage>(root/"drafts"),false,service,{},false,{},{},{},editor::RunConfiguration{127});
+    for(const std::string port:{"main","side"}){
+        project.selected_output_port_id=port;const auto file=root/(port+".aaproj");REQUIRE(std::holds_alternative<std::monostate>(save_project_file(file,project)));workspace.open_project_file(file);REQUIRE(pump([&]{return workspace.controller().project().project_id==project.project_id&&workspace.controller().project().selected_output_port_id==port;}));
+        for(int repeat=0;repeat<2;++repeat){click(workspace,"project.run");auto* status=control<editor::RunStatusPanel>(workspace,"project.status");REQUIRE(status);const auto finished=pump([&]{return status->status_text().contains("Completed run");},10000);std::ofstream(root/(port+"-status-"+std::to_string(repeat)+".txt"))<<status->status_text().toStdString();INFO(status->status_text().toStdString());REQUIRE(finished);std::filesystem::path run;for(const auto& entry:std::filesystem::directory_iterator(root/"runs"))if(std::filesystem::is_regular_file(entry.path()/"run.json")&&!seen.contains(entry.path())){REQUIRE(run.empty());run=entry.path();}REQUIRE_FALSE(run.empty());seen.insert(run);verify(run,port,"gui",repeat);auto* logs=control<editor::RunLogTextView>(workspace,"project.run_logs");REQUIRE(logs);CHECK(logs->getText().contains("pc05-shared"));CHECK(logs->getText().contains("pc05-join"));std::ofstream(root/(port+"-gui-log-"+std::to_string(repeat)+".txt"))<<logs->getText().toStdString();}
+        const auto destination=root/"cli-runs"/port;std::filesystem::create_directories(destination.parent_path());
+        auto future=std::async(std::launch::async,[&]{juce::ChildProcess child;if(!child.start(juce::StringArray{cli.getFullPathName(),"run",juce::String(file.generic_string()),juce::String(destination.generic_string()),"127"}))return -1;auto reader=std::async(std::launch::async,[&]{return child.readAllProcessOutput();});const auto finished=child.waitForProcessToFinish(10000);if(!finished)child.kill();const auto text=reader.get();std::ofstream(root/(port+"-cli-stdout.txt"))<<text.toStdString();return finished?static_cast<int>(child.getExitCode()):-2;});REQUIRE(pump([&]{return future.wait_for(std::chrono::milliseconds(0))==std::future_status::ready;},11000));REQUIRE(future.get()==0);verify(destination,port,"cli",0);
+        std::ofstream(root/"named-progress.json")<<juce::JSON::toString(receipts,false).toStdString();
+    }
+    int drained=0;workspace.begin_shutdown([&]{++drained;});REQUIRE(pump([&]{return drained==1;}));CHECK(juce::SHA256(host).toHexString()==host_hash);CHECK(juce::SHA256(cli).toHexString()==cli_hash);std::ofstream(root/"named-demo.json")<<juce::JSON::toString(receipts,false).toStdString();std::ofstream(root/"host-hashes.json")<<"{\"test_host\":\""<<host_hash<<"\",\"cli\":\""<<cli_hash<<"\"}";
+#endif
+}
+
+TEST_CASE("PC-05.c published v1 rejects unsupported timing capabilities before loading a module", "[PC-05.c][PC0504][node_authoring]") {
+    using namespace audioalgo;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0504-timing-contracts/artifacts"/juce::Uuid().toString().toStdString();std::filesystem::create_directories(root);std::cout<<"PC05_CAPABILITY_ROOT="<<root.generic_string()<<'\n';
+    const auto original=juce::File(juce::String(AUDIOALGO_SOURCE_DIR)).getChildFile("examples/plugins/native_stateful/manifest.json.in").loadFileAsString().replace("@PLUGIN_REVISION@","1");REQUIRE(original.isNotEmpty());
+    juce::Array<juce::var> receipts;
+    for(const std::string kind:{"stream","offline","tail","control"}){
+        const auto path=root/kind;std::filesystem::create_directories(path);const auto manifest=juce::JSON::parse(original);REQUIRE(manifest["nodes"].getArray());auto* node=(*manifest["nodes"].getArray())[0].getDynamicObject();REQUIRE(node);
+        if(kind=="stream")node->setProperty("uses_streaming_frame_api",true);
+        if(kind=="offline")node->setProperty("requires_offline_task",true);
+        if(kind=="tail")node->setProperty("tail_frames",1);
+        const std::string sentinel="PC0504 not a DLL\n";std::ofstream(path/"external_stateful.dll",std::ios::binary)<<sentinel;std::ofstream(path/"manifest.json")<<juce::JSON::toString(manifest,false).toStdString();
+        NodeRegistry registry;REQUIRE(register_builtin_nodes(registry));const auto result=load_native_plugins(registry,{path});CHECK(result.loaded_plugin_ids.empty());REQUIRE(result.diagnostics.size()==1);
+#ifdef _WIN32
+        const auto control_error="plugin_library_load_failed";
+#else
+        const auto control_error="plugin_platform_incompatible";
+#endif
+        const auto expected=kind=="control"?control_error:"plugin_capability_unsupported";INFO(kind);CHECK(result.diagnostics[0].code==expected);CHECK_FALSE(registry.find("example.external_stateful"));CHECK(registry.find("builtin.gain"));CHECK(juce::File((path/"external_stateful.dll").generic_string()).loadFileAsString().toStdString()==sentinel);
+        juce::DynamicObject::Ptr row=new juce::DynamicObject;row->setProperty("kind",juce::String(kind));row->setProperty("code",juce::String(result.diagnostics[0].code));row->setProperty("message",juce::String(result.diagnostics[0].message));receipts.add(juce::var(row.get()));
+    }
+    std::ofstream(root/"capability-probe.json")<<juce::JSON::toString(receipts,false).toStdString();
+}
+
+TEST_CASE("PC-06.b native SDK logs reach production mixed Run before terminal with exact instance identity", "[PC-06.b][PC0603][node_authoring][component]") {
+#if !defined(_WIN32) || !AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    SKIP("Requires Windows SDK DLL and Python-enabled production workspace");
+#else
+    using namespace audioalgo;using namespace audioalgo::authoring;juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0603-native-live/artifacts"/juce::Uuid().toString().toStdString();std::filesystem::create_directories(root);std::cout<<"PC06_NATIVE_ROOT="<<root.generic_string()<<'\n';
+    const auto external=juce::JSON::parse(juce::File(juce::String(AUDIOALGO_SOURCE_DIR)).getChildFile("build/reports/loops/PC0602-log-negotiation/external-path.json"));REQUIRE(external.isObject());const auto package=std::filesystem::path(external["external"].toString().toStdString())/"build/good";REQUIRE(std::filesystem::is_regular_file(package/"native_logging.dll"));
+    const auto dll_hash=juce::SHA256(juce::File((package/"native_logging.dll").generic_string())).toHexString();auto registry=std::make_shared<NodeRegistry>();REQUIRE(register_builtin_nodes(*registry));const auto found=load_native_plugins(*registry,{package});REQUIRE(found.diagnostics.empty());REQUIRE(registry->find("example.sdk_logging"));
+    auto service=std::make_shared<PythonAuthoring>(root/"library");auto draft=python_draft("pc06-mixed",PythonTemplate::stateful_ramp);auto definition=juce::JSON::parse(draft.declaration);definition.getDynamicObject()->setProperty("type_id","user.pc06_transform");definition["parameters"].getArray()->add(juce::JSON::parse(R"({"id":"hold","type":"bool","default":false})"));draft.declaration=juce::JSON::toString(definition,false).toStdString();
+    const auto gate=root/"gate";const auto gate_literal=juce::JSON::toString(juce::var(juce::String(gate.generic_string())),true).toStdString();
+    draft.source="import numpy as np\nfrom pathlib import Path\nimport time\ndef process(inputs,params,state):\n    audio=inputs['audio_in']\n    start=int(state.get('frame',0))\n    if start==0:\n        print('pc06-python-start',flush=True)\n        if params['hold']:\n            gate=Path("+gate_literal+")\n            gate.with_suffix('.entered').write_text('ready',encoding='utf-8')\n            while not gate.with_suffix('.release').is_file(): time.sleep(.005)\n    ramp=np.asarray(np.arange(start,start+audio.shape[1],dtype=np.float64)*float(params['step']),dtype=np.float32)\n    state['frame']=start+audio.shape[1]\n    return {'audio_out':audio*np.float32(params['gain'])+ramp[None,:]}\ndef reset(state,reason):\n    state.clear()\n";
+    auto cancel=std::make_shared<std::atomic<bool>>(false);const auto checked=service->check(draft,cancel);REQUIRE(std::holds_alternative<ReadyPackage>(checked));const auto applied=service->apply(std::get<ReadyPackage>(checked),draft,registry,cancel);REQUIRE(std::holds_alternative<AppliedPackage>(applied));*registry=*std::get<AppliedPackage>(applied).catalog;
+    const auto previous=juce::SystemStats::getEnvironmentVariable("AUDIOALGO_AUTHORING_ROOT",{}).toStdString();struct RestoreNativeEnv{std::string value;~RestoreNativeEnv(){_putenv_s("AUDIOALGO_AUTHORING_ROOT",value.c_str());}}restore{previous};REQUIRE(_putenv_s("AUDIOALGO_AUTHORING_ROOT",(root/"library").string().c_str())==0);
+    AudioBuffer input(48000,{"ch0","ch1"},513);for(int c=0;c<2;++c)for(int n=0;n<513;++n)input.mutable_channel(c)[n]=static_cast<float>(.2*std::sin(.03*(n+1))+.02*c);REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root/"input.wav",input,WavEncoding::float32)));
+    ProjectModel project;project.schema_version=2;project.project_id="pc06-sdk-mixed";project.revision=7;project.selected_output_node_id="output";const auto python=editor::make_node_instance(*registry,{},"user.pc06_transform","python",420,100);REQUIRE(python);auto python_node=*python;python_node.parameters["gain"]=.25;python_node.parameters["step"]=.00001;python_node.parameters["hold"]=true;
+    project.nodes={{"file","builtin.file_source",{{"path",std::string("input.wav")}},20,100},{"native-A","example.sdk_logging",{},220,100},python_node,{"native-C","example.sdk_logging",{},620,100},{"output","builtin.output",{},820,100}};project.connections={{"file","audio","native-A","audio_in"},{"native-A","audio_out","python","audio_in"},{"python","audio_out","native-C","audio_in"},{"native-C","audio_out","output","audio"}};const auto file=root/"project.aaproj";REQUIRE(std::holds_alternative<std::monostate>(save_project_file(file,project)));
+    const auto host=juce::File::getSpecialLocation(juce::File::currentExecutableFile),cli=host.getSiblingFile("audio_cli.exe");REQUIRE(cli.existsAsFile());const auto host_hash=juce::SHA256(host).toHexString(),cli_hash=juce::SHA256(cli).toHexString();
+    editor::EditorComponent workspace(registry,std::make_shared<FileDocuments>(),std::make_shared<ProjectResourceService>(),std::make_shared<Preview>(),std::make_shared<FileDraftStorage>(root/"drafts"),false,service,{},false,{},{},{},editor::RunConfiguration{127});
+    struct ReleaseNativeGate{std::filesystem::path gate;~ReleaseNativeGate(){std::ofstream(gate.replace_extension(".release"))<<"release";}}release{gate};
+    workspace.open_project_file(file);REQUIRE(pump([&]{return workspace.controller().project().project_id==project.project_id;}));std::set<std::filesystem::path> seen;juce::Array<juce::var> receipts;
+    const auto verify=[&](const std::filesystem::path& run,const char* origin,int repeat){const auto read=read_wav_file(run/"output.wav");REQUIRE(std::holds_alternative<AudioBuffer>(read));const auto& output=std::get<AudioBuffer>(read);REQUIRE(output.frame_count()==513);CHECK(output.channel_ids()==input.channel_ids());CHECK(output.valid_interval()==input.valid_interval());CHECK(output.sample_rate_hz()==48000);for(int c=0;c<2;++c)for(int n=0;n<513;++n){const float a=input.channel(c)[n]*2.f;const float b=a*.25f+static_cast<float>(1e-5*static_cast<double>(n));const float expected=b*2.f;CHECK(std::abs(output.channel(c)[n]-expected)<=2e-6+1e-5*std::abs(expected));}const auto record=juce::JSON::parse(juce::File((run/"run.json").generic_string()));
+        std::map<std::string,std::vector<juce::var>> native_events;
+        for(const auto& directory:std::filesystem::directory_iterator(root/"run-logs")){const auto events=directory.path()/"events.jsonl";if(!std::filesystem::is_regular_file(events))continue;std::ifstream input_events(events);for(std::string line;std::getline(input_events,line);){const auto event=juce::JSON::parse(line);if(event["request_id"]==record["request_id"]&&event["source"].toString()=="native")native_events[event["node_id"].toString().toStdString()].push_back(event);}}
+        for(const std::string node:{"native-A","native-C"}){INFO(node);REQUIRE(native_events.contains(node));const auto& events=native_events.at(node);CHECK(events.back()["text"].toString()=="sdk-log reset");CHECK(std::count_if(events.begin(),events.end(),[](const auto& event){return event["text"].toString()=="sdk-log prepare";})==1);CHECK(std::count_if(events.begin(),events.end(),[](const auto& event){return event["text"].toString()=="sdk-log process";})==5);}
+        juce::DynamicObject::Ptr row=new juce::DynamicObject;row->setProperty("run",juce::String(run.lexically_relative(root).generic_string()));row->setProperty("origin",origin);row->setProperty("repeat",repeat);row->setProperty("request",record["request_id"]);receipts.add(juce::var(row.get()));};
+    for(int repeat=0;repeat<2;++repeat){click(workspace,"project.run");auto* logs=control<editor::RunLogTextView>(workspace,"project.run_logs");auto* status=control<editor::RunStatusPanel>(workspace,"project.status");REQUIRE(logs);REQUIRE(status);if(repeat==0){auto entered=gate;entered.replace_extension(".entered");REQUIRE(pump([&]{return std::filesystem::is_regular_file(entered);},5000));REQUIRE(pump([&]{return logs->getText().contains("pc06-python-start");},5000));CHECK_FALSE(status->status_text().contains("Completed run"));CHECK(logs->getText().contains("sdk-log prepare"));CHECK(logs->getText().contains("node=native-A"));std::ofstream(root/"live-native-log.txt")<<logs->getText().toStdString();auto released=gate;released.replace_extension(".release");std::ofstream(released)<<"release";}const auto finished=pump([&]{return status->status_text().contains("Completed run");},10000);std::ofstream(root/("status-"+std::to_string(repeat)+".txt"))<<status->status_text().toStdString();INFO(status->status_text().toStdString());REQUIRE(finished);CHECK(logs->getText().contains("node=native-A"));CHECK(logs->getText().contains("node=native-C"));CHECK(logs->getText().contains("sdk-log process"));std::ofstream(root/("ui-log-"+std::to_string(repeat)+".txt"))<<logs->getText().toStdString();std::filesystem::path run;for(const auto& entry:std::filesystem::directory_iterator(root/"runs"))if(std::filesystem::is_regular_file(entry.path()/"run.json")&&!seen.contains(entry.path())){REQUIRE(run.empty());run=entry.path();}REQUIRE_FALSE(run.empty());seen.insert(run);verify(run,"gui",repeat);}
+    const auto destination=root/"cli-runs/run";std::filesystem::create_directories(destination.parent_path());auto future=std::async(std::launch::async,[&]{juce::ChildProcess child;if(!child.start(juce::StringArray{cli.getFullPathName(),"run",juce::String(file.generic_string()),juce::String(destination.generic_string()),"127","--plugin-dir",juce::String(package.generic_string())}))return -1;auto reader=std::async(std::launch::async,[&]{return child.readAllProcessOutput();});const auto finished=child.waitForProcessToFinish(10000);if(!finished)child.kill();std::ofstream(root/"cli-stdout.txt")<<reader.get().toStdString();return finished?static_cast<int>(child.getExitCode()):-2;});REQUIRE(pump([&]{return future.wait_for(std::chrono::milliseconds(0))==std::future_status::ready;},11000));REQUIRE(future.get()==0);verify(destination,"cli",0);
+    int drained=0;workspace.begin_shutdown([&]{++drained;});REQUIRE(pump([&]{return drained==1;}));CHECK(juce::SHA256(host).toHexString()==host_hash);CHECK(juce::SHA256(cli).toHexString()==cli_hash);CHECK(juce::SHA256(juce::File((package/"native_logging.dll").generic_string())).toHexString()==dll_hash);std::ofstream(root/"native-demo.json")<<juce::JSON::toString(receipts,false).toStdString();std::ofstream(root/"native-dll.json")<<"{\"package\":"<<juce::JSON::toString(juce::var(juce::String(package.generic_string())),true)<<",\"sha256\":\""<<dll_hash<<"\",\"test_host_sha256\":\""<<host_hash<<"\",\"cli_sha256\":\""<<cli_hash<<"\"}";
+#endif
+}
+
+TEST_CASE("PC-06.c bound native SDK callback and reset allocate nothing while only the worker consumes logs", "[PC-06.c][PC0603][node_authoring]") {
+#if !defined(_WIN32)
+    SKIP("Requires Windows SDK DLL");
+#else
+    using namespace audioalgo;juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0603-native-live/allocations"/juce::Uuid().toString().toStdString();std::filesystem::create_directories(root);std::cout<<"PC06_ALLOC_ROOT="<<root.generic_string()<<'\n';
+    const auto external=juce::JSON::parse(juce::File(juce::String(AUDIOALGO_SOURCE_DIR)).getChildFile("build/reports/loops/PC0602-log-negotiation/external-path.json"));REQUIRE(external.isObject());const auto package=std::filesystem::path(external["external"].toString().toStdString())/"build/good";NodeRegistry registry;REQUIRE(load_native_plugins(registry,{package}).diagnostics.empty());auto made=registry.create_processor("example.sdk_logging","allocation-probe");REQUIRE(made.processor);auto& processor=*made.processor;
+    registry=NodeRegistry{};CHECK_FALSE(registry.find("example.sdk_logging"));
+    NodeExecutionContext context;context.node_id="allocation-probe";context.identity={"pc06-allocation",1,"pc06-allocation-request",1};context.worker_log_io_allowed=true;context.diagnostic_directory=(root/"logs").generic_string();std::vector<NodeLogEvent> events;bool worker_callbacks=true;const auto main_thread=std::this_thread::get_id();context.on_log=[&](NodeLogEvent event){worker_callbacks=worker_callbacks&&std::this_thread::get_id()!=main_thread;events.push_back(std::move(event));};
+    std::promise<std::optional<Diagnostic>> configured;auto ready=configured.get_future();std::promise<void> finished;auto may_drain=finished.get_future();auto worker=std::async(std::launch::async,[&]{configured.set_value(processor.freeze_task(context));may_drain.wait();return processor.drain_logs(context,true);});
+    struct FinishLogWorker{std::promise<void>& promise;bool sent=false;~FinishLogWorker(){if(!sent)promise.set_value();}}finish{finished};
+    REQUIRE_FALSE(ready.get());NodeParameters parameters;REQUIRE_FALSE(processor.prepare({{48000,1},127,&parameters}));std::array<float,127> input{},output{};input.fill(.125f);const float* input_pointer=input.data();float* output_pointer=output.data();std::array<AudioInputPortBlock,1> inputs{{{"audio_in",{&input_pointer,1}}}};std::array<AudioOutputPortBlock,1> outputs{{{"audio_out",{&output_pointer,1}}}};bool processed=true;
+    test::begin_allocation_count();for(int n=0;n<10;++n){const auto result=processor.process_named_block({48000,127,inputs,outputs});processed=processed&&std::holds_alternative<AudioBlockResult>(result);}processor.reset();const auto allocations=test::end_allocation_count();CHECK(allocations==0);CHECK(processed);CHECK(std::all_of(output.begin(),output.end(),[](float value){return value==.25f;}));CHECK(events.empty());CHECK_FALSE(std::filesystem::exists(root/"logs"));
+    finished.set_value();finish.sent=true;const auto error=worker.get();if(error)INFO(error->code+": "+error->message);REQUIRE_FALSE(error);CHECK(worker_callbacks);REQUIRE(events.size()==12);CHECK(events.front().text=="sdk-log prepare");CHECK(events.back().text=="sdk-log reset");for(std::size_t n=0;n<events.size();++n){CHECK(events[n].sequence==n+1);CHECK(events[n].identity==context.identity);CHECK(events[n].node_id==context.node_id);CHECK(events[n].source=="native");}
+    juce::DynamicObject::Ptr receipt=new juce::DynamicObject;receipt->setProperty("allocations",static_cast<juce::int64>(allocations));receipt->setProperty("events",static_cast<int>(events.size()));receipt->setProperty("callbacks_worker_only",worker_callbacks);receipt->setProperty("raw_file",juce::String(events.front().raw_log_file));receipt->setProperty("dll",juce::String((package/"native_logging.dll").generic_string()));std::ofstream(root/"allocation-probe.json")<<juce::JSON::toString(juce::var(receipt.get()),false).toStdString();
+#endif
+}
+
+TEST_CASE("PC-06.b real SDK Unicode levels and embedded NUL survive production Run archive history and copy", "[PC-06.b][PC-04.a][PC0604][node_authoring][component]") {
+#if !defined(_WIN32)
+    SKIP("Requires Windows SDK DLL");
+#else
+    using namespace audioalgo;juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0604-native-text/artifacts"/juce::Uuid().toString().toStdString();std::filesystem::create_directories(root);std::cout<<"PC0604_TEXT_ROOT="<<root.generic_string()<<'\n';
+    const auto external=juce::JSON::parse(juce::File(juce::String(AUDIOALGO_SOURCE_DIR)).getChildFile("build/reports/loops/PC0604-native-text/external-path.json"));REQUIRE(external.isObject());const auto package=std::filesystem::path(external["external"].toString().toStdString())/"build";
+    auto registry=std::make_shared<NodeRegistry>();REQUIRE(register_builtin_nodes(*registry));const auto discovery=load_native_plugins(*registry,{package});REQUIRE(discovery.diagnostics.empty());REQUIRE(registry->find("example.sdk_logging"));
+    const auto host=juce::File::getSpecialLocation(juce::File::currentExecutableFile),cli=host.getSiblingFile("audio_cli.exe");REQUIRE(cli.existsAsFile());const auto host_hash=juce::SHA256(host).toHexString(),cli_hash=juce::SHA256(cli).toHexString(),dll_hash=juce::SHA256(juce::File((package/"native_logging.dll").generic_string())).toHexString();
+    AudioBuffer input(48000,{"ch0","ch1"},513);for(int c=0;c<2;++c)for(int n=0;n<513;++n)input.mutable_channel(c)[n]=static_cast<float>(.125*std::sin(.03*(n+1))+.02*c);REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root/"input.wav",input,WavEncoding::float32)));
+    ProjectModel project;project.schema_version=2;project.project_id="pc0604-native-text";project.revision=9;project.selected_output_node_id="output";project.nodes={{"file","builtin.file_source",{{"path",std::string("input.wav")}},20,100},{"native","example.sdk_logging",{},220,100},{"output","builtin.output",{},420,100}};project.connections={{"file","audio","native","audio_in"},{"native","audio_out","output","audio"}};const auto file=root/"project.aaproj";REQUIRE(std::holds_alternative<std::monostate>(save_project_file(file,project)));
+    constexpr char info_bytes[]="info before\0after \"' $() `literal` \x01\x1b" "END\r\n";
+    const std::array<std::string,4> texts{"debug \xe4\xb8\xad\xe6\x96\x87 \xf0\x9f\x8e\xa7\r\n",std::string(info_bytes,sizeof(info_bytes)-1),"warning <b>plain</b>\n","error terminal\n"};const std::array<std::string,4> levels{"debug","info","warning","error"};juce::Array<juce::var> receipts;
+    const auto verify=[&](const std::filesystem::path& run,const char* origin){const auto record=juce::JSON::parse(juce::File((run/"run.json").generic_string()));REQUIRE(record.isObject());const auto read=read_wav_file(run/"output.wav");REQUIRE(std::holds_alternative<AudioBuffer>(read));const auto& output=std::get<AudioBuffer>(read);CHECK(output.frame_count()==513);CHECK(output.channel_ids()==input.channel_ids());CHECK(output.sample_rate_hz()==48000);CHECK(output.valid_interval()==input.valid_interval());for(int c=0;c<2;++c)for(int n=0;n<513;++n)CHECK(output.channel(c)[n]==input.channel(c)[n]*2.f);
+        std::optional<editor::RunLogArchiveReference> archive;for(const auto& entry:std::filesystem::directory_iterator(root/"run-logs")){const auto events=entry.path()/"events.jsonl";if(!std::filesystem::is_regular_file(events))continue;std::ifstream in(events);std::string line;std::getline(in,line);const auto event=juce::JSON::parse(line);if(event["request_id"]==record["request_id"]){REQUIRE_FALSE(archive);archive=editor::RunLogArchiveReference{{project.project_id,static_cast<std::uint64_t>(static_cast<juce::int64>(record["session_epoch"])),record["request_id"].toString().toStdString(),9},events,1};}}
+        REQUIRE(archive);const auto tail=std::async(std::launch::async,[&]{return editor::RunLogArchiveReader::load(*archive,[]{return false;});}).get();REQUIRE(tail.notice.empty());REQUIRE(tail.events.size()==4);std::string raw_expected;std::uint64_t bytes=0;
+        for(std::size_t n=0;n<4;++n){INFO(n);const auto& event=tail.events[n];CHECK(event.text==texts[n]);CHECK(event.level==levels[n]);CHECK(event.source=="native");CHECK(event.identity==archive->identity);CHECK(event.node_id=="native");CHECK(event.package_id=="example.sdk_logging.text");CHECK(event.content_sha256==dll_hash.toStdString());CHECK(event.sequence==n+1);bytes+=texts[n].size();CHECK(event.total_bytes==bytes);CHECK(event.discarded_bytes==0);raw_expected+=texts[n];}
+        std::ifstream raw(std::filesystem::u8path(tail.events.front().raw_log_file),std::ios::binary);const std::string actual((std::istreambuf_iterator<char>(raw)),{});CHECK(actual==raw_expected);
+        juce::DynamicObject::Ptr row=new juce::DynamicObject;row->setProperty("run",juce::String(run.lexically_relative(root).generic_string()));row->setProperty("origin",origin);row->setProperty("request",record["request_id"]);row->setProperty("archive",juce::String(archive->file.lexically_relative(root).generic_string()));receipts.add(juce::var(row.get()));};
+    editor::EditorComponent workspace(registry,std::make_shared<FileDocuments>(),std::make_shared<ProjectResourceService>(),std::make_shared<Preview>(),std::make_shared<authoring::FileDraftStorage>(root/"drafts"),false,std::make_shared<authoring::PythonAuthoring>(root/"library"),{},false,{},{},{},editor::RunConfiguration{127});
+    workspace.open_project_file(file);REQUIRE(pump([&]{return workspace.controller().project().project_id==project.project_id;}));click(workspace,"project.run");auto* status=control<editor::RunStatusPanel>(workspace,"project.status");REQUIRE(status);REQUIRE(pump([&]{return status->status_text().contains("Completed run");}));auto* logs=control<editor::RunLogTextView>(workspace,"project.run_logs");REQUIRE(logs);auto* panel=control<editor::RunLogPanel>(workspace,"project.run_log_panel");
+    // Locate the containing production panel without depending on a new UI hook.
+    if(!panel)for(auto* parent=logs->getParentComponent();parent;parent=parent->getParentComponent())if((panel=dynamic_cast<editor::RunLogPanel*>(parent)))break;REQUIRE(panel);
+    const auto assert_display=[&]{const auto displayed=logs->getText();CHECK(displayed.contains(editor::utf8_literal("debug 中文 🎧\n")));CHECK(displayed.contains("info before\\0after \"' $() `literal` \\x01\\x1bEND\n"));CHECK(displayed.contains("warning <b>plain</b>"));CHECK(displayed.contains("error terminal"));CHECK(panel->text_for_copy()==displayed);};
+    assert_display();std::ofstream(root/"ui-live.txt",std::ios::binary)<<logs->getText().toStdString();std::filesystem::path gui_run;for(const auto& entry:std::filesystem::directory_iterator(root/"runs"))if(std::filesystem::is_regular_file(entry.path()/"run.json")){REQUIRE(gui_run.empty());gui_run=entry.path();}REQUIRE_FALSE(gui_run.empty());verify(gui_run,"gui");
+    auto* filter=control<juce::ComboBox>(workspace,"project.run_logs.level_filter");REQUIRE(filter);for(const auto& level:levels){int id=0;for(int n=0;n<filter->getNumItems();++n)if(filter->getItemText(n)==juce::String(level))id=filter->getItemId(n);REQUIRE(id>1);filter->setSelectedId(id,juce::sendNotificationSync);CHECK(logs->getText().contains(juce::String(level)));for(const auto& other:levels)if(other!=level)CHECK_FALSE(logs->getText().contains(juce::String(other)+" "));std::ofstream(root/("filter-"+level+".txt"),std::ios::binary)<<logs->getText().toStdString();}filter->setSelectedId(1,juce::sendNotificationSync);assert_display();
+    click(workspace,"project.run_logs.history_refresh");auto* history=control<juce::ComboBox>(workspace,"project.run_logs.history");REQUIRE(history);REQUIRE(pump([&]{return history->getNumItems()==2&&history->isEnabled();}));auto* history_status=control<juce::Label>(workspace,"project.run_logs.history_status");REQUIRE(history_status);history->setSelectedId(history->getItemId(1),juce::sendNotificationSync);REQUIRE(pump([&]{return history->isEnabled()&&history_status->getText().contains("Archived Run");}));assert_display();std::ofstream(root/"ui-history.txt",std::ios::binary)<<logs->getText().toStdString();history->setSelectedId(1,juce::sendNotificationSync);REQUIRE(pump([&]{return history->isEnabled()&&history_status->getText()=="Current Run";}));assert_display();
+    const auto destination=root/"cli-runs/run";std::filesystem::create_directories(destination.parent_path());auto child=std::async(std::launch::async,[&]{juce::ChildProcess process;if(!process.start(juce::StringArray{cli.getFullPathName(),"run",juce::String(file.generic_string()),juce::String(destination.generic_string()),"127","--plugin-dir",juce::String(package.generic_string())}))return -1;auto reader=std::async(std::launch::async,[&]{return process.readAllProcessOutput();});const auto finished=process.waitForProcessToFinish(10000);if(!finished)process.kill();std::ofstream(root/"cli-stdout.txt")<<reader.get().toStdString();return finished?static_cast<int>(process.getExitCode()):-2;});REQUIRE(pump([&]{return child.wait_for(std::chrono::milliseconds(0))==std::future_status::ready;},11000));REQUIRE(child.get()==0);verify(destination,"cli");
+    int drained=0;workspace.begin_shutdown([&]{++drained;});REQUIRE(pump([&]{return drained==1;}));CHECK(juce::SHA256(host).toHexString()==host_hash);CHECK(juce::SHA256(cli).toHexString()==cli_hash);CHECK(juce::SHA256(juce::File((package/"native_logging.dll").generic_string())).toHexString()==dll_hash);std::ofstream(root/"text-demo.json")<<juce::JSON::toString(receipts,false).toStdString();std::ofstream(root/"dll-identity.json")<<"{\"dll\":"<<juce::JSON::toString(juce::var(juce::String((package/"native_logging.dll").generic_string())),true)<<",\"sha256\":\""<<dll_hash<<"\",\"test_host_sha256\":\""<<host_hash<<"\",\"cli_sha256\":\""<<cli_hash<<"\"}";
+#endif
+}
+
+TEST_CASE("PC-06.a real legacy and SDK DLL nodes explain log capability in library Inspector and fresh CLI", "[PC-06.a][PC0605][node_authoring][component]") {
+#if !defined(_WIN32)
+    SKIP("Requires actual Windows SDK and preserved legacy DLLs");
+#else
+    using namespace audioalgo;juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0605-native-capability/artifacts"/juce::Uuid().toString().toStdString();std::filesystem::create_directories(root);std::cout<<"PC0605_CAP_ROOT="<<root.generic_string()<<'\n';const auto reports=juce::File(juce::String(AUDIOALGO_SOURCE_DIR)).getChildFile("build/reports/loops");
+    const auto external=juce::JSON::parse(reports.getChildFile("PC0602-log-negotiation/external-path.json"));REQUIRE(external.isObject());const auto sdk=std::filesystem::path(external["external"].toString().toStdString())/"build";const auto baseline=juce::JSON::parse(reports.getChildFile("PC0601-native-log-queue/baseline-identity.json"));REQUIRE(baseline.isObject());const auto old_dll=std::filesystem::path(baseline["artifacts"][1]["path"].toString().toStdString());const auto old_hash=baseline["artifacts"][1]["sha256"].toString();CHECK(juce::SHA256(juce::File(old_dll.generic_string())).toHexString()==old_hash);
+    const auto cli=juce::File::getSpecialLocation(juce::File::currentExecutableFile).getSiblingFile("audio_cli.exe");REQUIRE(cli.existsAsFile());const auto cli_hash=juce::SHA256(cli).toHexString();juce::Array<juce::var> receipts;
+    for(const std::string mode:{"legacy","absent","good"}) {
+        INFO(mode);const auto package=mode=="legacy"?old_dll.parent_path():sdk/mode;const auto dll=mode=="legacy"?old_dll:package/"native_logging.dll";const auto digest=juce::SHA256(juce::File(dll.generic_string())).toHexString();const auto type=mode=="legacy"?"example.external_stateful":"example.sdk_logging";const auto capability=mode=="good"?"sdk_v1":"unavailable";const auto caption=mode=="good"?"User logs: available.":"User logs: unavailable in this version.";
+        NodeRegistry registry;REQUIRE(register_builtin_nodes(registry));const auto loaded=load_native_plugins(registry,{package});REQUIRE(loaded.diagnostics.empty());const auto* descriptor=registry.find(type);REQUIRE(descriptor);const auto metadata=juce::JSON::parse(descriptor->backend_metadata_json);CHECK(metadata["user_logs"].toString()==capability);
+        editor::EditorController controller(registry);std::optional<editor::ProjectEditOutcome> added;editor::NodeLibrary library(registry,[&](std::string id){added=controller.add_node(id,"capability-node",200,100);},[]{return std::uint64_t{1};});library.setSize(220,600);auto* button=control<editor::NodeLibraryButton>(library,"library."+juce::String(type));REQUIRE(button);CHECK(button->getTooltip().contains(caption));click(library,("library."+std::string(type)).c_str());REQUIRE(added);REQUIRE(added->status==editor::ProjectEditStatus::applied);CHECK(controller.project().nodes.size()==1);
+        editor::NodeSelectionState selection;editor::NodeInspector inspector(controller,selection,[]{});inspector.set_descriptor_registry(registry);inspector.setSize(280,500);inspector.show_node("capability-node");
+        std::function<juce::Label*(juce::Component&)> details=[&](juce::Component& parent)->juce::Label*{if(auto* label=dynamic_cast<juce::Label*>(&parent);label&&label->getText().contains("ID capability-node"))return label;for(auto* child:parent.getChildren())if(auto* label=details(*child))return label;return nullptr;};auto* label=details(inspector);REQUIRE(label);CHECK(label->getText().contains(caption));CHECK(label->getText().contains(type));const auto revision=controller.revision();inspector.show_node("capability-node");CHECK(controller.revision()==revision);
+        auto* builtin=control<editor::NodeLibraryButton>(library,"library.builtin.gain");REQUIRE(builtin);CHECK_FALSE(builtin->getTooltip().contains("unavailable"));library.refresh(registry);button=control<editor::NodeLibraryButton>(library,"library."+juce::String(type));REQUIRE(button);CHECK(button->getTooltip().contains(caption));
+        auto future=std::async(std::launch::async,[&]{juce::ChildProcess child;if(!child.start(juce::StringArray{cli.getFullPathName(),"--plugin-dir",juce::String(package.generic_string()),"--list-nodes"}))return std::pair<int,juce::String>{-1,{}};const auto text=child.readAllProcessOutput();const auto finished=child.waitForProcessToFinish(10000);if(!finished)child.kill();return std::pair<int,juce::String>{finished?static_cast<int>(child.getExitCode()):-2,text};});REQUIRE(pump([&]{return future.wait_for(std::chrono::milliseconds(0))==std::future_status::ready;},11000));const auto [exit,text]=future.get();REQUIRE(exit==0);std::ofstream(root/("cli-"+mode+".json"))<<text.toStdString();const auto catalog=juce::JSON::parse(text);REQUIRE(catalog["nodes"].isArray());bool found=false;for(const auto& node:*catalog["nodes"].getArray())if(node["type_id"].toString()==type){found=true;CHECK(node["backend_descriptor"]["user_logs"].toString()==capability);CHECK(node["library_sha256"].toString()==digest);}CHECK(found);CHECK(juce::SHA256(juce::File(dll.generic_string())).toHexString()==digest);
+        juce::DynamicObject::Ptr receipt=new juce::DynamicObject;receipt->setProperty("mode",juce::String(mode));receipt->setProperty("dll",juce::String(dll.generic_string()));receipt->setProperty("dll_sha256",digest);receipt->setProperty("capability",capability);receipt->setProperty("library_tooltip",button->getTooltip());receipt->setProperty("inspector_text",label->getText());receipts.add(juce::var(receipt.get()));
+    }
+    CHECK(juce::SHA256(cli).toHexString()==cli_hash);std::ofstream(root/"capability-demo.json")<<juce::JSON::toString(receipts,false).toStdString();
+#endif
+}
+
+TEST_CASE("PC-04.b real native task shares exact sixteen MiB log budget across instances and recovers", "[PC-04.b][PC-06.c][PC0606][node_authoring]") {
+#if !defined(_WIN32)
+    SKIP("Requires Windows SDK DLL");
+#else
+    using namespace audioalgo;juce::ScopedJuceInitialiser_GUI gui;constexpr std::int64_t limit=16*1024*1024;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0606-native-budget/artifacts"/juce::Uuid().toString().toStdString();std::filesystem::create_directories(root);std::cout<<"PC0606_BUDGET_ROOT="<<root.generic_string()<<'\n';std::filesystem::create_directories(root/"runs");const auto external=juce::JSON::parse(juce::File(juce::String(AUDIOALGO_SOURCE_DIR)).getChildFile("build/reports/loops/PC0606-native-budget/external-path.json"));REQUIRE(external.isObject());const auto package=std::filesystem::path(external["external"].toString().toStdString())/"build";NodeRegistry registry;REQUIRE(register_builtin_nodes(registry));const auto discovery=load_native_plugins(registry,{package});REQUIRE(discovery.diagnostics.empty());RunService service(registry);
+    const auto cli=juce::File::getSpecialLocation(juce::File::currentExecutableFile).getSiblingFile("audio_cli.exe");REQUIRE(cli.existsAsFile());const auto cli_hash=juce::SHA256(cli).toHexString(),dll_hash=juce::SHA256(juce::File((package/"native_logging.dll").generic_string())).toHexString();
+    AudioBuffer input(48000,{"ch0","ch1"},513);for(int c=0;c<2;++c)for(int n=0;n<513;++n)input.mutable_channel(c)[n]=static_cast<float>(.125*std::sin(.03*(n+1))+.02*c);REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root/"input.wav",input,WavEncoding::float32)));
+    const auto graph=[&](const std::vector<std::int64_t>& bytes){ProjectModel p;p.schema_version=2;p.project_id="pc0606-native-budget";p.revision=11;p.selected_output_node_id="output";p.nodes={{"file","builtin.file_source",{{"path",std::string("input.wav")}},20,100},{"native-A","example.sdk_logging",{{"log_bytes",bytes[0]}},220,100},{"output","builtin.output",{},620,100}};p.connections={{"file","audio","native-A","audio_in"}};if(bytes.size()==2){p.nodes.push_back({"native-B","example.sdk_logging",{{"log_bytes",bytes[1]}},420,100});p.connections.push_back({"native-A","audio_out","native-B","audio_in"});}p.connections.push_back({bytes.size()==2?"native-B":"native-A","audio_out","output","audio"});return p;};
+    const auto numerical=[&](const std::filesystem::path& run,std::size_t instances){const auto read=read_wav_file(run/"output.wav");REQUIRE(std::holds_alternative<AudioBuffer>(read));const auto& output=std::get<AudioBuffer>(read);CHECK(output.frame_count()==513);CHECK(output.channel_ids()==input.channel_ids());CHECK(output.sample_rate_hz()==48000);CHECK(output.valid_interval()==input.valid_interval());for(int c=0;c<2;++c)for(int n=0;n<513;++n)CHECK(output.channel(c)[n]==input.channel(c)[n]*(instances==2?4.f:2.f));};
+    const auto perform=[&](const ProjectModel& project,const std::string& name,std::set<std::string>& raw,std::set<std::string>& reports){RunRequest request{project,root/"project.aaproj",root/"runs"/name,1};request.identity={project.project_id,23,juce::Uuid().toString().toStdString(),project.revision};request.on_log=[&](NodeLogEvent event){if(!event.raw_log_file.empty())raw.insert(event.raw_log_file);if(!event.report_file.empty())reports.insert(event.report_file);};auto future=std::async(std::launch::async,[&]{return service.run(request);});REQUIRE(pump([&]{return future.wait_for(std::chrono::milliseconds(0))==std::future_status::ready;},30000));auto outcome=future.get();const auto* failure=std::get_if<Diagnostic>(&outcome);std::ofstream(root/(name+"-outcome.txt"))<<(failure?failure->code+": "+failure->message:std::string("success"));return outcome;};
+    REQUIRE(std::holds_alternative<std::monostate>(save_project_file(root/"project.aaproj",graph({0,0}))));
+    std::set<std::string> unused_raw,unused_reports;const auto baseline=perform(graph({0,0}),"baseline",unused_raw,unused_reports);REQUIRE(std::holds_alternative<RunSuccess>(baseline));numerical(root/"runs/baseline",2);const auto prior_hash=juce::SHA256(juce::File((root/"runs/baseline/output.wav").generic_string())).toHexString();juce::Array<juce::var> receipts;
+    const std::vector<std::pair<std::string,std::vector<std::int64_t>>> cases{{"single-exact",{limit}},{"single-plus-one",{limit+1}},{"shared-exact",{limit/2,limit/2}},{"shared-plus-one",{limit/2,limit/2+1}},{"shared-flood",{limit,limit}}};
+    for(const auto& [name,bytes]:cases){INFO(name);const bool succeeds=name=="single-exact"||name=="shared-exact";const auto project=graph(bytes);REQUIRE(std::holds_alternative<std::monostate>(save_project_file(root/"project.aaproj",project)));std::set<std::string> raw,reports;const auto result=perform(project,name,raw,reports);std::uint64_t captured=0;for(const auto& file:raw)captured+=std::filesystem::file_size(std::filesystem::u8path(file));CHECK(captured<=static_cast<std::uint64_t>(limit));const auto* error=std::get_if<Diagnostic>(&result);CHECK(std::holds_alternative<RunSuccess>(result)==succeeds);
+        if(succeeds){REQUIRE(std::holds_alternative<RunSuccess>(result));numerical(root/"runs"/name,bytes.size());CHECK(captured==static_cast<std::uint64_t>(limit));}else{CHECK(error!=nullptr);if(error){CHECK(error->code=="log_limit");CHECK((error->node_id=="native-A"||error->node_id=="native-B"));}CHECK_FALSE(std::filesystem::exists(root/"runs"/name));CHECK_FALSE(std::filesystem::exists(root/"runs"/name/"complete.json"));}
+        CHECK(juce::SHA256(juce::File((root/"runs/baseline/output.wav").generic_string())).toHexString()==prior_hash);CHECK(std::filesystem::is_regular_file(root/"runs/baseline/complete.json"));REQUIRE(reports.size()==1);juce::DynamicObject::Ptr row=new juce::DynamicObject;row->setProperty("name",juce::String(name));row->setProperty("success",std::holds_alternative<RunSuccess>(result));row->setProperty("code",error?juce::String(error->code):juce::String{});row->setProperty("captured_bytes",static_cast<juce::int64>(captured));row->setProperty("archive",juce::String(*reports.begin()));juce::Array<juce::var> targets;for(auto value:bytes)targets.add(static_cast<juce::int64>(value));row->setProperty("log_bytes",targets);receipts.add(juce::var(row.get()));
+        auto recovered_project=graph(std::vector<std::int64_t>(bytes.size(),0));std::set<std::string> recovered_raw,recovered_reports;const auto recovered=perform(recovered_project,"recovery-"+name,recovered_raw,recovered_reports);REQUIRE(std::holds_alternative<RunSuccess>(recovered));numerical(root/"runs"/("recovery-"+name),bytes.size());CHECK(recovered_raw.empty());}
+    REQUIRE(std::holds_alternative<std::monostate>(save_project_file(root/"cli-shared-plus.aaproj",graph({limit/2,limit/2+1}))));std::filesystem::create_directories(root/"cli-runs");auto future=std::async(std::launch::async,[&]{juce::ChildProcess child;if(!child.start(juce::StringArray{cli.getFullPathName(),"run",juce::String((root/"cli-shared-plus.aaproj").generic_string()),juce::String((root/"cli-runs/shared-plus-one").generic_string()),"1","--plugin-dir",juce::String(package.generic_string())}))return std::pair<int,juce::String>{-1,{}};const auto text=child.readAllProcessOutput();const auto finished=child.waitForProcessToFinish(30000);if(!finished)child.kill();return std::pair<int,juce::String>{finished?static_cast<int>(child.getExitCode()):-2,text};});REQUIRE(pump([&]{return future.wait_for(std::chrono::milliseconds(0))==std::future_status::ready;},31000));const auto [exit,text]=future.get();CHECK(exit==1);CHECK(text.startsWith("log_limit [node="));CHECK_FALSE(std::filesystem::exists(root/"cli-runs/shared-plus-one"));std::ofstream(root/"cli-stdout.txt")<<text.toStdString();std::ofstream(root/"budget-demo.json")<<juce::JSON::toString(receipts,false).toStdString();CHECK(juce::SHA256(cli).toHexString()==cli_hash);CHECK(juce::SHA256(juce::File((package/"native_logging.dll").generic_string())).toHexString()==dll_hash);std::ofstream(root/"dll-identity.json")<<"{\"dll\":"<<juce::JSON::toString(juce::var(juce::String((package/"native_logging.dll").generic_string())),true)<<",\"sha256\":\""<<dll_hash<<"\",\"cli_sha256\":\""<<cli_hash<<"\"}";
+#endif
+}
+
+TEST_CASE("PC-06.c real native queue and message rejection preserve prefix fail safely and recover through production controls", "[PC-06.c][PC0607][node_authoring][component]") {
+#if !defined(_WIN32)
+    SKIP("Requires Windows SDK DLL");
+#else
+    using namespace audioalgo;juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0607-native-rejection/artifacts"/juce::Uuid().toString().toStdString();std::filesystem::create_directories(root);std::cout<<"PC0607_REJECT_ROOT="<<root.generic_string()<<'\n';const auto external=juce::JSON::parse(juce::File(juce::String(AUDIOALGO_SOURCE_DIR)).getChildFile("build/reports/loops/PC0607-native-rejection/external-path.json"));REQUIRE(external.isObject());const auto package=std::filesystem::path(external["external"].toString().toStdString())/"build";auto registry=std::make_shared<NodeRegistry>();REQUIRE(register_builtin_nodes(*registry));const auto discovery=load_native_plugins(*registry,{package});REQUIRE(discovery.diagnostics.empty());
+    const auto cli=juce::File::getSpecialLocation(juce::File::currentExecutableFile).getSiblingFile("audio_cli.exe");REQUIRE(cli.existsAsFile());const auto cli_hash=juce::SHA256(cli).toHexString(),dll_hash=juce::SHA256(juce::File((package/"native_logging.dll").generic_string())).toHexString();
+    const auto previous=juce::SystemStats::getEnvironmentVariable("AUDIOALGO_AUTHORING_ROOT",{}).toStdString();struct RestoreFaultEnv{std::string value;~RestoreFaultEnv(){_putenv_s("AUDIOALGO_AUTHORING_ROOT",value.c_str());}}restore{previous};REQUIRE(_putenv_s("AUDIOALGO_AUTHORING_ROOT",(root/"library").string().c_str())==0);
+    AudioBuffer input(48000,{"ch0","ch1"},513);for(int c=0;c<2;++c)for(int n=0;n<513;++n)input.mutable_channel(c)[n]=static_cast<float>(.125*std::sin(.03*(n+1))+.02*c);REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root/"input.wav",input,WavEncoding::float32)));
+    ProjectModel project;project.schema_version=2;project.project_id="pc0607-native-rejection";project.revision=13;project.selected_output_node_id="output";project.nodes={{"file","builtin.file_source",{{"path",std::string("input.wav")}},20,100},{"native","example.sdk_logging",{{"mode",std::string("ok")}},220,100},{"output","builtin.output",{},420,100}};project.connections={{"file","audio","native","audio_in"},{"native","audio_out","output","audio"}};const auto file=root/"project.aaproj";REQUIRE(std::holds_alternative<std::monostate>(save_project_file(file,project)));
+    editor::EditorComponent workspace(registry,std::make_shared<FileDocuments>(),std::make_shared<ProjectResourceService>(),std::make_shared<Preview>(),std::make_shared<authoring::FileDraftStorage>(root/"drafts"),false,std::make_shared<authoring::PythonAuthoring>(root/"library"),{},false,{},{},{},editor::RunConfiguration{127});workspace.open_project_file(file);REQUIRE(pump([&]{return workspace.controller().project().project_id==project.project_id;}));auto* canvas=control<editor::GraphCanvas>(workspace,"project.canvas");REQUIRE(canvas);canvas->select("native");
+    auto* status=control<editor::RunStatusPanel>(workspace,"project.status");auto* logs=control<editor::RunLogTextView>(workspace,"project.run_logs");REQUIRE(status);REQUIRE(logs);std::set<std::filesystem::path> archives,outputs;std::map<std::filesystem::path,juce::String> old_outputs;juce::Array<juce::var> receipts;const std::map<std::string,int> codes{{"ok",0},{"empty",0},{"full",1},{"utf8",4},{"length",3},{"size",2},{"version",2},{"level",2},{"null",2}};
+    const auto run=[&](const std::string& mode,const std::string& label){const bool success=mode=="ok"||mode=="empty";const auto code=success?"":mode=="full"?"native_log_queue_full":"native_log_message_invalid";auto* choice=control<juce::ComboBox>(workspace,"parameter.mode");REQUIRE(choice);int id=0;for(int n=0;n<choice->getNumItems();++n)if(choice->getItemText(n)==juce::String(mode))id=choice->getItemId(n);REQUIRE(id>0);choice->setSelectedId(id,juce::sendNotificationSync);click(workspace,"project.save");REQUIRE(pump([&]{return !workspace.controller().dirty()&&status->status_text().startsWith("Saved ")&&control<juce::TextButton>(workspace,"project.run")->isEnabled();}));REQUIRE(std::filesystem::copy_file(file,root/(label+".aaproj")));click(workspace,"project.run");const auto terminal=pump([&]{return control<juce::TextButton>(workspace,"project.run")->isEnabled()&&(success?status->status_text().contains("Completed run"):status->status_text().contains(code));},10000);std::ofstream(root/(label+"-status.txt"))<<status->status_text().toStdString();INFO(mode);INFO(status->status_text().toStdString());REQUIRE(terminal);CHECK(logs->getText().contains("fault-prefix"));CHECK(logs->getText().contains("node=native"));CHECK(logs->getText().contains(dll_hash));if(!success){CHECK_FALSE(status->status_text().contains("Completed run"));CHECK(logs->getText().contains(code));}if(mode=="full")CHECK(logs->getText().contains("1 messages / 1024 bytes rejected"));else CHECK(logs->getText().contains("fault-status="+juce::String(codes.at(mode))));std::ofstream(root/(label+"-ui.txt"),std::ios::binary)<<logs->getText().toStdString();
+        std::filesystem::path archive;for(const auto& entry:std::filesystem::directory_iterator(root/"run-logs"))if(std::filesystem::is_regular_file(entry.path()/"events.jsonl")&&!archives.contains(entry.path()/"events.jsonl")){REQUIRE(archive.empty());archive=entry.path()/"events.jsonl";}REQUIRE_FALSE(archive.empty());archives.insert(archive);std::ifstream events(archive);std::vector<juce::var> native,diagnostic;std::string request;for(std::string line;std::getline(events,line);){const auto event=juce::JSON::parse(line);REQUIRE(event.isObject());if(request.empty())request=event["request_id"].toString().toStdString();CHECK(event["request_id"].toString()==juce::String(request));CHECK(event["node_id"].toString()=="native");CHECK(event["package_id"].toString()=="example.sdk_logging.faults");CHECK(event["content_sha256"].toString()==dll_hash);if(event["source"].toString()=="native")native.push_back(event);else diagnostic.push_back(event);}REQUIRE_FALSE(native.empty());CHECK(native.front()["text"].toString()=="fault-prefix\n");CHECK(native.size()==(mode=="full"?64:mode=="empty"?3:2));CHECK(diagnostic.size()==(success?0:1));if(!success)CHECK(diagnostic.front()["text"].toString().startsWith(juce::String(code)+":"));
+        const auto raw=std::filesystem::u8path(native.front()["raw_log_file"].toString().toStdString());std::ifstream input_raw(raw,std::ios::binary);const std::string raw_text((std::istreambuf_iterator<char>(input_raw)),{});const auto expected=mode=="full"?std::string("fault-prefix\n")+std::string(63*1024,'F'):std::string("fault-prefix\nfault-status=")+std::to_string(codes.at(mode))+"\n";CHECK(raw_text==expected);CHECK(static_cast<juce::int64>(native.back()["total_bytes"])==static_cast<juce::int64>(mode=="full"?65549:28));CHECK(static_cast<juce::int64>(native.back()["discarded_bytes"])==(mode=="full"?1024:0));if(mode=="empty")CHECK(native[1]["text"].toString().isEmpty());CHECK(logs->getText().contains(juce::String(request)));
+        std::filesystem::path created;for(const auto& entry:std::filesystem::directory_iterator(root/"runs")){REQUIRE(std::filesystem::is_regular_file(entry.path()/"complete.json"));if(!outputs.contains(entry.path())){REQUIRE(created.empty());created=entry.path();}}CHECK(created.empty()!=success);if(success){REQUIRE_FALSE(created.empty());outputs.insert(created);const auto read=read_wav_file(created/"output.wav");REQUIRE(std::holds_alternative<AudioBuffer>(read));const auto& output=std::get<AudioBuffer>(read);CHECK(output.frame_count()==513);CHECK(output.channel_ids()==input.channel_ids());CHECK(output.sample_rate_hz()==48000);CHECK(output.valid_interval()==input.valid_interval());for(int c=0;c<2;++c)for(int n=0;n<513;++n)CHECK(output.channel(c)[n]==input.channel(c)[n]*2.f);old_outputs[created/"output.wav"]=juce::SHA256(juce::File((created/"output.wav").generic_string())).toHexString();}for(const auto& [path,hash]:old_outputs)CHECK(juce::SHA256(juce::File(path.generic_string())).toHexString()==hash);
+        juce::DynamicObject::Ptr row=new juce::DynamicObject;row->setProperty("mode",juce::String(mode));row->setProperty("label",juce::String(label));row->setProperty("success",success);row->setProperty("code",code);row->setProperty("request",juce::String(request));row->setProperty("archive",juce::String(archive.lexically_relative(root).generic_string()));row->setProperty("run",juce::String(created.empty()?std::string{}:created.lexically_relative(root).generic_string()));receipts.add(juce::var(row.get()));};
+    run("ok","baseline");run("empty","positive-empty");for(const std::string mode:{"full","utf8","length","size","version","level","null"}){run(mode,"failure-"+mode);run("ok","recovery-"+mode);}CHECK(outputs.size()==9);CHECK(archives.size()==16);
+    std::filesystem::create_directories(root/"cli-runs");for(const std::string mode:{"full","utf8"}){auto future=std::async(std::launch::async,[&]{juce::ChildProcess child;if(!child.start(juce::StringArray{cli.getFullPathName(),"run",juce::String((root/("failure-"+mode+".aaproj")).generic_string()),juce::String((root/"cli-runs"/mode).generic_string()),"127","--plugin-dir",juce::String(package.generic_string())}))return std::pair<int,juce::String>{-1,{}};const auto text=child.readAllProcessOutput();const auto finished=child.waitForProcessToFinish(10000);if(!finished)child.kill();return std::pair<int,juce::String>{finished?static_cast<int>(child.getExitCode()):-2,text};});REQUIRE(pump([&]{return future.wait_for(std::chrono::milliseconds(0))==std::future_status::ready;},11000));const auto [exit,text]=future.get();CHECK(exit==1);CHECK(text.startsWith(mode=="full"?"native_log_queue_full [node=native]":"native_log_message_invalid [node=native]"));CHECK_FALSE(std::filesystem::exists(root/"cli-runs"/mode));std::ofstream(root/("cli-"+mode+".txt"))<<text.toStdString();}
+    int drained=0;workspace.begin_shutdown([&]{++drained;});REQUIRE(pump([&]{return drained==1;}));CHECK(juce::SHA256(cli).toHexString()==cli_hash);CHECK(juce::SHA256(juce::File((package/"native_logging.dll").generic_string())).toHexString()==dll_hash);std::ofstream(root/"rejection-demo.json")<<juce::JSON::toString(receipts,false).toStdString();std::ofstream(root/"dll-identity.json")<<"{\"dll\":"<<juce::JSON::toString(juce::var(juce::String((package/"native_logging.dll").generic_string())),true)<<",\"sha256\":\""<<dll_hash<<"\",\"cli_sha256\":\""<<cli_hash<<"\"}";
+#endif
+}
+
+TEST_CASE("PC-06.c independent native regions retain separate sixteen MiB budgets through actual mixed Run and recovery", "[PC-06.c][PC0608][node_authoring]") {
+#if !defined(_WIN32) || !AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    SKIP("Requires actual Windows SDK DLL and enabled Python runtime");
+#else
+    using namespace audioalgo;using namespace audioalgo::authoring;juce::ScopedJuceInitialiser_GUI gui;constexpr std::int64_t limit=16*1024*1024;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0608-region-budget/artifacts"/juce::Uuid().toString().toStdString();std::filesystem::create_directories(root/"runs");std::cout<<"PC0608_REGION_ROOT="<<root.generic_string()<<'\n';const auto external=juce::JSON::parse(juce::File(juce::String(AUDIOALGO_SOURCE_DIR)).getChildFile("build/reports/loops/PC0606-native-budget/external-path.json"));REQUIRE(external.isObject());const auto package=std::filesystem::path(external["external"].toString().toStdString())/"build";auto registry=std::make_shared<NodeRegistry>();REQUIRE(register_builtin_nodes(*registry));const auto discovery=load_native_plugins(*registry,{package});REQUIRE(discovery.diagnostics.empty());const auto dll_hash=juce::SHA256(juce::File((package/"native_logging.dll").generic_string())).toHexString();
+    auto checks=std::make_shared<PythonAuthoring>(root/"library");auto draft=python_draft("pc0608-regions");auto declaration=juce::JSON::parse(draft.declaration);declaration.getDynamicObject()->setProperty("type_id","user.pc0608_quarter");draft.declaration=juce::JSON::toString(declaration,false).toStdString();draft.source="import numpy as np\ndef process(inputs,params,state):\n    return {'audio_out':inputs['audio_in']*np.float32(.25)}\n";auto cancel=std::make_shared<std::atomic<bool>>(false);const auto checked=checks->check(draft,cancel);REQUIRE(std::holds_alternative<ReadyPackage>(checked));const auto applied=checks->apply(std::get<ReadyPackage>(checked),draft,registry,cancel);REQUIRE(std::holds_alternative<AppliedPackage>(applied));*registry=*std::get<AppliedPackage>(applied).catalog;RunService service(registry);
+    AudioBuffer input(48000,{"ch0","ch1"},513);for(int c=0;c<2;++c)for(int n=0;n<513;++n)input.mutable_channel(c)[n]=static_cast<float>(.125*std::sin(.03*(n+1))+.02*c);REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root/"input.wav",input,WavEncoding::float32)));const auto python=editor::make_node_instance(*registry,{},"user.pc0608_quarter","python",420,100);REQUIRE(python);ProjectModel project;project.schema_version=2;project.project_id="pc0608-region-budget";project.revision=14;project.selected_output_node_id="output";project.nodes={{"file","builtin.file_source",{{"path",std::string("input.wav")}},20,100},{"native-A","example.sdk_logging",{{"log_bytes",limit}},220,100},*python,{"native-C","example.sdk_logging",{{"log_bytes",limit}},620,100},{"output","builtin.output",{},820,100}};project.connections={{"file","audio","native-A","audio_in"},{"native-A","audio_out","python","audio_in"},{"python","audio_out","native-C","audio_in"},{"native-C","audio_out","output","audio"}};juce::Array<juce::var> receipts;std::filesystem::path baseline;juce::String baseline_hash;
+    for(int phase=0;phase<3;++phase){const std::string name=phase==0?"exact":phase==1?"overflow-C":"recovery";project.revision=14+phase;project.nodes[3].parameters["log_bytes"]=limit+(phase==1?1:0);const auto file=root/(name+".aaproj");REQUIRE(std::holds_alternative<std::monostate>(save_project_file(file,project)));RunRequest request{project,file,root/"runs"/name,1};request.identity={project.project_id,31,juce::Uuid().toString().toStdString(),project.revision};std::map<std::string,std::string> raw;std::set<std::string> archives;request.on_log=[&](NodeLogEvent event){if(event.source=="native")raw[event.node_id]=event.raw_log_file;if(!event.report_file.empty())archives.insert(event.report_file);};auto future=std::async(std::launch::async,[&]{return service.run(request);});REQUIRE(pump([&]{return future.wait_for(std::chrono::milliseconds(0))==std::future_status::ready;},30000));const auto result=future.get();const auto* error=std::get_if<Diagnostic>(&result);std::ofstream(root/(name+"-outcome.txt"))<<(error?error->code+": "+error->message:std::string("success"));INFO(name);if(error)INFO(error->code+": "+error->message);CHECK(std::holds_alternative<RunSuccess>(result)==(phase!=1));REQUIRE(raw.size()==2);CHECK(std::filesystem::file_size(std::filesystem::u8path(raw.at("native-A")))==static_cast<std::uint64_t>(limit));CHECK(std::filesystem::file_size(std::filesystem::u8path(raw.at("native-C")))==static_cast<std::uint64_t>(limit));REQUIRE(archives.size()==1);
+        if(phase==1){REQUIRE(error);CHECK(error->code=="log_limit");CHECK(error->node_id=="native-C");CHECK_FALSE(std::filesystem::exists(request.output_directory));}else{REQUIRE(std::holds_alternative<RunSuccess>(result));const auto read=read_wav_file(request.output_directory/"output.wav");REQUIRE(std::holds_alternative<AudioBuffer>(read));const auto& output=std::get<AudioBuffer>(read);CHECK(output.frame_count()==513);CHECK(output.channel_ids()==input.channel_ids());CHECK(output.sample_rate_hz()==48000);CHECK(output.valid_interval()==input.valid_interval());for(int c=0;c<2;++c)for(int n=0;n<513;++n)CHECK(output.channel(c)[n]==input.channel(c)[n]);const auto record=juce::JSON::parse(juce::File((request.output_directory/"run.json").generic_string()));REQUIRE(record["tasks"].isArray());REQUIRE(record["tasks"].size()==5);CHECK(record["tasks"][1]["kind"].toString()=="native_region");CHECK(record["tasks"][2]["kind"].toString()=="offline");CHECK(record["tasks"][3]["kind"].toString()=="native_region");if(phase==0){baseline=request.output_directory/"output.wav";baseline_hash=juce::SHA256(juce::File(baseline.generic_string())).toHexString();}}
+        CHECK(juce::SHA256(juce::File(baseline.generic_string())).toHexString()==baseline_hash);CHECK(std::filesystem::is_regular_file(baseline.parent_path()/"complete.json"));juce::DynamicObject::Ptr row=new juce::DynamicObject;row->setProperty("name",juce::String(name));row->setProperty("request",juce::String(request.identity.request_id));row->setProperty("revision",static_cast<juce::int64>(project.revision));row->setProperty("success",std::holds_alternative<RunSuccess>(result));row->setProperty("code",error?juce::String(error->code):juce::String{});row->setProperty("node",error?juce::String(error->node_id):juce::String{});row->setProperty("archive",juce::String(*archives.begin()));row->setProperty("run",juce::String(request.output_directory.lexically_relative(root).generic_string()));receipts.add(juce::var(row.get()));}
+    CHECK(juce::SHA256(juce::File((package/"native_logging.dll").generic_string())).toHexString()==dll_hash);std::ofstream(root/"region-demo.json")<<juce::JSON::toString(receipts,false).toStdString();std::ofstream(root/"dll-identity.json")<<"{\"dll\":"<<juce::JSON::toString(juce::var(juce::String((package/"native_logging.dll").generic_string())),true)<<",\"sha256\":\""<<dll_hash<<"\"}";
+#endif
+}
+
+TEST_CASE("PC-06.c parallel native consumers own separate near-limit budgets and one failure cannot consume another quota", "[PC-06.c][PC0609][node_authoring]") {
+#if !defined(_WIN32)
+    SKIP("Requires Windows SDK DLL");
+#else
+    using namespace audioalgo;juce::ScopedJuceInitialiser_GUI gui;constexpr std::int64_t limit=16*1024*1024;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0609-parallel-budget/artifacts"/juce::Uuid().toString().toStdString();std::filesystem::create_directories(root/"runs");std::cout<<"PC0609_PARALLEL_ROOT="<<root.generic_string()<<'\n';const auto external=juce::JSON::parse(juce::File(juce::String(AUDIOALGO_SOURCE_DIR)).getChildFile("build/reports/loops/PC0606-native-budget/external-path.json"));REQUIRE(external.isObject());const auto package=std::filesystem::path(external["external"].toString().toStdString())/"build";auto registry=std::make_shared<NodeRegistry>();REQUIRE(register_builtin_nodes(*registry));REQUIRE(load_native_plugins(*registry,{package}).diagnostics.empty());const auto dll_hash=juce::SHA256(juce::File((package/"native_logging.dll").generic_string())).toHexString();std::array<RunService,2> services{RunService(registry),RunService(registry)};
+    std::array<AudioBuffer,2> inputs{AudioBuffer(48000,{"ch0","ch1"},513),AudioBuffer(48000,{"ch0","ch1"},513)};for(int i=0;i<2;++i){for(int c=0;c<2;++c)for(int n=0;n<513;++n)inputs[i].mutable_channel(c)[n]=static_cast<float>(i==0?.125*std::sin(.03*(n+1))+.02*c:.075*std::cos(.017*(n+1))+.01*c);REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root/(i==0?"input-A.wav":"input-B.wav"),inputs[i],WavEncoding::float32)));}juce::Array<juce::var> receipts,gates;std::map<std::filesystem::path,juce::String> previous;
+    for(int pair=0;pair<2;++pair){std::array<RunRequest,2> requests;std::array<std::set<std::string>,2> raw,archives;std::array<std::atomic<bool>,2> entered{};std::array<bool,2> observed{};std::array<NodeLogEvent,2> first;std::array<std::thread::id,2> workers;std::promise<void> release;const auto allowed=release.get_future().share();std::array<std::future<RunOutcome>,2> jobs;
+        struct DrainParallelJobs{std::promise<void>& release;std::array<std::future<RunOutcome>,2>& jobs;bool sent=false;void proceed(){if(!sent){sent=true;release.set_value();}}~DrainParallelJobs(){proceed();for(;;){bool ready=true;for(auto& job:jobs)if(job.valid()&&job.wait_for(std::chrono::milliseconds(0))!=std::future_status::ready)ready=false;if(ready)break;juce::MessageManager::getInstance()->runDispatchLoopUntil(10);}}}drain{release,jobs};
+        for(int i=0;i<2;++i){ProjectModel project;project.schema_version=2;project.project_id="pc0609-parallel-native";project.revision=19;project.selected_output_node_id="output";project.nodes={{"file","builtin.file_source",{{"path",std::string(i==0?"input-A.wav":"input-B.wav")}},20,100},{"native","example.sdk_logging",{{"log_bytes",limit+(pair==1&&i==0?1:0)}},220,100},{"output","builtin.output",{},420,100}};project.connections={{"file","audio","native","audio_in"},{"native","audio_out","output","audio"}};const auto label="pair-"+std::to_string(pair)+(i==0?"-A":"-B");const auto file=root/(label+".aaproj");REQUIRE(std::holds_alternative<std::monostate>(save_project_file(file,project)));requests[i]={project,file,root/"runs"/label,1};requests[i].identity={project.project_id,41,juce::Uuid().toString().toStdString(),19};requests[i].on_log=[&,i](NodeLogEvent event){if(!event.raw_log_file.empty())raw[i].insert(event.raw_log_file);if(!event.report_file.empty())archives[i].insert(event.report_file);if(event.source=="native"&&!observed[i]){observed[i]=true;first[i]=event;workers[i]=std::this_thread::get_id();entered[i].store(true);allowed.wait();}};}
+        for(int i=0;i<2;++i)jobs[i]=std::async(std::launch::async,[&,i]{RunOutcome result;try{result=services[i].run(requests[i]);}catch(const std::exception& e){result=Diagnostic{"test_uncaught_exception",e.what()};}const auto* error=std::get_if<Diagnostic>(&result);std::ofstream(root/(requests[i].output_directory.filename().string()+"-outcome.txt"))<<(error?error->code+": "+error->message:std::string("success"));return result;});
+        REQUIRE(pump([&]{return(entered[0].load()&&entered[1].load())||jobs[0].wait_for(std::chrono::milliseconds(0))==std::future_status::ready||jobs[1].wait_for(std::chrono::milliseconds(0))==std::future_status::ready;},5000));REQUIRE(entered[0].load());REQUIRE(entered[1].load());CHECK(workers[0]!=workers[1]);juce::DynamicObject::Ptr gate=new juce::DynamicObject;gate->setProperty("pair",pair);juce::Array<juce::var> blocked;
+        for(int i=0;i<2;++i){const bool pending=jobs[i].wait_for(std::chrono::milliseconds(0))!=std::future_status::ready;CHECK(pending);CHECK(first[i].identity==requests[i].identity);CHECK(first[i].node_id=="native");CHECK(first[i].source=="native");CHECK(first[i].total_bytes==1024);juce::DynamicObject::Ptr item=new juce::DynamicObject;item->setProperty("request",juce::String(requests[i].identity.request_id));item->setProperty("entered",entered[i].load());item->setProperty("pending_before_release",pending);item->setProperty("raw_file",juce::String(first[i].raw_log_file));item->setProperty("first_bytes",static_cast<juce::int64>(first[i].total_bytes));blocked.add(juce::var(item.get()));}gate->setProperty("blocked",blocked);gates.add(juce::var(gate.get()));drain.proceed();REQUIRE(pump([&]{return jobs[0].wait_for(std::chrono::milliseconds(0))==std::future_status::ready&&jobs[1].wait_for(std::chrono::milliseconds(0))==std::future_status::ready;},30000));
+        for(int i=0;i<2;++i){const auto result=jobs[i].get();const bool succeeds=pair==0||i==1;const auto* error=std::get_if<Diagnostic>(&result);CHECK(std::holds_alternative<RunSuccess>(result)==succeeds);REQUIRE(raw[i].size()==1);REQUIRE(archives[i].size()==1);CHECK(std::filesystem::file_size(std::filesystem::u8path(*raw[i].begin()))==static_cast<std::uint64_t>(limit));if(succeeds){REQUIRE(std::holds_alternative<RunSuccess>(result));CHECK(std::get<RunSuccess>(result).identity==requests[i].identity);const auto output=requests[i].output_directory/"output.wav";const auto read=read_wav_file(output);REQUIRE(std::holds_alternative<AudioBuffer>(read));const auto& audio=std::get<AudioBuffer>(read);CHECK(audio.frame_count()==513);CHECK(audio.channel_ids()==inputs[i].channel_ids());CHECK(audio.sample_rate_hz()==48000);CHECK(audio.valid_interval()==inputs[i].valid_interval());for(int c=0;c<2;++c)for(int n=0;n<513;++n)CHECK(audio.channel(c)[n]==inputs[i].channel(c)[n]*2.f);previous[output]=juce::SHA256(juce::File(output.generic_string())).toHexString();}else{REQUIRE(error);CHECK(error->code=="log_limit");CHECK(error->node_id=="native");CHECK_FALSE(std::filesystem::exists(requests[i].output_directory));}
+            juce::DynamicObject::Ptr row=new juce::DynamicObject;row->setProperty("pair",pair);row->setProperty("input",i==0?"A":"B");row->setProperty("request",juce::String(requests[i].identity.request_id));row->setProperty("success",std::holds_alternative<RunSuccess>(result));row->setProperty("code",error?juce::String(error->code):juce::String{});row->setProperty("archive",juce::String(*archives[i].begin()));row->setProperty("run",juce::String(requests[i].output_directory.lexically_relative(root).generic_string()));receipts.add(juce::var(row.get()));}for(const auto& [file,hash]:previous){CHECK(juce::SHA256(juce::File(file.generic_string())).toHexString()==hash);CHECK(std::filesystem::is_regular_file(file.parent_path()/"complete.json"));}}
+    CHECK(previous.size()==3);CHECK(juce::SHA256(juce::File((package/"native_logging.dll").generic_string())).toHexString()==dll_hash);std::ofstream(root/"parallel-demo.json")<<juce::JSON::toString(receipts,false).toStdString();std::ofstream(root/"barriers.json")<<juce::JSON::toString(gates,false).toStdString();std::ofstream(root/"dll-identity.json")<<"{\"dll\":"<<juce::JSON::toString(juce::var(juce::String((package/"native_logging.dll").generic_string())),true)<<",\"sha256\":\""<<dll_hash<<"\"}";
+#endif
+}
+
+TEST_CASE("PC-04.b native stream keeps exact bounded UTF8 capture tail and independent persisted counters", "[PC-04.b][PC0610][node_authoring]") {
+#if !defined(_WIN32)
+    SKIP("Requires Windows SDK DLL");
+#else
+    using namespace audioalgo;juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0610-native-tail/artifacts"/juce::Uuid().toString().toStdString();std::filesystem::create_directories(root/"runs");std::cout<<"PC0610_TAIL_ROOT="<<root.generic_string()<<'\n';const auto external=juce::JSON::parse(juce::File(juce::String(AUDIOALGO_SOURCE_DIR)).getChildFile("build/reports/loops/PC0610-native-tail/external-path.json"));REQUIRE(external.isObject());const auto package=std::filesystem::path(external["external"].toString().toStdString())/"build";auto registry=std::make_shared<NodeRegistry>();REQUIRE(register_builtin_nodes(*registry));REQUIRE(load_native_plugins(*registry,{package}).diagnostics.empty());RunService service(registry);const auto dll_hash=juce::SHA256(juce::File((package/"native_logging.dll").generic_string())).toHexString();
+    AudioBuffer input(48000,{"ch0","ch1"},513);for(int c=0;c<2;++c)for(int n=0;n<513;++n)input.mutable_channel(c)[n]=static_cast<float>(.125*std::sin(.03*(n+1))+.02*c);REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root/"input.wav",input,WavEncoding::float32)));
+    struct Scenario{const char* label;const char* pattern;std::int64_t bytes;};const std::array<Scenario,4> scenarios{{{"ascii-exact","ascii",65536},{"ascii-plus-one","ascii",65537},{"euro-plus-two","euro",65538},{"nul-plus-one","nul",65537}}};juce::Array<juce::var> receipts;std::map<std::filesystem::path,juce::String> old_outputs;
+    for(const auto& scenario:scenarios){CAPTURE(scenario.label);ProjectModel project;project.schema_version=2;project.project_id="pc0610-native-tail";project.revision=23;project.selected_output_node_id="output";project.nodes={{"file","builtin.file_source",{{"path",std::string("input.wav")}},20,100},{"native","example.sdk_logging",{{"log_bytes",scenario.bytes},{"pattern",std::string(scenario.pattern)}},220,100},{"output","builtin.output",{},420,100}};project.connections={{"file","audio","native","audio_in"},{"native","audio_out","output","audio"}};const auto file=root/(std::string(scenario.label)+".aaproj");REQUIRE(std::holds_alternative<std::monostate>(save_project_file(file,project)));RunRequest request{project,file,root/"runs"/scenario.label,1};request.identity={project.project_id,43,juce::Uuid().toString().toStdString(),23};std::set<std::string> raw,archives;request.on_log=[&](NodeLogEvent event){CHECK(event.identity==request.identity);CHECK(event.node_id=="native");CHECK(event.source=="native");CHECK(event.content_sha256==dll_hash.toStdString());if(!event.raw_log_file.empty())raw.insert(event.raw_log_file);if(!event.report_file.empty())archives.insert(event.report_file);};
+        auto job=std::async(std::launch::async,[&]{return service.run(request);});const bool done=pump([&]{return job.wait_for(std::chrono::milliseconds(0))==std::future_status::ready;},30000);REQUIRE(done);auto result=job.get();INFO((std::holds_alternative<Diagnostic>(result)?std::get<Diagnostic>(result).message:std::string("success")));REQUIRE(std::holds_alternative<RunSuccess>(result));REQUIRE(raw.size()==1);REQUIRE(archives.size()==1);const auto raw_path=std::filesystem::u8path(*raw.begin());std::string expected;if(std::string(scenario.pattern)=="euro")for(std::int64_t i=0;i<scenario.bytes/3;++i)expected+="\xe2\x82\xac";else expected.assign(static_cast<std::size_t>(scenario.bytes),std::string(scenario.pattern)=="nul"?'\0':'F');std::ifstream stream(raw_path,std::ios::binary);const std::string actual((std::istreambuf_iterator<char>(stream)),{});CHECK(actual==expected);
+        const auto tail=expected.substr(std::string(scenario.pattern)=="euro"?3:static_cast<std::size_t>(scenario.bytes-65536));auto summary_path=raw_path;summary_path.replace_extension(".summary.json");const auto summary=juce::JSON::parse(juce::File(summary_path.generic_string()));CHECK(summary.isObject());CHECK(static_cast<int>(summary["schema_version"])==1);CHECK(summary["project_id"].toString()=="pc0610-native-tail");CHECK(summary["request_id"].toString()==juce::String(request.identity.request_id));CHECK(static_cast<juce::int64>(summary["revision"])==23);CHECK(static_cast<juce::int64>(summary["session_epoch"])==43);CHECK(summary["node_id"].toString()=="native");CHECK(summary["type_id"].toString()=="example.sdk_logging");CHECK(summary["package_id"].toString()=="example.sdk_logging.tail");CHECK(summary["version"].toString()=="1.0.0");CHECK(summary["content_sha256"].toString()==dll_hash);CHECK(summary["source"].toString()=="native");CHECK(summary["raw_log_file"].toString()==juce::String(*raw.begin()));CHECK(static_cast<juce::int64>(summary["persisted_bytes"])==scenario.bytes);CHECK(static_cast<juce::int64>(summary["accepted_bytes"])==scenario.bytes);CHECK(static_cast<juce::int64>(summary["attempted_valid_bytes"])==scenario.bytes);CHECK(static_cast<juce::int64>(summary["tail_limit_bytes"])==65536);CHECK(static_cast<juce::int64>(summary["tail_bytes"])==static_cast<juce::int64>(tail.size()));CHECK(static_cast<juce::int64>(summary["tail_discarded_bytes"])==scenario.bytes-static_cast<juce::int64>(tail.size()));CHECK(summary["tail_utf8_base64"].toString()==juce::Base64::toBase64(tail.data(),tail.size()));const auto chunk=std::string(scenario.pattern)=="euro"?1023:1024;const auto messages=(scenario.bytes+chunk-1)/chunk;CHECK(static_cast<juce::int64>(summary["persisted_messages"])==messages);CHECK(static_cast<juce::int64>(summary["accepted_messages"])==messages);CHECK(static_cast<juce::int64>(summary["queue_full_messages"])==0);CHECK(static_cast<juce::int64>(summary["queue_full_bytes"])==0);CHECK(static_cast<juce::int64>(summary["rejected_messages"])==0);CHECK(static_cast<juce::int64>(summary["closed_messages"])==0);CHECK(static_cast<bool>(summary["raw_complete"]));CHECK(static_cast<bool>(summary["all_messages_accepted"]));CHECK(summary["failure_code"].toString().isEmpty());
+        const auto output=request.output_directory/"output.wav";const auto read=read_wav_file(output);REQUIRE(std::holds_alternative<AudioBuffer>(read));const auto& audio=std::get<AudioBuffer>(read);CHECK(audio.sample_rate_hz()==48000);CHECK(audio.channel_ids()==input.channel_ids());CHECK(audio.frame_count()==513);CHECK(audio.valid_interval()==input.valid_interval());for(int c=0;c<2;++c)for(int n=0;n<513;++n)CHECK(audio.channel(c)[n]==2.f*input.channel(c)[n]);old_outputs[output]=juce::SHA256(juce::File(output.generic_string())).toHexString();for(const auto&[path,hash]:old_outputs)CHECK(juce::SHA256(juce::File(path.generic_string())).toHexString()==hash);
+        juce::DynamicObject::Ptr row=new juce::DynamicObject;row->setProperty("name",scenario.label);row->setProperty("pattern",scenario.pattern);row->setProperty("bytes",static_cast<juce::int64>(scenario.bytes));row->setProperty("request",juce::String(request.identity.request_id));row->setProperty("archive",juce::String(*archives.begin()));row->setProperty("summary",juce::String(summary_path.generic_string()));row->setProperty("raw",juce::String(raw_path.generic_string()));row->setProperty("run",juce::String(request.output_directory.lexically_relative(root).generic_string()));receipts.add(juce::var(row.get()));
+    }
+    CHECK(juce::SHA256(juce::File((package/"native_logging.dll").generic_string())).toHexString()==dll_hash);std::ofstream(root/"tail-demo.json")<<juce::JSON::toString(receipts,false).toStdString();std::ofstream(root/"dll-identity.json")<<"{\"dll\":"<<juce::JSON::toString(juce::var(juce::String((package/"native_logging.dll").generic_string())),true)<<",\"sha256\":\""<<dll_hash<<"\"}";
+#endif
+}
+
+TEST_CASE("PC-06.d accepted synchronous detach logs drain before queue closure for both native instances", "[PC-06.d][PC0611][node_authoring]") {
+#if !defined(_WIN32)
+    SKIP("Requires Windows SDK DLL");
+#else
+    using namespace audioalgo;juce::ScopedJuceInitialiser_GUI gui;const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0611-detach-drain/artifacts"/juce::Uuid().toString().toStdString();std::filesystem::create_directories(root/"runs");std::cout<<"PC0611_DETACH_ROOT="<<root.generic_string()<<'\n';const auto external=juce::JSON::parse(juce::File(juce::String(AUDIOALGO_SOURCE_DIR)).getChildFile("build/reports/loops/PC0611-detach-drain/external-path.json"));REQUIRE(external.isObject());const auto package=std::filesystem::path(external["external"].toString().toStdString())/"build";auto registry=std::make_shared<NodeRegistry>();REQUIRE(register_builtin_nodes(*registry));REQUIRE(load_native_plugins(*registry,{package}).diagnostics.empty());RunService service(registry);const auto dll_hash=juce::SHA256(juce::File((package/"native_logging.dll").generic_string())).toHexString();AudioBuffer input(48000,{"ch0","ch1"},513);for(int c=0;c<2;++c)for(int n=0;n<513;++n)input.mutable_channel(c)[n]=static_cast<float>(.125*std::sin(.03*(n+1))+.02*c);REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root/"input.wav",input,WavEncoding::float32)));
+    ProjectModel project;project.schema_version=2;project.project_id="pc0611-detach-drain";project.revision=29;project.selected_output_node_id="output";project.nodes={{"file","builtin.file_source",{{"path",std::string("input.wav")}},20,100},{"native-A","example.sdk_logging",{{"log_bytes",std::int64_t{16}}},220,100},{"native-B","example.sdk_logging",{{"log_bytes",std::int64_t{16}}},420,100},{"output","builtin.output",{},620,100}};project.connections={{"file","audio","native-A","audio_in"},{"native-A","audio_out","native-B","audio_in"},{"native-B","audio_out","output","audio"}};const auto file=root/"detach.aaproj";REQUIRE(std::holds_alternative<std::monostate>(save_project_file(file,project)));juce::Array<juce::var> receipts;juce::String previous;
+    for(int attempt=0;attempt<2;++attempt){CAPTURE(attempt);const auto label="attempt-"+std::to_string(attempt);RunRequest request{project,file,root/"runs"/label,127};request.identity={project.project_id,47,juce::Uuid().toString().toStdString(),29};std::vector<NodeLogEvent> events;request.on_log=[&](NodeLogEvent event){events.push_back(std::move(event));};auto job=std::async(std::launch::async,[&]{return service.run(request);});REQUIRE(pump([&]{return job.wait_for(std::chrono::milliseconds(0))==std::future_status::ready;},30000));auto result=job.get();INFO((std::holds_alternative<Diagnostic>(result)?std::get<Diagnostic>(result).message:std::string("success")));REQUIRE(std::holds_alternative<RunSuccess>(result));CHECK(std::get<RunSuccess>(result).identity==request.identity);std::map<std::string,std::vector<NodeLogEvent>> by_node;for(const auto& event:events){CHECK(event.identity==request.identity);CHECK(event.source=="native");CHECK(event.type_id=="example.sdk_logging");CHECK(event.package_id=="example.sdk_logging.detach");CHECK(event.content_sha256==dll_hash.toStdString());by_node[event.node_id].push_back(event);}CHECK(by_node.size()==2);std::set<std::string> raw_paths,archives;
+        for(const auto* id:{"native-A","native-B"}){const auto& node=by_node[id];REQUIRE_FALSE(node.empty());const auto raw=std::filesystem::u8path(node.front().raw_log_file);CHECK(raw_paths.insert(node.front().raw_log_file).second);archives.insert(node.front().report_file);std::ifstream stream(raw,std::ios::binary);const std::string actual((std::istreambuf_iterator<char>(stream)),{});const auto expected=std::string(16,'F')+"sdk-detach accepted\n";CHECK(actual==expected);CHECK(node.size()==2);CHECK(node.back().text=="sdk-detach accepted\n");CHECK(node.back().sequence==2);CHECK(node.back().total_bytes==expected.size());CHECK(node.back().discarded_bytes==0);auto summary_path=raw;summary_path.replace_extension(".summary.json");const auto summary=juce::JSON::parse(juce::File(summary_path.generic_string()));CHECK(summary.isObject());CHECK(summary["request_id"].toString()==juce::String(request.identity.request_id));CHECK(summary["node_id"].toString()==id);CHECK(summary["content_sha256"].toString()==dll_hash);CHECK(static_cast<juce::int64>(summary["accepted_bytes"])==static_cast<juce::int64>(expected.size()));CHECK(static_cast<juce::int64>(summary["persisted_bytes"])==static_cast<juce::int64>(expected.size()));CHECK(static_cast<juce::int64>(summary["accepted_messages"])==2);CHECK(static_cast<juce::int64>(summary["persisted_messages"])==2);CHECK(static_cast<bool>(summary["raw_complete"]));CHECK(static_cast<bool>(summary["all_messages_accepted"]));CHECK(summary["failure_code"].toString().isEmpty());CHECK(summary["tail_utf8_base64"].toString()==juce::Base64::toBase64(expected.data(),expected.size()));}
+        REQUIRE(archives.size()==1);const auto read=read_wav_file(request.output_directory/"output.wav");REQUIRE(std::holds_alternative<AudioBuffer>(read));const auto& audio=std::get<AudioBuffer>(read);CHECK(audio.frame_count()==513);CHECK(audio.sample_rate_hz()==48000);CHECK(audio.channel_ids()==input.channel_ids());CHECK(audio.valid_interval()==input.valid_interval());for(int c=0;c<2;++c)for(int n=0;n<513;++n)CHECK(audio.channel(c)[n]==4.f*input.channel(c)[n]);const auto hash=juce::SHA256(juce::File((request.output_directory/"output.wav").generic_string())).toHexString();if(attempt==0)previous=hash;else CHECK(juce::SHA256(juce::File((root/"runs/attempt-0/output.wav").generic_string())).toHexString()==previous);juce::DynamicObject::Ptr row=new juce::DynamicObject;row->setProperty("attempt",attempt);row->setProperty("request",juce::String(request.identity.request_id));row->setProperty("archive",juce::String(*archives.begin()));row->setProperty("run",juce::String(request.output_directory.lexically_relative(root).generic_string()));receipts.add(juce::var(row.get()));
+    }
+    CHECK(juce::SHA256(juce::File((package/"native_logging.dll").generic_string())).toHexString()==dll_hash);std::ofstream(root/"detach-demo.json")<<juce::JSON::toString(receipts,false).toStdString();std::ofstream(root/"dll-identity.json")<<"{\"dll\":"<<juce::JSON::toString(juce::var(juce::String((package/"native_logging.dll").generic_string())),true)<<",\"sha256\":\""<<dll_hash<<"\"}";
+#endif
+}
+
+TEST_CASE("PC-03.c active native production queue cancellation drains final logs removes payload and recovers", "[PC-03.c][PC0612][node_authoring][component]") {
+#if !defined(_WIN32)
+    SKIP("Requires Windows SDK DLL");
+#else
+    using namespace audioalgo;juce::ScopedJuceInitialiser_GUI gui;const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/PC0612-native-cancel/artifacts"/juce::Uuid().toString().toStdString();std::filesystem::create_directories(root/"runs");std::cout<<"PC0612_CANCEL_ROOT="<<root.generic_string()<<'\n';const auto external=juce::JSON::parse(juce::File(juce::String(AUDIOALGO_SOURCE_DIR)).getChildFile("build/reports/loops/PC0611-detach-drain/external-path.json"));REQUIRE(external.isObject());const auto package=std::filesystem::path(external["external"].toString().toStdString())/"build";auto registry=std::make_shared<NodeRegistry>();REQUIRE(register_builtin_nodes(*registry));REQUIRE(load_native_plugins(*registry,{package}).diagnostics.empty());const auto dll_hash=juce::SHA256(juce::File((package/"native_logging.dll").generic_string())).toHexString();AudioBuffer input(48000,{"ch0","ch1"},513);for(int c=0;c<2;++c)for(int n=0;n<513;++n)input.mutable_channel(c)[n]=static_cast<float>(.125*std::sin(.03*(n+1))+.02*c);REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root/"input.wav",input,WavEncoding::float32)));
+    ProjectModel project;project.schema_version=2;project.project_id="pc0612-native-cancel";project.revision=31;project.selected_output_node_id="output";project.nodes={{"file","builtin.file_source",{{"path",std::string("input.wav")}},20,100},{"native-A","example.sdk_logging",{{"log_bytes",std::int64_t{16}}},220,100},{"native-B","example.sdk_logging",{{"log_bytes",std::int64_t{16}}},420,100},{"output","builtin.output",{},620,100}};project.connections={{"file","audio","native-A","audio_in"},{"native-A","audio_out","native-B","audio_in"},{"native-B","audio_out","output","audio"}};const auto file=root/"native-cancel.aaproj";REQUIRE(std::holds_alternative<std::monostate>(save_project_file(file,project)));
+    juce::Component target;auto dispatch=std::make_shared<editor::ComponentDispatchState<juce::Component>>(target);std::optional<RunOutcome> outcome;RunIdentity delivered;editor::WaveformChannels waveform;std::vector<NodeLogEvent> ui_events;std::thread::id completion_thread;std::promise<void> release;const auto allowed=release.get_future().share();std::atomic<bool> entered{false};NodeLogEvent first;editor::EditorWorkerPool pool(1);editor::EditorRunQueue<juce::Component> queue(pool,dispatch,registry,std::make_shared<ProjectResourceService>(),[&](juce::Component&,RunOutcome result,editor::WaveformChannels audio,RunIdentity identity){outcome=std::move(result);waveform=std::move(audio);delivered=std::move(identity);completion_thread=std::this_thread::get_id();},[&](juce::Component&,NodeLogEvent event){ui_events.push_back(std::move(event));});
+    struct DrainQueue{editor::EditorWorkerPool&pool;editor::EditorRunQueue<juce::Component>&queue;std::promise<void>&release;bool sent=false;void proceed(){if(!sent){sent=true;release.set_value();}}~DrainQueue(){proceed();queue.close();bool done=false;if(pool.shutdown_async(5000,[&](bool){done=true;})){while(!done)juce::MessageManager::getInstance()->runDispatchLoopUntil(10);}pool.join_shutdown();}}drain{pool,queue,release};juce::Array<juce::var> receipts;juce::String baseline;
+    for(int phase=0;phase<3;++phase){CAPTURE(phase);const auto label=phase==0?"baseline":phase==1?"cancelled":"recovery";outcome.reset();ui_events.clear();waveform.clear();std::vector<NodeLogEvent> worker_events;RunRequest request{project,file,root/"runs"/label,127};request.identity={project.project_id,53,juce::Uuid().toString().toStdString(),31};const auto identity=request.identity;request.on_log=[&](NodeLogEvent event){worker_events.push_back(event);if(phase==1&&event.source=="native"&&!entered.load()){first=event;entered.store(true);allowed.wait();}};REQUIRE(queue.submit(std::move(request),identity));double cancellation_ms=0;
+        if(phase==1){REQUIRE(pump([&]{return entered.load()||outcome.has_value();},5000));REQUIRE(entered.load());CHECK_FALSE(outcome.has_value());const auto active=queue.counts();CHECK(active.active==1);CHECK(active.pending==0);CHECK(active.worker_claimed);CHECK(pool.get_num_jobs()==1);CHECK(first.identity==identity);CHECK(first.node_id=="native-A");CHECK(first.text==std::string(16,'F'));CHECK(first.total_bytes==16);CHECK(std::filesystem::file_size(std::filesystem::u8path(first.raw_log_file))==16);const auto started=std::chrono::steady_clock::now();queue.cancel();drain.proceed();REQUIRE(pump([&]{const auto c=queue.counts();return outcome.has_value()&&c.active==0&&c.pending==0&&!c.worker_claimed&&pool.get_num_jobs()==0;},5000));cancellation_ms=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-started).count();CHECK(cancellation_ms<=5000);}
+        else REQUIRE(pump([&]{const auto c=queue.counts();return outcome.has_value()&&c.active==0&&c.pending==0&&!c.worker_claimed&&pool.get_num_jobs()==0;},30000));
+        REQUIRE(outcome.has_value());CHECK(delivered==identity);CHECK(completion_thread==std::this_thread::get_id());const auto* error=std::get_if<Diagnostic>(&*outcome);if(phase==1){REQUIRE(error);CHECK(error->code=="run_cancelled");CHECK(waveform.empty());CHECK_FALSE(std::filesystem::exists(root/"runs/cancelled"));}else{REQUIRE(std::holds_alternative<RunSuccess>(*outcome));CHECK_FALSE(waveform.empty());const auto read=read_wav_file(root/"runs"/label/"output.wav");REQUIRE(std::holds_alternative<AudioBuffer>(read));const auto& audio=std::get<AudioBuffer>(read);CHECK(audio.sample_rate_hz()==48000);CHECK(audio.channel_ids()==input.channel_ids());CHECK(audio.valid_interval()==input.valid_interval());CHECK(audio.frame_count()==513);for(int c=0;c<2;++c)for(int n=0;n<513;++n)CHECK(audio.channel(c)[n]==4.f*input.channel(c)[n]);}if(phase==0)baseline=juce::SHA256(juce::File((root/"runs/baseline/output.wav").generic_string())).toHexString();CHECK(juce::SHA256(juce::File((root/"runs/baseline/output.wav").generic_string())).toHexString()==baseline);CHECK(worker_events.size()==4);CHECK(ui_events.size()==worker_events.size());std::set<std::string> archives;std::map<std::string,std::vector<NodeLogEvent>> by_node;
+        for(std::size_t i=0;i<worker_events.size();++i){const auto& event=worker_events[i];REQUIRE(i<ui_events.size());CHECK(ui_events[i].identity==identity);CHECK(ui_events[i].node_id==event.node_id);CHECK(ui_events[i].text==event.text);CHECK(ui_events[i].sequence==event.sequence);CHECK(event.identity==identity);CHECK(event.source=="native");CHECK(event.content_sha256==dll_hash.toStdString());by_node[event.node_id].push_back(event);archives.insert(event.report_file);}CHECK(by_node.size()==2);for(const auto* id:{"native-A","native-B"}){const auto& node=by_node[id];REQUIRE(node.size()==2);CHECK(node[0].text==std::string(16,'F'));CHECK(node[1].text=="sdk-detach accepted\n");CHECK(node[1].sequence==2);CHECK(node[1].total_bytes==36);const auto raw=std::filesystem::u8path(node[0].raw_log_file);std::ifstream stream(raw,std::ios::binary);CHECK(std::string((std::istreambuf_iterator<char>(stream)),{})==std::string(16,'F')+"sdk-detach accepted\n");auto summary_path=raw;summary_path.replace_extension(".summary.json");const auto summary=juce::JSON::parse(juce::File(summary_path.generic_string()));CHECK(static_cast<bool>(summary["raw_complete"]));CHECK(static_cast<juce::int64>(summary["persisted_bytes"])==36);CHECK(static_cast<juce::int64>(summary["accepted_bytes"])==36);}REQUIRE(archives.size()==1);const auto counts=queue.counts();CHECK(counts.active==0);CHECK(counts.pending==0);CHECK_FALSE(counts.worker_claimed);CHECK(pool.get_num_jobs()==0);juce::DynamicObject::Ptr row=new juce::DynamicObject;row->setProperty("name",label);row->setProperty("request",juce::String(identity.request_id));row->setProperty("code",error?juce::String(error->code):juce::String{});row->setProperty("archive",juce::String(*archives.begin()));row->setProperty("run",juce::String((std::filesystem::path("runs")/label).generic_string()));row->setProperty("active",static_cast<int>(counts.active));row->setProperty("pending",static_cast<int>(counts.pending));row->setProperty("worker_claimed",counts.worker_claimed);row->setProperty("jobs",pool.get_num_jobs());row->setProperty("worker_events",static_cast<int>(worker_events.size()));row->setProperty("ui_events",static_cast<int>(ui_events.size()));row->setProperty("cancel_ms",cancellation_ms);row->setProperty("first_log_barrier",phase==1&&entered.load());receipts.add(juce::var(row.get()));
+    }
+    dispatch->invalidate();std::ofstream(root/"cancel-demo.json")<<juce::JSON::toString(receipts,false).toStdString();std::ofstream(root/"dll-identity.json")<<"{\"dll\":"<<juce::JSON::toString(juce::var(juce::String((package/"native_logging.dll").generic_string())),true)<<",\"sha256\":\""<<dll_hash<<"\"}";
 #endif
 }
 
