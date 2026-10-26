@@ -11,12 +11,13 @@ class EditorRunQueue final {
 public:
     using Completion=typename EditorRunJob<ComponentType>::Completion;
     using LogCompletion=typename EditorRunJob<ComponentType>::LogCompletion;
+    using LogBatchCompletion=typename EditorRunJob<ComponentType>::LogBatchCompletion;
     struct Request {RunRequest run;RunIdentity identity;std::shared_ptr<const NodeRegistry> nodes;};
     using Mailbox=LatestRequestMailbox<Request>;
     EditorRunQueue(EditorWorkerPool& pool,std::weak_ptr<ComponentDispatchState<ComponentType>> target,
                    std::shared_ptr<const NodeRegistry> nodes,std::shared_ptr<const ProjectResourceService> resources,
-                   Completion completion,LogCompletion logs={})
-        :pool_(pool),state_(std::make_shared<State>(std::move(target),std::move(nodes),std::move(resources),std::move(completion),std::move(logs))){}
+                   Completion completion,LogCompletion logs={},LogBatchCompletion log_batch={})
+        :pool_(pool),state_(std::make_shared<State>(std::move(target),std::move(nodes),std::move(resources),std::move(completion),std::move(logs),std::move(log_batch))){}
     ~EditorRunQueue(){close();}
     EditorRunQueue(const EditorRunQueue&)=delete;
     EditorRunQueue& operator=(const EditorRunQueue&)=delete;
@@ -37,14 +38,15 @@ public:
 private:
     struct State {
         State(std::weak_ptr<ComponentDispatchState<ComponentType>> t,std::shared_ptr<const NodeRegistry> n,
-              std::shared_ptr<const ProjectResourceService> r,Completion c,LogCompletion l)
-            :target(std::move(t)),nodes(std::move(n)),resources(std::move(r)),completion(std::move(c)),logs(std::move(l)){}
+              std::shared_ptr<const ProjectResourceService> r,Completion c,LogCompletion l,LogBatchCompletion b)
+            :target(std::move(t)),nodes(std::move(n)),resources(std::move(r)),completion(std::move(c)),logs(std::move(l)),log_batch(std::move(b)){}
         Mailbox mailbox;
         std::weak_ptr<ComponentDispatchState<ComponentType>> target;
         std::shared_ptr<const NodeRegistry> nodes;
         std::shared_ptr<const ProjectResourceService> resources;
         Completion completion;
         LogCompletion logs;
+        LogBatchCompletion log_batch;
     };
     class DrainJob final:public juce::ThreadPoolJob {
     public:
@@ -64,7 +66,7 @@ private:
                     // Reuse the actual worker's service, waveform and identity delivery
                     // path. The inner job is synchronous inside this pool worker.
                     EditorRunJob<ComponentType> one(state_->target,request.nodes,std::move(request.run),
-                        request.identity,state_->resources,state_->completion,state_->logs);
+                        request.identity,state_->resources,state_->completion,state_->logs,state_->log_batch);
                     one.runJob();
                 } catch(const std::exception& error) {
                     const auto posted=dispatch_to_live_component(state_->target,

@@ -1540,8 +1540,16 @@ void print_workspace_scenario(bool failure_checks, bool check_log_checks = false
             if (field == 1) ++stale.identity.session_epoch;
             if (field == 2) stale.identity.request_id += "old";
             if (field == 3) ++stale.identity.revision;
+            workspace.run_logs_received({stale}); CHECK(logs->getText() == baseline);
             workspace.run_log_received(std::move(stale)); CHECK(logs->getText() == baseline);
         }
+        auto current_batch = late; current_batch.text = "accepted-current-batch";
+        auto stale_before = current_batch; stale_before.identity.project_id += "other"; stale_before.text = "rejected-batch-project";
+        auto stale_after = current_batch; stale_after.identity.request_id += "old"; stale_after.text = "rejected-batch-request";
+        workspace.run_logs_received({stale_before, current_batch, stale_after});
+        CHECK(logs->getText().contains("accepted-current-batch"));
+        CHECK_FALSE(logs->getText().contains("rejected-batch-project"));
+        CHECK_FALSE(logs->getText().contains("rejected-batch-request"));
         std::map<std::filesystem::path, juce::String> previous_outputs;
         for (const auto& run : std::filesystem::directory_iterator(root / "runs"))
             previous_outputs.emplace(run.path() / "output.wav", juce::SHA256(juce::File((run.path() / "output.wav").generic_string())).toHexString());
@@ -3059,6 +3067,510 @@ TEST_CASE("PC-03.c active native production queue cancellation drains final logs
     }
     dispatch->invalidate();std::ofstream(root/"cancel-demo.json")<<juce::JSON::toString(receipts,false).toStdString();std::ofstream(root/"dll-identity.json")<<"{\"dll\":"<<juce::JSON::toString(juce::var(juce::String((package/"native_logging.dll").generic_string())),true)<<",\"sha256\":\""<<dll_hash<<"\"}";
 #endif
+}
+
+TEST_CASE("PC-03.c active native View and queue close reject queued logs drain owned modules and permit recovery",
+          "[PC-03.c][PC-06.d][PC0613][node_authoring][component]") {
+#if !defined(_WIN32)
+    SKIP("Requires Windows SDK DLL");
+#else
+    using namespace audioalgo;
+    juce::ScopedJuceInitialiser_GUI gui;
+    using Queue = editor::EditorRunQueue<juce::Component>;
+    using Dispatch = editor::ComponentDispatchState<juce::Component>;
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) /
+        "build/reports/loops/PC0613-native-close/artifacts" / juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root / "runs");
+    std::cout << "PC0613_CLOSE_ROOT=" << root.generic_string() << '\n';
+    const auto external = juce::JSON::parse(juce::File(juce::String(AUDIOALGO_SOURCE_DIR))
+        .getChildFile("build/reports/loops/PC0611-detach-drain/external-path.json"));
+    REQUIRE(external.isObject());
+    const auto package = std::filesystem::path(external["external"].toString().toStdString()) / "build";
+    const auto dll = package / "native_logging.dll";
+    const auto dll_hash = juce::SHA256(juce::File(dll.generic_string())).toHexString();
+    auto load_registry = [&] {
+        auto nodes = std::make_shared<NodeRegistry>();
+        REQUIRE(register_builtin_nodes(*nodes));
+        REQUIRE(load_native_plugins(*nodes, {package}).diagnostics.empty());
+        return nodes;
+    };
+    AudioBuffer input(48000, {"ch0", "ch1"}, 513);
+    for (int c = 0; c < 2; ++c)
+        for (int n = 0; n < 513; ++n)
+            input.mutable_channel(c)[n] = static_cast<float>(.125 * std::sin(.03 * (n + 1)) + .02 * c);
+    REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root / "input.wav", input, WavEncoding::float32)));
+    ProjectModel project;
+    project.schema_version = 2; project.project_id = "pc0613-native-close"; project.revision = 37;
+    project.selected_output_node_id = "output";
+    project.nodes = {{"file", "builtin.file_source", {{"path", std::string("input.wav")}}, 20, 100},
+        {"native-A", "example.sdk_logging", {{"log_bytes", std::int64_t{16}}}, 220, 100},
+        {"native-B", "example.sdk_logging", {{"log_bytes", std::int64_t{16}}}, 420, 100},
+        {"output", "builtin.output", {}, 620, 100}};
+    project.connections = {{"file", "audio", "native-A", "audio_in"},
+        {"native-A", "audio_out", "native-B", "audio_in"}, {"native-B", "audio_out", "output", "audio"}};
+    const auto file = root / "native-close.aaproj";
+    REQUIRE(std::holds_alternative<std::monostate>(save_project_file(file, project)));
+    juce::Array<juce::var> receipts;
+    for (const bool application_shutdown : {false, true}) {
+        CAPTURE(application_shutdown);
+        const std::string mode = application_shutdown ? "application" : "view";
+        auto nodes = load_registry();
+        std::weak_ptr<const NodeRegistry> weak_nodes = nodes;
+        auto target = std::make_unique<juce::Component>();
+        auto dispatch = std::make_shared<Dispatch>(*target);
+        std::weak_ptr<Dispatch> weak_dispatch = dispatch;
+        auto callback_lease = std::make_shared<int>(0);
+        std::weak_ptr<int> weak_lease = callback_lease;
+        int old_logs = 0, old_completions = 0, replacement_logs = 0, replacement_completions = 0;
+        std::vector<NodeLogEvent> events;
+        auto replacement = std::unique_ptr<juce::Component>{};
+        std::shared_ptr<Dispatch> replacement_dispatch;
+        int shutdown_callbacks = 0;
+        bool shutdown_timed_out = false;
+        std::thread::id shutdown_thread;
+        std::optional<RunOutcome> recovered;
+        editor::WaveformChannels waveform;
+        std::vector<NodeLogEvent> recovery_events;
+        std::atomic<int> barrier{0};
+        std::promise<void> first_release, second_release;
+        const auto first_allowed = first_release.get_future().share();
+        const auto second_allowed = second_release.get_future().share();
+        auto pool = std::make_unique<editor::EditorWorkerPool>(1);
+        auto queue = std::make_unique<Queue>(*pool, dispatch, nodes, std::make_shared<ProjectResourceService>(),
+            [&, lease = callback_lease](juce::Component&, RunOutcome, editor::WaveformChannels, RunIdentity) {
+                ++old_completions;
+            }, Queue::LogCompletion{}, [&, lease = callback_lease](juce::Component&, std::deque<NodeLogEvent> batch) {
+                old_logs += static_cast<int>(batch.size());
+            });
+        // Release both observer gates and drain even if a REQUIRE aborts the scenario.
+        struct Cleanup {
+            std::unique_ptr<editor::EditorWorkerPool>& pool;
+            std::unique_ptr<Queue>& queue;
+            std::promise<void>& first;
+            std::promise<void>& second;
+            std::shared_ptr<Dispatch>& dispatch;
+            std::shared_ptr<Dispatch>& replacement_dispatch;
+            bool first_sent = false, second_sent = false;
+            void release_first() { if (!first_sent) { first_sent = true; first.set_value(); } }
+            void release_second() { if (!second_sent) { second_sent = true; second.set_value(); } }
+            ~Cleanup() {
+                if (dispatch) dispatch->invalidate();
+                if (replacement_dispatch) replacement_dispatch->invalidate();
+                if (queue) queue->close();
+                release_first(); release_second();
+                bool done = false;
+                const bool started = pool && pool->shutdown_async(5000, [&](bool) { done = true; });
+                while (pool && (pool->get_num_jobs() != 0 || (started && !done)))
+                    juce::MessageManager::getInstance()->runDispatchLoopUntil(10);
+                if (pool) pool->join_shutdown();
+                queue.reset();
+                juce::MessageManager::getInstance()->runDispatchLoopUntil(10);
+            }
+        } cleanup{pool, queue, first_release, second_release, dispatch, replacement_dispatch};
+        RunRequest request{project, file, root / "runs" / (mode + "-closed"), 127};
+        request.identity = {project.project_id, 59, juce::Uuid().toString().toStdString(), project.revision};
+        const auto identity = request.identity;
+        request.on_log = [&](NodeLogEvent event) {
+            events.push_back(std::move(event));
+            if (events.size() == 1) { barrier.store(1); first_allowed.wait(); }
+            else if (events.size() == 2) { barrier.store(2); second_allowed.wait(); }
+        };
+        REQUIRE(queue->submit(std::move(request), identity));
+        REQUIRE(pump([&] { return barrier.load() == 1; }, 5000));
+        CHECK(old_logs == 0); CHECK(old_completions == 0);
+        cleanup.release_first();
+        // No message dispatch here: the first real native event is already in
+        // the production mailbox when the observer reaches its second gate.
+        REQUIRE(without_ui([&] { return barrier.load() == 2; }));
+        REQUIRE(events.size() == 2);
+        CHECK(events[0].node_id == "native-A"); CHECK(events[1].node_id == "native-B");
+        for (const auto& event : events) {
+            CHECK(event.identity == identity); CHECK(event.text == std::string(16, 'F'));
+            CHECK(std::filesystem::file_size(std::filesystem::u8path(event.raw_log_file)) == 16);
+        }
+        CHECK(old_logs == 0); CHECK(old_completions == 0);
+        const auto active = queue->counts();
+        CHECK(active.active == 1); CHECK(active.pending == 0); CHECK(active.worker_claimed);
+        CHECK(pool->get_num_jobs() == 1);
+        CHECK(GetModuleHandleW(dll.c_str()) != nullptr);
+        const auto closed_at = std::chrono::steady_clock::now();
+        queue->close();
+        dispatch->invalidate(); target.reset(); dispatch.reset(); callback_lease.reset(); nodes.reset();
+        // The worker retains its catalog, and the already queued callback owns
+        // its dispatch/lease until the message thread discards that callback.
+        CHECK_FALSE(weak_nodes.expired()); CHECK_FALSE(weak_dispatch.expired()); CHECK_FALSE(weak_lease.expired());
+        CHECK(GetModuleHandleW(dll.c_str()) != nullptr);
+        CHECK_FALSE(queue->submit(RunRequest{project, file, root / "runs" / (mode + "-rejected"), 127}, identity));
+        if (application_shutdown) {
+            REQUIRE(pool->shutdown_async(5000, [&](bool timed_out) {
+                ++shutdown_callbacks; shutdown_timed_out = timed_out; shutdown_thread = std::this_thread::get_id();
+            }));
+            CHECK(shutdown_callbacks == 0);
+        } else {
+            queue.reset();
+        }
+        replacement = std::make_unique<juce::Component>();
+        replacement_dispatch = std::make_shared<Dispatch>(*replacement);
+        cleanup.release_second();
+        REQUIRE(pump([&] { return pool->get_num_jobs() == 0 && (!application_shutdown || shutdown_callbacks == 1); }, 5000));
+        if (application_shutdown) {
+            CHECK_FALSE(shutdown_timed_out);
+            CHECK(shutdown_thread == std::this_thread::get_id());
+            const auto counts = queue->counts();
+            CHECK(counts.active == 0); CHECK(counts.pending == 0); CHECK_FALSE(counts.worker_claimed);
+            pool->join_shutdown(); queue.reset();
+        }
+        REQUIRE(pump([&] { return weak_dispatch.expired() && weak_lease.expired() && weak_nodes.expired(); }, 5000));
+        const auto close_ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - closed_at).count();
+        CHECK(close_ms <= 5000);
+        CHECK(old_logs == 0); CHECK(old_completions == 0);
+        CHECK(replacement_logs == 0); CHECK(replacement_completions == 0);
+        CHECK(GetModuleHandleW(dll.c_str()) == nullptr);
+        CHECK_FALSE(std::filesystem::exists(root / "runs" / (mode + "-closed")));
+        CHECK_FALSE(std::filesystem::exists(root / "runs" / (mode + "-rejected")));
+        REQUIRE(events.size() == 4);
+        std::set<std::string> archives;
+        for (const auto& event : events) {
+            CHECK(event.identity == identity); CHECK(event.content_sha256 == dll_hash.toStdString());
+            archives.insert(event.report_file);
+        }
+        REQUIRE(archives.size() == 1);
+        juce::DynamicObject::Ptr row = new juce::DynamicObject;
+        row->setProperty("mode", juce::String(mode)); row->setProperty("request", juce::String(identity.request_id));
+        row->setProperty("archive", juce::String(*archives.begin())); row->setProperty("close_ms", close_ms);
+        row->setProperty("old_logs", old_logs); row->setProperty("old_completions", old_completions);
+        row->setProperty("expired_dispatch", weak_dispatch.expired()); row->setProperty("expired_callbacks", weak_lease.expired());
+        row->setProperty("expired_catalog", weak_nodes.expired()); row->setProperty("module_unloaded", GetModuleHandleW(dll.c_str()) == nullptr);
+        row->setProperty("shutdown_callbacks", shutdown_callbacks); row->setProperty("shutdown_timed_out", shutdown_timed_out);
+        if (application_shutdown) { pool.reset(); pool = std::make_unique<editor::EditorWorkerPool>(1); }
+        auto recovered_nodes = load_registry();
+        queue = std::make_unique<Queue>(*pool, replacement_dispatch, recovered_nodes, std::make_shared<ProjectResourceService>(),
+            [&](juce::Component&, RunOutcome outcome, editor::WaveformChannels audio, RunIdentity completed) {
+                ++replacement_completions; recovered = std::move(outcome); waveform = std::move(audio);
+                CHECK(completed.project_id == project.project_id); CHECK(completed.revision == project.revision);
+            }, Queue::LogCompletion{}, [&](juce::Component&, std::deque<NodeLogEvent> batch) {
+                for (auto& event : batch) { ++replacement_logs; recovery_events.push_back(std::move(event)); }
+            });
+        RunRequest again{project, file, root / "runs" / (mode + "-recovery"), 127};
+        again.identity = {project.project_id, 59, juce::Uuid().toString().toStdString(), project.revision};
+        const auto recovery_identity = again.identity;
+        REQUIRE(queue->submit(std::move(again), recovery_identity));
+        REQUIRE(pump([&] { return recovered.has_value() && pool->get_num_jobs() == 0; }, 30000));
+        REQUIRE(std::holds_alternative<RunSuccess>(*recovered));
+        CHECK(std::get<RunSuccess>(*recovered).identity == recovery_identity); CHECK_FALSE(waveform.empty());
+        CHECK(replacement_completions == 1); CHECK(replacement_logs == 4);
+        CHECK(old_logs == 0); CHECK(old_completions == 0);
+        const auto counts = queue->counts();
+        CHECK(counts.active == 0); CHECK(counts.pending == 0); CHECK_FALSE(counts.worker_claimed);
+        const auto audio = read_wav_file(root / "runs" / (mode + "-recovery") / "output.wav");
+        REQUIRE(std::holds_alternative<AudioBuffer>(audio));
+        const auto& output = std::get<AudioBuffer>(audio);
+        CHECK(output.frame_count() == 513); CHECK(output.sample_rate_hz() == 48000);
+        CHECK(output.channel_ids() == input.channel_ids()); CHECK(output.valid_interval() == input.valid_interval());
+        for (int c = 0; c < 2; ++c)
+            for (int n = 0; n < 513; ++n) CHECK(output.channel(c)[n] == 4.f * input.channel(c)[n]);
+        REQUIRE(recovery_events.size() == 4);
+        for (const auto& event : recovery_events) CHECK(event.identity == recovery_identity);
+        row->setProperty("recovery_request", juce::String(recovery_identity.request_id));
+        row->setProperty("recovery_archive", juce::String(recovery_events.front().report_file));
+        row->setProperty("recovery_logs", replacement_logs); row->setProperty("recovery_completions", replacement_completions);
+        row->setProperty("active", static_cast<int>(counts.active)); row->setProperty("pending", static_cast<int>(counts.pending));
+        row->setProperty("worker_claimed", counts.worker_claimed); row->setProperty("jobs", pool->get_num_jobs());
+        receipts.add(juce::var(row.get()));
+        replacement_dispatch->invalidate(); queue.reset(); recovered_nodes.reset();
+        CHECK(GetModuleHandleW(dll.c_str()) == nullptr);
+    }
+    CHECK(juce::SHA256(juce::File(dll.generic_string())).toHexString() == dll_hash);
+    std::ofstream(root / "close-demo.json") << juce::JSON::toString(receipts, false).toStdString();
+    juce::DynamicObject::Ptr dll_identity = new juce::DynamicObject;
+    dll_identity->setProperty("dll", juce::String(dll.generic_string())); dll_identity->setProperty("sha256", dll_hash);
+    std::ofstream(root / "dll-identity.json") << juce::JSON::toString(juce::var(dll_identity.get()), false).toStdString();
+#endif
+}
+
+TEST_CASE("PC-04.d production native log flood obeys UI budgets during a ten second mixed Run and recovers",
+          "[PC-04.b][PC-04.d][PC0614][node_authoring][component]") {
+#if !defined(_WIN32) || !AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    SKIP("Requires Windows Python-enabled production mixed Run");
+#else
+    using namespace audioalgo;
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    constexpr std::int64_t limit = 16 * 1024 * 1024;
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) /
+        "build/reports/loops/PC0614-native-ui-flood/artifacts" / juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root);
+    std::cout << "PC0614_FLOOD_ROOT=" << root.generic_string() << '\n';
+    const auto external = juce::JSON::parse(juce::File(juce::String(AUDIOALGO_SOURCE_DIR))
+        .getChildFile("build/reports/loops/PC0606-native-budget/external-path.json"));
+    REQUIRE(external.isObject());
+    const auto package = std::filesystem::path(external["external"].toString().toStdString()) / "build";
+    const auto dll_hash = juce::SHA256(juce::File((package / "native_logging.dll").generic_string())).toHexString();
+    auto registry = std::make_shared<NodeRegistry>();
+    REQUIRE(register_builtin_nodes(*registry));
+    REQUIRE(load_native_plugins(*registry, {package}).diagnostics.empty());
+    auto checks = std::make_shared<PythonAuthoring>(root / "library");
+    auto draft = python_draft("pc0614-identity-gate");
+    const auto literal = juce::JSON::toString(juce::var(juce::String(root.generic_string())), true).toStdString();
+    draft.source = "import pathlib\nimport time\ndef process(inputs, params, state):\n"
+        "    if params['gain']==2 and not state.get('waited'):\n"
+        "        state['waited']=True\n        root=pathlib.Path(" + literal + ")\n"
+        "        print('pc0614-native-burst-finished', flush=True)\n"
+        "        (root/'entered.txt').write_text('python gate after native region',encoding='utf-8')\n"
+        "        while not (root/'finish.txt').exists(): time.sleep(.005)\n"
+        "    return {'audio_out':inputs['audio_in']}\n";
+    auto cancel = std::make_shared<std::atomic<bool>>(false);
+    const auto checked = checks->check(draft, cancel);
+    REQUIRE(std::holds_alternative<ReadyPackage>(checked));
+    const auto applied = checks->apply(std::get<ReadyPackage>(checked), draft, registry, cancel);
+    REQUIRE(std::holds_alternative<AppliedPackage>(applied));
+    *registry = *std::get<AppliedPackage>(applied).catalog;
+    AudioBuffer input(48000, {"ch0", "ch1"}, 513);
+    for (int c = 0; c < 2; ++c)
+        for (int n = 0; n < 513; ++n)
+            input.mutable_channel(c)[n] = static_cast<float>(.125 * std::sin(.03 * (n + 1)) + .02 * c);
+    REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root / "input.wav", input, WavEncoding::float32)));
+    auto graph = [&](const std::string& name, std::int64_t bytes, double gate) {
+        auto python = editor::make_node_instance(*registry, {}, "user.custom_node", "python", 420, 100);
+        REQUIRE(python); python->parameters["gain"] = gate;
+        ProjectModel project; project.schema_version = 2; project.project_id = "pc0614-" + name;
+        project.revision = 41; project.selected_output_node_id = "output";
+        project.nodes = {{"file", "builtin.file_source", {{"path", std::string("input.wav")}}, 20, 100},
+            {"native", "example.sdk_logging", {{"log_bytes", bytes}}, 220, 100}, *python,
+            {"output", "builtin.output", {}, 620, 100}};
+        project.connections = {{"file", "audio", "native", "audio_in"},
+            {"native", "audio_out", "python", "audio_in"}, {"python", "audio_out", "output", "audio"}};
+        return project;
+    };
+    juce::Array<juce::var> receipts;
+    std::set<std::filesystem::path> successes;
+    std::filesystem::path first_output;
+    juce::String first_hash;
+    for (int mode = 0; mode < 3; ++mode) {
+        CAPTURE(mode);
+        const std::string name = mode == 0 ? "exact" : mode == 1 ? "plus-one" : "flood";
+        for (const auto* marker : {"entered.txt", "finish.txt"}) std::filesystem::remove(root / marker);
+        const auto project = graph(name, mode == 0 ? limit : mode == 1 ? limit + 1 : 4 * limit, 2);
+        const auto project_file = root / (name + ".aaproj");
+        REQUIRE(std::holds_alternative<std::monostate>(save_project_file(project_file, project)));
+        auto preview = std::make_shared<Preview>();
+        editor::EditorComponent workspace(registry, std::make_shared<FileDocuments>(),
+            std::make_shared<ProjectResourceService>(), preview, std::make_shared<FileDraftStorage>(root / "drafts"),
+            false, checks, {}, false, {}, {}, {}, editor::RunConfiguration{1});
+        workspace.setSize(1440, 900);
+        workspace.open_project_file(project_file);
+        REQUIRE(pump([&] { return workspace.controller().project().project_id == project.project_id; }));
+        auto* logs = control<editor::RunLogTextView>(workspace, "project.run_logs"); REQUIRE(logs);
+        auto* panel = dynamic_cast<editor::RunLogPanel*>(logs->getParentComponent()); REQUIRE(panel);
+        auto* status = control<editor::RunStatusPanel>(workspace, "project.status"); REQUIRE(status);
+        click(workspace, "project.logs");
+        REQUIRE(logs->isVisible()); REQUIRE(panel->isVisible());
+        struct Shutdown {
+            editor::EditorComponent& workspace;
+            std::filesystem::path release_file;
+            ~Shutdown() {
+                std::ofstream(release_file) << "release";
+                bool done = false; workspace.begin_shutdown([&] { done = true; });
+                while (!done) juce::MessageManager::getInstance()->runDispatchLoopUntil(10);
+            }
+        } shutdown{workspace, root / "finish.txt"};
+        struct Heartbeat final : juce::Timer {
+            editor::RunLogTextView* logs = nullptr;
+            std::chrono::steady_clock::time_point previous;
+            std::vector<double> gaps;
+            std::size_t maximum_bytes = 0;
+            void timerCallback() override {
+                const auto now = std::chrono::steady_clock::now();
+                gaps.push_back(std::chrono::duration<double, std::milli>(now - previous).count()); previous = now;
+                maximum_bytes = std::max(maximum_bytes, logs->getText().getNumBytesAsUTF8());
+            }
+        } heartbeat;
+        const auto started = std::chrono::steady_clock::now();
+        heartbeat.logs = logs; heartbeat.previous = started; heartbeat.startTimer(20);
+        click(workspace, "project.run");
+        if (mode == 0) {
+            REQUIRE(pump([&] { return std::chrono::steady_clock::now() - started >= std::chrono::seconds(10); }, 11000));
+            CHECK(std::filesystem::is_regular_file(root / "entered.txt"));
+            CHECK_FALSE(status->status_text().contains("Completed run"));
+            CHECK(workspace.background_run_counts().active == 1);
+        } else {
+            REQUIRE(pump([&] { return status->status_text().contains("log_limit"); }, 15000));
+            CHECK_FALSE(std::filesystem::exists(root / "entered.txt"));
+        }
+        heartbeat.stopTimer();
+        const auto finished = std::chrono::steady_clock::now();
+        heartbeat.gaps.push_back(std::chrono::duration<double, std::milli>(finished - heartbeat.previous).count());
+        std::sort(heartbeat.gaps.begin(), heartbeat.gaps.end()); REQUIRE_FALSE(heartbeat.gaps.empty());
+        const auto p95 = heartbeat.gaps[static_cast<std::size_t>(.95 * (heartbeat.gaps.size() - 1))];
+        const auto maximum = heartbeat.gaps.back();
+        const auto duration = std::chrono::duration<double, std::milli>(finished - started).count();
+        CHECK(heartbeat.maximum_bytes <= 256 * 1024);
+        CHECK(logs->getText().getNumBytesAsUTF8() <= 256 * 1024);
+        CHECK(panel->text_for_copy().getNumBytesAsUTF8() <= 256 * 1024);
+        CHECK(logs->getText().contains("native"));
+        std::ofstream(root / (name + "-ui.log"), std::ios::binary) << logs->getText().toStdString();
+        std::ofstream(root / (name + "-copy.log"), std::ios::binary) << panel->text_for_copy().toStdString();
+        const auto terminal = status->status_text();
+        if (mode == 0) {
+            CHECK(duration >= 10000); CHECK(p95 <= 100); CHECK(maximum <= 500);
+            std::ofstream(root / "finish.txt") << "release";
+            REQUIRE(pump([&] { return status->status_text().contains("Completed run"); }, 15000));
+        } else {
+            CHECK_FALSE(status->status_text().contains("Completed run"));
+            click(workspace, "project.play"); CHECK(preview->played.empty());
+            const auto recovery = graph(name + "-recovery", 0, 1);
+            const auto path = root / (name + "-recovery.aaproj");
+            REQUIRE(std::holds_alternative<std::monostate>(save_project_file(path, recovery)));
+            workspace.open_project_file(path);
+            REQUIRE(pump([&] { return workspace.controller().project().project_id == recovery.project_id; }));
+            click(workspace, "project.run");
+            REQUIRE(pump([&] { return status->status_text().contains("Completed run"); }, 15000));
+        }
+        REQUIRE(pump([&] { const auto c = workspace.background_run_counts(); return c.active == 0 && c.pending == 0 && !c.worker_claimed && workspace.background_job_count() == 0; }));
+        for (const auto& run : std::filesystem::directory_iterator(root / "runs"))
+            if (std::filesystem::is_regular_file(run.path() / "run.json")) successes.insert(run.path());
+        CHECK(successes.size() == static_cast<std::size_t>(mode + 1));
+        if (mode == 0) { first_output = *successes.begin() / "output.wav"; first_hash = juce::SHA256(juce::File(first_output.generic_string())).toHexString(); }
+        CHECK(juce::SHA256(juce::File(first_output.generic_string())).toHexString() == first_hash);
+        juce::DynamicObject::Ptr row = new juce::DynamicObject;
+        row->setProperty("mode", juce::String(name)); row->setProperty("window_ms", duration); row->setProperty("interval_ms", 20);
+        row->setProperty("samples", static_cast<int>(heartbeat.gaps.size())); row->setProperty("p95_ms", p95); row->setProperty("max_ms", maximum);
+        row->setProperty("maximum_ui_bytes", static_cast<juce::int64>(heartbeat.maximum_bytes)); row->setProperty("terminal", terminal);
+        receipts.add(juce::var(row.get()));
+    }
+    for (const auto& run : successes) {
+        const auto audio = read_wav_file(run / "output.wav"); REQUIRE(std::holds_alternative<AudioBuffer>(audio));
+        const auto& output = std::get<AudioBuffer>(audio);
+        CHECK(output.frame_count() == 513); CHECK(output.sample_rate_hz() == 48000);
+        CHECK(output.channel_ids() == input.channel_ids()); CHECK(output.valid_interval() == input.valid_interval());
+        for (int c = 0; c < 2; ++c) for (int n = 0; n < 513; ++n) CHECK(output.channel(c)[n] == 2.f * input.channel(c)[n]);
+    }
+    std::ofstream(root / "flood-demo.json") << juce::JSON::toString(receipts, false).toStdString();
+    juce::DynamicObject::Ptr identity = new juce::DynamicObject;
+    identity->setProperty("dll", juce::String((package / "native_logging.dll").generic_string())); identity->setProperty("sha256", dll_hash);
+    std::ofstream(root / "dll-identity.json") << juce::JSON::toString(juce::var(identity.get()), false).toStdString();
+#endif
+}
+
+namespace {
+void drag_splitter(juce::Component& splitter, int dx, int dy) {
+    const auto start = splitter.getLocalBounds().getCentre().toFloat();
+    const auto screen = splitter.localPointToGlobal(start);
+    auto event = [&](juce::Point<float> local, bool dragged) {
+        return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(), local,
+            juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier), 0, 0, 0, 0, 0,
+            &splitter, &splitter, juce::Time(100), start, juce::Time(0), 1, dragged);
+    };
+    splitter.mouseDown(event(start, false));
+    splitter.mouseDrag(event(splitter.getLocalPoint(nullptr, screen + juce::Point<float>(dx, dy)), true));
+    splitter.mouseUp(event(splitter.getLocalBounds().getCentre().toFloat(), true));
+}
+void save_component_image(juce::Component& component, const std::filesystem::path& path) {
+    struct PreviewWindow final : juce::DocumentWindow {
+        audioalgo::editor::EditorLookAndFeel theme;
+        PreviewWindow(juce::Component& content)
+            : juce::DocumentWindow("AudioAlgo Editor", audioalgo::editor::background, juce::DocumentWindow::allButtons, false) {
+            setLookAndFeel(&theme); audioalgo::editor::style_editor_window(*this);
+            setContentNonOwned(&content, true);
+        }
+        ~PreviewWindow() override { clearContentComponent(); setLookAndFeel(nullptr); }
+        void closeButtonPressed() override {}
+    } frame(component);
+    juce::FileOutputStream stream(juce::File(path.generic_string()));
+    REQUIRE(stream.openedOk());
+    juce::PNGImageFormat format;
+    CHECK(format.writeImageToStream(frame.createComponentSnapshot(frame.getLocalBounds()), stream));
+}
+void reset_splitter(juce::Component& splitter) {
+    const auto point = splitter.getLocalBounds().getCentre().toFloat();
+    splitter.mouseDoubleClick(juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(), point,
+        juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier), 0, 0, 0, 0, 0,
+        &splitter, &splitter, juce::Time(100), point, juce::Time(0), 2, false));
+}
+}
+
+TEST_CASE("NED-01 NI0015 dock splitters resize real panes without editing the project", "[NI0015][component]") {
+    using namespace audioalgo;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) / "build/reports/loops/NI0015-resizable-workspace/artifacts" / juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root); std::cout << "NI0015_WORKSPACE_ROOT=" << root.generic_string() << '\n';
+    auto registry = std::make_shared<NodeRegistry>(); REQUIRE(register_builtin_nodes(*registry));
+    editor::EditorComponent workspace(registry, std::make_shared<Documents>(), std::make_shared<ProjectResourceService>(),
+        std::make_shared<Preview>(), std::make_shared<authoring::FileDraftStorage>(root / "drafts"), false);
+    workspace.setSize(1440, 900);
+    click(workspace, "library.builtin.gain");
+    const auto project = workspace.controller().project();
+    const auto dirty = workspace.controller().dirty();
+    auto* canvas = control<editor::GraphCanvas>(workspace, "project.canvas"); REQUIRE(canvas);
+    auto* left = control<juce::Component>(workspace, "workspace.splitter.library"); REQUIRE(left);
+    auto* right = control<juce::Component>(workspace, "workspace.splitter.inspector"); REQUIRE(right);
+    auto* bottom = control<juce::Component>(workspace, "workspace.splitter.results"); REQUIRE(bottom);
+    auto before = canvas->getBounds();
+    drag_splitter(*left, 100, 0); CHECK(canvas->getX() == before.getX() + 100); CHECK(canvas->getWidth() == before.getWidth() - 100);
+    before = canvas->getBounds(); drag_splitter(*right, -80, 0); CHECK(canvas->getWidth() == before.getWidth() - 80);
+    before = canvas->getBounds(); drag_splitter(*bottom, 0, -100); CHECK(canvas->getHeight() == before.getHeight() - 100);
+    save_component_image(workspace, root / "workspace-1440.png");
+    for (const auto [dx, dy] : {std::pair{-10000, 0}, std::pair{10000, 0}}) {
+        drag_splitter(*left, dx, dy); drag_splitter(*right, dx, dy);
+        CHECK(canvas->getWidth() >= 240); CHECK(left->getX() >= 148); CHECK(right->getRight() <= workspace.getWidth() - 220);
+    }
+    for (int dy : {-10000, 10000}) { drag_splitter(*bottom, 0, dy); CHECK(canvas->getHeight() >= 160); CHECK(bottom->getBottom() < workspace.getHeight() - 100); }
+    workspace.setSize(1100, 700);
+    CHECK(canvas->getRight() <= right->getX()); CHECK(canvas->getBottom() <= bottom->getY());
+    CHECK(canvas->getWidth() >= 240); CHECK(canvas->getHeight() >= 160);
+    CHECK(workspace.controller().project().project_id == project.project_id);
+    CHECK(workspace.controller().project().revision == project.revision);
+    CHECK(workspace.controller().project().nodes.size() == project.nodes.size());
+    CHECK(workspace.controller().dirty() == dirty);
+    reset_splitter(*left); reset_splitter(*right); reset_splitter(*bottom);
+    CHECK(canvas->getX() == 172); CHECK(right->getRight() == 830);
+    save_component_image(workspace, root / "workspace-1100.png");
+    int drained = 0; workspace.begin_shutdown([&] { ++drained; }); REQUIRE(pump([&] { return drained == 1; }));
+}
+
+TEST_CASE("NA-14 NI0015 authoring splitters preserve source and expose all real probe prints", "[NI0015][component][node_authoring]") {
+    using namespace audioalgo;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) / "build/reports/loops/NI0015-resizable-workspace/artifacts" / juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root); std::cout << "NI0015_AUTHORING_ROOT=" << root.generic_string() << '\n';
+    auto draft = authoring::python_draft("ni0015-print");
+    draft.source = "def process(inputs, params, state):\n    print('ni0015-block', flush=True)\n    return {'audio_out': inputs['audio_in']}\n";
+    auto checks = std::make_shared<authoring::PythonAuthoring>(root / "library");
+    editor::NodeAuthoringPanel panel(draft, false, std::make_shared<authoring::FileDraftStorage>(root / "drafts"), [] {}, checks);
+    panel.setSize(1404, 864);
+    auto* source = control<juce::CodeEditorComponent>(panel, "authoring.source"); REQUIRE(source);
+    auto* definition = control<juce::CodeEditorComponent>(panel, "authoring.definition"); REQUIRE(definition);
+    auto* logs = control<editor::RunLogTextView>(panel, "authoring.check_logs"); REQUIRE(logs);
+    auto* between = control<juce::Component>(panel, "authoring.splitter.definition"); REQUIRE(between);
+    auto* log_bar = control<juce::Component>(panel, "authoring.splitter.logs"); REQUIRE(log_bar);
+    const auto generation = panel.session().document().generation;
+    const auto previous = definition->getHeight(); drag_splitter(*between, 0, 65);
+    CHECK(definition->getHeight() == previous + 65);
+    const auto source_height = source->getHeight(); REQUIRE(source_height >= 120);
+    drag_splitter(*log_bar, 0, -20); CHECK(source->getHeight() == source_height - 20);
+    CHECK(panel.session().document().generation == generation); CHECK(panel.session().document().source == draft.source);
+    CHECK(panel.session().document().declaration == draft.declaration);
+#if AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    click(panel, "authoring.check"); REQUIRE(pump([&] { return panel.ready().has_value(); }, 15000));
+    std::string stdout_text;
+    for (const auto& row : panel.ready()->logs) if (row.phase == "contract" && row.event.source == "contract.stdout") stdout_text += row.event.text;
+    const auto normalized_stdout = juce::String(stdout_text).replace("\r\n", "\n");
+    CHECK(normalized_stdout == "ni0015-block\nni0015-block\nni0015-block\nni0015-block\nni0015-block\n");
+    CHECK(logs->getText().replace("\r\n", "\n").contains(normalized_stdout));
+    std::ofstream(root / "probe-stdout.log", std::ios::binary) << stdout_text;
+    const auto ready_hash = panel.ready()->source_sha256;
+    drag_splitter(*between, 0, -35); drag_splitter(*log_bar, 0, 30);
+    REQUIRE(panel.ready()); CHECK(panel.ready()->source_sha256 == ready_hash);
+#endif
+    save_component_image(panel, root / "authoring-1404.png");
+    for (int height : {664, 864}) {
+        panel.setSize(1064, height);
+        drag_splitter(*between, 0, 10000); drag_splitter(*log_bar, 0, -10000);
+        CHECK(source->getHeight() >= 100); CHECK(definition->getHeight() >= 72); CHECK(logs->getHeight() >= 48);
+        CHECK(panel.session().document().generation == generation);
+    }
+    reset_splitter(*between); reset_splitter(*log_bar);
+    save_component_image(panel, root / "authoring-1064.png");
 }
 
 TEST_CASE("NA-08.d reopen and fresh CLI resolve the saved v1 after v2 becomes default",

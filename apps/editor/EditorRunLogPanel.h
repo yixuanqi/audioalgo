@@ -76,6 +76,18 @@ public:
         selected_node_.reset(); selected_level_.reset(); text_.clear(); rebuild_filter_items();
     }
     void append(const NodeLogEvent& event) {
+        append_event(event, true);
+    }
+    // A mailbox drain is one synchronous display transaction. Retain/filter
+    // every event, then lay out the bounded final text once before returning.
+    void append_batch(const std::deque<NodeLogEvent>& events) {
+        if (events.empty()) return;
+        for (const auto& event : events) append_event(event, false);
+        rebuild_filter_items();
+        rebuild_display();
+    }
+private:
+    void append_event(const NodeLogEvent& event, bool render) {
         auto header = "[" + heading_ + " " + event.identity.request_id + " project=" + event.identity.project_id +
             " session=" + std::to_string(event.identity.session_epoch) + " revision=" + std::to_string(event.identity.revision) +
             " node=" + event.node_id + " type=" + event.type_id + " version=" + event.version +
@@ -107,14 +119,14 @@ public:
         if (!node_filter_item_ids_.contains(event.node_id)) add_node_filter_item(event.node_id);
         if (!level_filter_item_ids_.contains(event.level)) add_level_filter_item(event.level);
         if (trim_tail()) {
-            rebuild_filter_items();
-            rebuild_display();
+            if (render) { rebuild_filter_items(); rebuild_display(); }
             return;
         }
         const auto& entry = entries_.back();
-        if (matches_filter(entry))
+        if (render && matches_filter(entry))
             append_to_display(entry);
     }
+public:
     void resized() override {
         const auto available = std::max(0, getWidth() - 100);
         const auto level_width = std::min(140, available / 2);

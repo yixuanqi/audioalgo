@@ -22,6 +22,7 @@ class EditorRunJob final : public juce::ThreadPoolJob {
 public:
     using Completion = std::function<void(ComponentType&, RunOutcome, WaveformChannels, RunIdentity)>;
     using LogCompletion = std::function<void(ComponentType&, NodeLogEvent)>;
+    using LogBatchCompletion = std::function<void(ComponentType&, std::deque<NodeLogEvent>)>;
 
     EditorRunJob(std::weak_ptr<ComponentDispatchState<ComponentType>> target,
                  std::shared_ptr<const NodeRegistry> descriptors, RunRequest request,
@@ -32,22 +33,26 @@ public:
     EditorRunJob(std::weak_ptr<ComponentDispatchState<ComponentType>> target,
                  std::shared_ptr<const NodeRegistry> descriptors, RunRequest request,
                  RunIdentity identity, std::shared_ptr<const ProjectResourceService> resources,
-                 Completion completion, LogCompletion logs = {})
+                 Completion completion, LogCompletion logs = {}, LogBatchCompletion log_batch = {})
         : ThreadPoolJob("AudioAlgo offline render"), target_(std::move(target)),
           descriptors_(std::move(descriptors)), request_(std::move(request)),
           identity_(std::move(identity)), resources_(resources ? std::move(resources)
                                                                : std::make_shared<ProjectResourceService>()),
-          completion_(std::move(completion)), logs_(std::move(logs)) {}
+          completion_(std::move(completion)), logs_(std::move(logs)), log_batch_(std::move(log_batch)) {}
 
     JobStatus runJob() override {
-        if (logs_) {
+        if (logs_ || log_batch_) {
             auto mailbox = std::make_shared<RunLogMailbox>();
             auto observer = std::move(request_.on_log);
-            request_.on_log = [target = target_, completion = logs_, observer = std::move(observer), mailbox](NodeLogEvent event) {
+            request_.on_log = [target = target_, completion = logs_, batch = log_batch_, observer = std::move(observer), mailbox](NodeLogEvent event) {
                 if (observer) observer(event);
                 if (!mailbox->push(std::move(event))) return;
                 const auto posted = dispatch_to_live_component(target,
-                    [completion, mailbox](ComponentType& live) mutable { for (auto& value : mailbox->take()) completion(live, std::move(value)); });
+                    [completion, batch, mailbox](ComponentType& live) mutable {
+                        auto values = mailbox->take();
+                        if (batch) batch(live, std::move(values));
+                        else for (auto& value : values) completion(live, std::move(value));
+                    });
                 if (!posted) (void)mailbox->take();
             };
         }
@@ -88,6 +93,7 @@ private:
     std::shared_ptr<const ProjectResourceService> resources_;
     Completion completion_;
     LogCompletion logs_;
+    LogBatchCompletion log_batch_;
 };
 
 } // namespace audioalgo::editor

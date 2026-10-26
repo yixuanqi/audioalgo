@@ -2225,7 +2225,8 @@
         "PC-06.c parallel native consumers own separate near-limit budgets and one failure cannot consume another quota",
         "PC-04.b native stream keeps exact bounded UTF8 capture tail and independent persisted counters",
         "PC-06.d accepted synchronous detach logs drain before queue closure for both native instances",
-        "PC-03.c active native production queue cancellation drains final logs removes payload and recovers"
+        "PC-03.c active native production queue cancellation drains final logs removes payload and recovers",
+        "PC-03.c active native View and queue close reject queued logs drain owned modules and permit recovery"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -2316,6 +2317,13 @@
           "evidence": "build/reports/loops/PC0612-native-cancel/target.xml",
           "command_record": "build/reports/loops/PC0612-native-cancel/target.json",
           "snapshot_scope": "Actual native productionqueue cancel at16bytefirstlogbarrier,2instances finaldetach logs,run_cancelled/no payload/emptywaveform,5scleanup,idlecounts0,samequeue recovery;independent2WAV/6streams maxerror0. OFF separatelypasses;full requirements partial."
+        },
+        {
+          "test_name": "PC-03.c active native View and queue close reject queued logs drain owned modules and permit recovery",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0613-native-close/target-authorized.xml",
+          "command_record": "build/reports/loops/PC0613-native-close/target-authorized.json",
+          "snapshot_scope": "Actual queue/dispatch active native close with queued stale log, async pool drain, final logs, weak references/module unload and recovery; independent ON/OFF each2WAV/8streams maxerror0. Not outer EditorComponent/Main desktop or whole requirement."
         }
       ],
       "status": "partial"
@@ -2523,7 +2531,8 @@
         "PC-04.d log level and node filters intersect without discarding hidden entries",
         "PC-04.d production Run level filter separates real stdout and stderr without changing audio",
         "PC-04.d production historical Run logs do not replace current result or preview",
-        "PC-04.d history reader bounds owned tail and rejects mixed or malformed archives"
+        "PC-04.d history reader bounds owned tail and rejects mixed or malformed archives",
+        "NA-14 NI0015 authoring splitters preserve source and expose all real probe prints"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -2649,6 +2658,13 @@
           "evidence": "build/reports/loops/PC0407-log-history/direct-regression.xml",
           "command_record": "build/reports/loops/PC0407-log-history/direct-regression.json",
           "snapshot_scope": "PC0407 logged-history subset: worker-bounded archive read, explicit old/current identity, unchanged current result/preview and queued-history revocation across New/Open. No full requirement promotion."
+        },
+        {
+          "test_name": "NA-14 NI0015 authoring splitters preserve source and expose all real probe prints",
+          "status": "passed",
+          "evidence": "build/reports/loops/NI0015-resizable-workspace/labels-target.xml",
+          "command_record": "build/reports/loops/NI0015-resizable-workspace/labels-target.json",
+          "snapshot_scope": "Component drag/clamp/reset/source/model/Ready preservation and real PNGs only;DPI/OSdesktop/titlebar behavior unverified. OFF geometry separately passes;whole requirement partial."
         }
       ],
       "status": "partial",
@@ -2667,14 +2683,24 @@
       "required": true,
       "layer": "component+desktop",
       "runner": "ctest",
-      "test_names": [],
-      "coverage": "not_implemented",
+      "test_names": [
+        "NA-14 NI0015 authoring splitters preserve source and expose all real probe prints"
+      ],
+      "coverage": "partial",
       "evidence_requirements": [
         "all acceptance clauses in NA-14.d"
       ],
       "related_ids": [],
-      "test_results": [],
-      "status": "not_verified"
+      "test_results": [
+        {
+          "test_name": "NA-14 NI0015 authoring splitters preserve source and expose all real probe prints",
+          "status": "passed",
+          "evidence": "build/reports/loops/NI0015-resizable-workspace/labels-target.xml",
+          "command_record": "build/reports/loops/NI0015-resizable-workspace/labels-target.json",
+          "snapshot_scope": "Component drag/clamp/reset/source/model/Ready preservation and real PNGs only;DPI/OSdesktop/titlebar behavior unverified. OFF geometry separately passes;whole requirement partial."
+        }
+      ],
+      "status": "partial"
     },
     {
       "id": "NA-15.a",
@@ -2720,7 +2746,9 @@
         "PC-06.c parallel native consumers own separate near-limit budgets and one failure cannot consume another quota",
         "PC-04.b native stream keeps exact bounded UTF8 capture tail and independent persisted counters",
         "PC-06.d accepted synchronous detach logs drain before queue closure for both native instances",
-        "PC-03.c active native production queue cancellation drains final logs removes payload and recovers"
+        "PC-03.c active native production queue cancellation drains final logs removes payload and recovers",
+        "PC-03.c active native View and queue close reject queued logs drain owned modules and permit recovery",
+        "PC-04.d production native log flood obeys UI budgets during a ten second mixed Run and recovers"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -2991,6 +3019,20 @@
           "evidence": "build/reports/loops/PC0612-native-cancel/target.xml",
           "command_record": "build/reports/loops/PC0612-native-cancel/target.json",
           "snapshot_scope": "Actual native productionqueue cancel at16bytefirstlogbarrier,2instances finaldetach logs,run_cancelled/no payload/emptywaveform,5scleanup,idlecounts0,samequeue recovery;independent2WAV/6streams maxerror0. OFF separatelypasses;full requirements partial."
+        },
+        {
+          "test_name": "PC-03.c active native View and queue close reject queued logs drain owned modules and permit recovery",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0613-native-close/target-authorized.xml",
+          "command_record": "build/reports/loops/PC0613-native-close/target-authorized.json",
+          "snapshot_scope": "Actual queue/dispatch active native close with queued stale log, async pool drain, final logs, weak references/module unload and recovery; independent ON/OFF each2WAV/8streams maxerror0. Not outer EditorComponent/Main desktop or whole requirement."
+        },
+        {
+          "test_name": "PC-04.d production native log flood obeys UI budgets during a ten second mixed Run and recovers",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0614-native-ui-flood/green.xml",
+          "command_record": "build/reports/loops/PC0614-native-ui-flood/green.json",
+          "snapshot_scope": "Native16MiB burst/+1/flood actual production Run,10s active mixed heartbeat p95=27.5009/max36.5932ms,3WAV/6NPY/raw maxerror0;current direct16/OFF5 separately. Not continuous native10s/desktop/whole requirement."
         }
       ],
       "status": "partial"
@@ -3002,8 +3044,10 @@
       "required": true,
       "layer": "integration",
       "runner": "ctest",
-      "test_names": [],
-      "coverage": "not_implemented",
+      "test_names": [
+        "NED-01 NI0015 dock splitters resize real panes without editing the project"
+      ],
+      "coverage": "partial",
       "evidence_requirements": [
         "all acceptance clauses in NA-15.b"
       ],
@@ -3013,8 +3057,16 @@
         "G",
         "UPN"
       ],
-      "test_results": [],
-      "status": "not_verified"
+      "test_results": [
+        {
+          "test_name": "NED-01 NI0015 dock splitters resize real panes without editing the project",
+          "status": "passed",
+          "evidence": "build/reports/loops/NI0015-resizable-workspace/labels-target.xml",
+          "command_record": "build/reports/loops/NI0015-resizable-workspace/labels-target.json",
+          "snapshot_scope": "Component drag/clamp/reset/source/model/Ready preservation and real PNGs only;DPI/OSdesktop/titlebar behavior unverified. OFF geometry separately passes;whole requirement partial."
+        }
+      ],
+      "status": "partial"
     },
     {
       "id": "NA-15.c",
@@ -3055,7 +3107,10 @@
         "PC-06.c parallel native consumers own separate near-limit budgets and one failure cannot consume another quota",
         "PC-04.b native stream keeps exact bounded UTF8 capture tail and independent persisted counters",
         "PC-06.d accepted synchronous detach logs drain before queue closure for both native instances",
-        "PC-03.c active native production queue cancellation drains final logs removes payload and recovers"
+        "PC-03.c active native production queue cancellation drains final logs removes payload and recovers",
+        "PC-03.c active native View and queue close reject queued logs drain owned modules and permit recovery",
+        "PC-04.d production native log flood obeys UI budgets during a ten second mixed Run and recovers",
+        "NED-01 NI0015 dock splitters resize real panes without editing the project"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -3291,6 +3346,27 @@
           "evidence": "build/reports/loops/PC0612-native-cancel/target.xml",
           "command_record": "build/reports/loops/PC0612-native-cancel/target.json",
           "snapshot_scope": "Actual native productionqueue cancel at16bytefirstlogbarrier,2instances finaldetach logs,run_cancelled/no payload/emptywaveform,5scleanup,idlecounts0,samequeue recovery;independent2WAV/6streams maxerror0. OFF separatelypasses;full requirements partial."
+        },
+        {
+          "test_name": "PC-03.c active native View and queue close reject queued logs drain owned modules and permit recovery",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0613-native-close/target-authorized.xml",
+          "command_record": "build/reports/loops/PC0613-native-close/target-authorized.json",
+          "snapshot_scope": "Actual queue/dispatch active native close with queued stale log, async pool drain, final logs, weak references/module unload and recovery; independent ON/OFF each2WAV/8streams maxerror0. Not outer EditorComponent/Main desktop or whole requirement."
+        },
+        {
+          "test_name": "PC-04.d production native log flood obeys UI budgets during a ten second mixed Run and recovers",
+          "status": "passed",
+          "evidence": "build/reports/loops/PC0614-native-ui-flood/green.xml",
+          "command_record": "build/reports/loops/PC0614-native-ui-flood/green.json",
+          "snapshot_scope": "Native16MiB burst/+1/flood actual production Run,10s active mixed heartbeat p95=27.5009/max36.5932ms,3WAV/6NPY/raw maxerror0;current direct16/OFF5 separately. Not continuous native10s/desktop/whole requirement."
+        },
+        {
+          "test_name": "NED-01 NI0015 dock splitters resize real panes without editing the project",
+          "status": "passed",
+          "evidence": "build/reports/loops/NI0015-resizable-workspace/labels-target.xml",
+          "command_record": "build/reports/loops/NI0015-resizable-workspace/labels-target.json",
+          "snapshot_scope": "Component drag/clamp/reset/source/model/Ready preservation and real PNGs only;DPI/OSdesktop/titlebar behavior unverified. OFF geometry separately passes;whole requirement partial."
         }
       ],
       "status": "partial",
@@ -3471,7 +3547,7 @@
     }
   ],
   "acceptance_document_sha256": "2fe375ab07622cace39606c9fb425d58ae6ab9c5f64dc60933b2f675cc8c3b50",
-  "current_entry": "PC0612 actual productionqueue active nativecancel firstGreen1/1/2280,direct5/5/2841,OFF1/1/2280. Firstpersisted16byte barrier→realqueuecancel,run_cancelled/no payload/emptywaveform,final2SDKsinks archived,oldsuccess immutable,samequeue recovery/counts0. IndependentON/OFF each2WAV/6streams maxerror0,cancel9.9827/10.7264ms under5000ms. No productchange,exact append/hostidentity reusesPC0610/11 original scopes. Full View-appclose/late/UI flood/workbench/platformpartial,nextPC0613. Desktoppaused.",
+  "current_entry": "NI0015 userUI:five drag rails/clamps/reset,preserve model/source/Ready,dark caption/neutral controls/path ellipsis/deletefooter/blockhint. Currenttarget2/2/68,direct106/106/16096 before only Label scale fix(exact audit),OFFgeometry2/2/60,0failure/skip. Independent4PNGeachON/OFF,ON5realPrintcalls513/127. No desktop/DPI/OSwindow interactions claim;userwindow untouched. PriorPC0613/14 work preserved,nextPC0701.",
   "status_policy": "passed applies only to executed tests in their recorded snapshots; partial is incomplete requirement coverage; failed preserves latest recorded failure; not_verified is absent/unexecuted evidence. No NA stage is passed.",
   "test_inventory": {
     "NA-01.a production draft offers a user chosen Save As target": "tests/unit/test_node_authoring.cpp",
@@ -3596,7 +3672,11 @@
     "PC-06.c parallel native consumers own separate near-limit budgets and one failure cannot consume another quota": "tests/unit/test_node_authoring.cpp",
     "PC-04.b native stream keeps exact bounded UTF8 capture tail and independent persisted counters": "tests/unit/test_node_authoring.cpp",
     "PC-06.d accepted synchronous detach logs drain before queue closure for both native instances": "tests/unit/test_node_authoring.cpp",
-    "PC-03.c active native production queue cancellation drains final logs removes payload and recovers": "tests/unit/test_node_authoring.cpp"
+    "PC-03.c active native production queue cancellation drains final logs removes payload and recovers": "tests/unit/test_node_authoring.cpp",
+    "PC-03.c active native View and queue close reject queued logs drain owned modules and permit recovery": "tests/unit/test_node_authoring.cpp",
+    "PC-04.d production native log flood obeys UI budgets during a ten second mixed Run and recovers": "tests/unit/test_node_authoring.cpp",
+    "NED-01 NI0015 dock splitters resize real panes without editing the project": "tests/unit/test_node_authoring.cpp",
+    "NA-14 NI0015 authoring splitters preserve source and expose all real probe prints": "tests/unit/test_node_authoring.cpp"
   },
   "latest_execution": {
     "ctest_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
@@ -3628,7 +3708,7 @@
     "required_subcase_count_impact": 0,
     "scope": "PC-01..08 supplemental map; separate from 68 required NA subcases",
     "status": "partial",
-    "current_entry": "PC0612 actual productionqueue active nativecancel firstGreen1/1/2280,direct5/5/2841,OFF1/1/2280. Firstpersisted16byte barrier→realqueuecancel,run_cancelled/no payload/emptywaveform,final2SDKsinks archived,oldsuccess immutable,samequeue recovery/counts0. IndependentON/OFF each2WAV/6streams maxerror0,cancel9.9827/10.7264ms under5000ms. No productchange,exact append/hostidentity reusesPC0610/11 original scopes. Full View-appclose/late/UI flood/workbench/platformpartial,nextPC0613. Desktoppaused.",
+    "current_entry": "PC0614 actual native burst production Run heartbeat Red103.7433ms>100 fixed by preserving batch through Job/Queue/workspace and one synchronous panel render. Green1/1/3201,p95=27.5009/max36.5932ms full10s/20ms. Currentdirect16/16/18030,OFF5/5/8982,0failure/skip. Independent3WAV/6NPY/3x16MiB raw maximumerror0;current batchcloseON/OFFeach2WAV/8streams. Target reused by exact inverse test audit,old binary distinct. WholePC/NA/platform partial,continuousnative10s/outerwindow/desktop gaps retained. NextPC0701 C++workbench language/template/independent SDK build/probe.",
     "slices": [
       {
         "id": "PC0402-live-log",
@@ -4391,7 +4471,64 @@
           "No outer Editor Run/Cancel button/realdesktop or OS child-process/canary cleanup claim;native DLL runs inprocess and this test drives actual queue component.",
           "C++workbench build/probe/PendingRestart/normal restart,SaveAs resources/exact versions,wholeCheck wallclock,logs-free history,older intermittent precise causes,root/UNC real writes/OS dragdrop/desktop/final Python+Speex ON Release/all full PC/NA/AR/G/NED/UPN incomplete."
         ]
+      },
+      {
+        "id": "PC0613-native-close",
+        "status": "partial",
+        "record": "build/reports/loops/PC0613-native-close/summary.json",
+        "loop": "build/reports/loops/PC0613-native-close/loop.md",
+        "test_names": [
+          "PC-03.c active native View and queue close reject queued logs drain owned modules and permit recovery"
+        ],
+        "covered": {
+          "PC-03.c": "Two actual production queue/dispatch close modes: first native log queued with UI pumping suspended, second worker event held; close/reject submissions, invalidate/destroy View; old callbacks zero, replacement clean, owned worker drain and fresh queue recovery.",
+          "PC-06.d": "Both DLL instances archive accepted final detach messages before worker/catalog/module release; actual Windows module present while worker owns catalog, absent after teardown; callback/catalog/dispatch weak leases expire.",
+          "NA-12.d/NA-15.a/c": "Native failure/close/recovery and unchanged ABI/host subset. Not C++ workbench or whole requirements."
+        },
+        "unverified": [
+          "Outer EditorComponent/Main window active native shutdown coordination, full failure/module sequences and real desktop remain unverified.",
+          "Native continuous flood ten-second GUI heartbeat, complete UI dropped counters, full Check wallclock, logs-free history, SaveAs resources/exact packages, C++ workbench build/probe/PendingRestart/restart, root/UNC writes and final Python+Speex ON Release/all full PC/NA/AR/G/NED/UPN remain incomplete."
+        ]
+      },
+      {
+        "id": "PC0614-native-ui-flood",
+        "status": "partial",
+        "record": "build/reports/loops/PC0614-native-ui-flood/summary.json",
+        "loop": "build/reports/loops/PC0614-native-ui-flood/loop.md",
+        "test_names": [
+          "PC-04.d production native log flood obeys UI budgets during a ten second mixed Run and recovers"
+        ],
+        "covered": {
+          "PC-04.b/d": "Actual EditorComponent Run with external native SDK burst exactly16MiB/+1/64MiB requested; mixed Run active over10s/20ms heartbeat. UI/copy<=256KiB, native error/no failed result, same workspace recovery. Ten seconds includes burst then Python gate; not native continuous output throughout.",
+          "PC-03.a/c / PC-06.d affected": "Current direct validates per-event identity within mixed valid/stale batches, Print failures, node/level/history/NUL, new batch active close plus old cancel/detach. ON/OFF independent close artifacts retained.",
+          "NA-15.a/c": "Supported native+Python real output/failure recovery and affected UI/run lifecycle subset only; no whole requirement or workbench completion."
+        },
+        "unverified": [
+          "Native events continuously emitted for all10seconds, complete UI discard-count presentation, full outer native EditorComponent/Main close/module failure matrix remain open.",
+          "C++ workbench independent build/probe/PendingRestart/normal restart, project SaveAs carried resources/exact packages, whole Check wallclock, logs-free history, root/UNC real writes, OS dragdrop/desktop/final Python+Speex ON Release and all full PC/NA/AR/G/NED/UPN incomplete."
+        ]
       }
     ]
-  }
+  },
+  "editor_layout_supplements": [
+    {
+      "id": "NI0015-resizable-workspace",
+      "status": "partial",
+      "test_names": [
+        "NED-01 NI0015 dock splitters resize real panes without editing the project",
+        "NA-14 NI0015 authoring splitters preserve source and expose all real probe prints"
+      ],
+      "record": "build/reports/loops/NI0015-resizable-workspace/summary.json",
+      "mapping": {
+        "NED-02.c / NA-15.b/c affected geometry": "Actual workspace drag library/Inspector/results, extreme clamps, window resize, double-click reset; project identity/revision/node count/dirty unchanged. Current106direct retains canvas zoom/pan/negative drag/selection/wiring/forms/realPrint/check/close subsets.",
+        "NA-14.c/d component subset": "Actual definition/source/log splitter drags and minimum sizes preserve source/declaration/generation/Ready; component renders at content1440x900/1100x700 and authoring1404x864/1064x864. No system DPI/desktop claim.",
+        "Print explanation": "Unchanged runtime check513frames/max127,real5print lines. Screenshot clipping/multiple block callbacks,not duplicateApply or duplicateRun."
+      },
+      "unverified": [
+        "Native OS titlebar drag/minimise/maximise/snap/resize and100/150/200%DPI/real desktop remain not_verified; no user window restarted or launched.",
+        "Panel sizes session-only; persistence across app restarts not implemented.",
+        "Full NA/NED/AR/G/UPN/PC/Release and C++workbench/build/probe/restart,SaveAs and other existing gaps remain incomplete. Next mainline PC0701."
+      ]
+    }
+  ]
 }

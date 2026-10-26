@@ -2,6 +2,7 @@
 #include "EditorRunLogPanel.h"
 #include "EditorText.h"
 #include "EditorUiSupport.h"
+#include "EditorPanelSplitter.h"
 #include "audio_node_authoring/Draft.h"
 #include "audio_node_authoring/AuthoringChecks.h"
 #include <juce_gui_extra/juce_gui_extra.h>
@@ -41,12 +42,31 @@ public:
           source_(source_document_, nullptr), definition_(definition_document_, nullptr), checks_(std::move(checks)),
           catalog_(std::move(catalog)), applied_(std::move(applied)), prepare_catalog_(std::move(prepare_catalog)), discard_catalog_(std::move(discard_catalog)), files_(std::move(files)) {
         setComponentID("authoring.panel");
+        setLookAndFeel(&look_and_feel_);
+        definition_splitter_.configure("authoring.splitter.definition", "Resize definition and source", false,
+            [this](int delta) { definition_height_ += delta; resized(); },
+            [this] { definition_height_ = 160; resized(); });
+        logs_splitter_.configure("authoring.splitter.logs", "Resize check logs", false,
+            [this](int delta) { check_log_height_ -= delta; resized(); },
+            [this] { check_log_height_ = 180; resized(); });
+        addAndMakeVisible(definition_splitter_); addAndMakeVisible(logs_splitter_); addAndMakeVisible(trial_hint_);
+        trial_hint_.setText("Check calls process() once per audio block; repeated print output is normal.", juce::dontSendNotification);
+        trial_hint_.setColour(juce::Label::textColourId, muted); trial_hint_.setFont(juce::FontOptions(12.f));
+        file_path_.setMinimumHorizontalScale(1.f); locations_.setMinimumHorizontalScale(1.f);
+        for (auto* editor : {&source_, &definition_}) {
+            editor->setFont(juce::Font(juce::FontOptions("Consolas", 13.5f, juce::Font::plain)));
+            editor->setColour(juce::CodeEditorComponent::backgroundColourId, background);
+            editor->setColour(juce::CodeEditorComponent::defaultTextColourId, ink);
+            editor->setColour(juce::CodeEditorComponent::lineNumberTextId, muted);
+            editor->setColour(juce::CodeEditorComponent::lineNumberBackgroundId, panel);
+        }
         addAndMakeVisible(check_logs_);
         for (juce::Component* c : std::initializer_list<juce::Component*>{&source_, &definition_, &title_, &source_label_,
                        &definition_label_, &state_, &save_, &close_button_}) addAndMakeVisible(*c);
-        title_.setText(utf8_literal("Custom node draft · Python"), juce::dontSendNotification);
-        source_label_.setText(utf8_literal("SOURCE · process(inputs, params, state)"), juce::dontSendNotification);
-        definition_label_.setText(utf8_literal("DEFINITION · imported SDK declaration (JSON)"), juce::dontSendNotification);
+        title_.setText("Python node", juce::dontSendNotification); title_.setFont(juce::FontOptions(17.f, juce::Font::bold));
+        source_label_.setText("Source  /  process(inputs, params, state)", juce::dontSendNotification);
+        definition_label_.setText("Definition  /  ports and parameters", juce::dontSendNotification);
+        for (auto* label : {&source_label_, &definition_label_}) { label->setFont(juce::FontOptions(12.f, juce::Font::bold)); label->setColour(juce::Label::textColourId, muted); }
         source_.setComponentID("authoring.source"); definition_.setComponentID("authoring.definition");
         addAndMakeVisible(type_id_); addAndMakeVisible(display_name_);
         addAndMakeVisible(templates_); templates_.setComponentID("authoring.template");
@@ -112,6 +132,7 @@ public:
         if (preparing_.valid()) preparing_.wait();
         if (applying_.valid()) applying_.wait();
         if (discard_catalog_) discard_catalog_();
+        setLookAndFeel(nullptr);
     }
     bool keyPressed(const juce::KeyPress& key) override {
         if (key.getModifiers().isCtrlDown() || key.getModifiers().isCommandDown()) {
@@ -123,7 +144,7 @@ public:
         }
         return false;
     }
-    void paint(juce::Graphics& g) override { g.fillAll(panel); g.setColour(signal); g.drawRect(getLocalBounds(), 1); }
+    void paint(juce::Graphics& g) override { g.fillAll(panel); g.setColour(muted.withAlpha(.35f)); g.drawRect(getLocalBounds(), 1); }
     void resized() override {
         auto area = getLocalBounds().reduced(12);
         title_.setBounds(area.removeFromTop(28));
@@ -143,9 +164,15 @@ public:
         check_.setBounds(actions.removeFromLeft(150).reduced(2)); cancel_.setBounds(actions.removeFromLeft(90).reduced(2));
         apply_.setBounds(actions.removeFromRight(100).reduced(2)); check_state_.setBounds(actions);
         diagnostic_.setBounds(diagnostics);
-        check_logs_.setBounds(area.removeFromBottom(110));
-        auto definition = area.removeFromTop(std::max(120, area.getHeight() / 3));
+        const int usable = std::max(248, area.getHeight() - 84);
+        definition_height_ = std::clamp(definition_height_, 72, std::max(72, usable - 100 - 76));
+        check_log_height_ = std::clamp(check_log_height_, 76, std::max(76, usable - definition_height_ - 100));
+        check_logs_.setBounds(area.removeFromBottom(check_log_height_));
+        trial_hint_.setBounds(area.removeFromBottom(20));
+        logs_splitter_.setBounds(area.removeFromBottom(8));
+        auto definition = area.removeFromTop(definition_height_ + 24);
         definition_label_.setBounds(definition.removeFromTop(24)); definition_.setBounds(definition);
+        definition_splitter_.setBounds(area.removeFromTop(8));
         source_label_.setBounds(area.removeFromTop(24)); source_.setBounds(area);
     }
     const authoring::DraftSession& session() const { return session_; }
@@ -501,6 +528,10 @@ private:
         else files_.choose_directory(recovery, std::move(selected));
         update_status();
     }
+    EditorLookAndFeel look_and_feel_;
+    PanelSplitter definition_splitter_, logs_splitter_;
+    int definition_height_ = 160, check_log_height_ = 180;
+    juce::Label trial_hint_;
     authoring::DraftSession session_;
     std::shared_ptr<const authoring::DraftStorage> storage_;
     std::function<void()> close_;

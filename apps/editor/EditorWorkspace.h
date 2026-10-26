@@ -3,6 +3,7 @@
 #include "EditorNodeInspector.h"
 #include "EditorGeometry.h"
 #include "EditorComponentLayout.h"
+#include "EditorPanelSplitter.h"
 #include "EditorText.h"
 #include "EditorNodeCreation.h"
 #include "EditorNodeDragDrop.h"
@@ -94,6 +95,17 @@ public:
               path_from_juce_file(juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
                   .getChildFile("AudioAlgo").getChildFile("authoring").getChildFile("drafts")))), checks_(std::move(checks)), allow_catalog_prepare_(std::move(allow_catalog_prepare)), user_draft_files_(user_draft_files), draft_picker_(std::move(draft_picker)), location_persistence_(std::move(location_persistence)), library_location_persistence_(std::move(library_location_persistence)) {
         run_configuration_=run_configuration;
+        setLookAndFeel(&look_and_feel_);
+        library_splitter_.configure("workspace.splitter.library", "Resize node library", true,
+            [this](int delta) { panel_sizes_.library += delta; resized(); repaint(); },
+            [this] { panel_sizes_.library = 164; resized(); repaint(); });
+        inspector_splitter_.configure("workspace.splitter.inspector", "Resize Inspector", true,
+            [this](int delta) { panel_sizes_.inspector -= delta; resized(); repaint(); },
+            [this] { panel_sizes_.inspector = 270; resized(); repaint(); });
+        results_splitter_.configure("workspace.splitter.results", "Resize waveform and logs", false,
+            [this](int delta) { panel_sizes_.results -= delta; resized(); },
+            [this] { panel_sizes_.results = 168; resized(); });
+        for (auto* splitter : {&library_splitter_, &inspector_splitter_, &results_splitter_}) addAndMakeVisible(*splitter);
         completion_dispatch_state_ = std::make_shared<
             audioalgo::editor::ComponentDispatchState<EditorComponent>>(*this);
         inspector_.set_descriptor_registry(descriptors_);
@@ -211,6 +223,7 @@ public:
             jassert(worker_pool_.get_num_jobs() == 0);
         }
         worker_pool_.join_shutdown();
+        setLookAndFeel(nullptr);
     }
 
     void begin_shutdown(std::function<void()> on_drained) {
@@ -246,7 +259,7 @@ public:
         g.fillAll(background);
         g.setColour(panel);
         g.fillRect(0, 0, getWidth(), 54);
-        g.fillRect(0, 54, 164, getHeight() - 54);
+        g.fillRect(0, 54, panel_sizes_.library, getHeight() - 54);
         g.setColour(signal);
         g.setFont(juce::FontOptions(19.0f, juce::Font::bold));
         g.drawText("AudioAlgo", 18, 10, 132, 28, juce::Justification::centredLeft);
@@ -256,7 +269,8 @@ public:
     }
 
     void resized() override {
-        const auto layout = audioalgo::editor::make_editor_component_layout(getWidth(), getHeight());
+        const auto layout = audioalgo::editor::make_editor_component_layout(getWidth(), getHeight(), panel_sizes_);
+        panel_sizes_ = {layout.library_pane.width, layout.inspector.width, layout.waveform.height};
         const auto set_bounds = [](juce::Component& component, const auto& bounds) {
             component.setBounds(bounds.x, bounds.y, bounds.width, bounds.height);
         };
@@ -267,7 +281,10 @@ public:
         set_bounds(redo_button_, layout.redo_button);
         set_bounds(run_button_, layout.run_button);
         set_bounds(play_button_, layout.play_button);
-        library_.setBounds(0, 54, 164, getHeight() - 54);
+        set_bounds(library_, layout.library_pane);
+        set_bounds(library_splitter_, layout.library_splitter);
+        set_bounds(inspector_splitter_, layout.inspector_splitter);
+        set_bounds(results_splitter_, layout.results_splitter);
         set_bounds(delete_button_, layout.delete_button);
         set_bounds(canvas_, layout.canvas);
         set_bounds(inspector_, layout.inspector);
@@ -328,6 +345,18 @@ public:
             run_logs_.append(event); waveform_.setVisible(false); run_logs_.setVisible(true);
         });
         juce::ignoreUnused(applied);
+    }
+    void run_logs_received(std::deque<NodeLogEvent> events) {
+        std::deque<NodeLogEvent> current;
+        for (auto& event : events) {
+            const auto applied = apply_if_current_run(run_reception_, event.identity, project_.project_id, project_epoch_, project_.revision, [&] {
+                if (!viewing_archived_logs_) current.push_back(std::move(event));
+            });
+            juce::ignoreUnused(applied);
+        }
+        if (!current.empty()) {
+            run_logs_.append_batch(current); waveform_.setVisible(false); run_logs_.setVisible(true);
+        }
     }
 
 private:
@@ -1150,7 +1179,8 @@ private:
             [](EditorComponent& target, audioalgo::RunOutcome outcome,
                WaveformChannels waveform, audioalgo::RunIdentity completed_identity) {
                 target.run_finished(std::move(outcome), std::move(waveform), std::move(completed_identity));
-            }, [](EditorComponent& target, NodeLogEvent event) { target.run_log_received(std::move(event)); });
+            }, EditorRunQueue<EditorComponent>::LogCompletion{},
+            [](EditorComponent& target, std::deque<NodeLogEvent> events) { target.run_logs_received(std::move(events)); });
         if (!run_queue_->submit(std::move(request), identity)) {
             run_reception_.invalidate();
             set_status("The editor is closing; the run was not started.", true);
@@ -1254,6 +1284,9 @@ private:
 
     void stop_playback_resources() { preview_service_->stop(); }
 
+    EditorLookAndFeel look_and_feel_;
+    EditorPanelSizes panel_sizes_;
+    PanelSplitter library_splitter_, inspector_splitter_, results_splitter_;
     std::shared_ptr<const audioalgo::ProjectDocumentService> document_service_;
     std::shared_ptr<const audioalgo::ProjectResourceService> project_resources_;
     std::shared_ptr<audioalgo::AudioPreviewService> preview_service_;

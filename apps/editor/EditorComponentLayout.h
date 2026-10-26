@@ -26,7 +26,13 @@ struct EditorComponentLayout {
     ComponentBounds inspector;
     ComponentBounds waveform;
     ComponentBounds status;
+    ComponentBounds library_pane;
+    ComponentBounds library_splitter;
+    ComponentBounds inspector_splitter;
+    ComponentBounds results_splitter;
 };
+
+struct EditorPanelSizes { int library = 164, inspector = 270, results = 168; };
 
 struct EditorWindowSize {
     int width = 0;
@@ -43,15 +49,16 @@ inline EditorWindowSize make_initial_editor_window_size(int work_area_width, int
     };
 }
 
-inline EditorComponentLayout make_editor_component_layout(int width, int height) noexcept {
-    constexpr int left = 164;
-    constexpr int right = 270;
+inline EditorComponentLayout make_editor_component_layout(int width, int height, EditorPanelSizes sizes = {}) noexcept {
+    constexpr int rail = 8;
+    const int left = std::clamp(sizes.library, 148, std::max(148, width - 220 - 240 - 2 * rail));
+    const int right = std::clamp(sizes.inspector, 220, std::max(220, width - left - 240 - 2 * rail));
     constexpr int top = 54;
-    constexpr int waveform_height = 168;
+    const int waveform_height = std::clamp(sizes.results, 128, std::max(128, height - top - 160 - 30 - rail));
     constexpr int status_height = 30;
 
     const int library_height = std::max(48, height - 164);
-    const int canvas_width = std::max(180, width - left - right - 14);
+    const int canvas_width = std::max(180, width - left - right - 2 * rail);
     const int canvas_height = std::max(160, height - top - waveform_height - status_height - 8);
 
     return {
@@ -64,11 +71,15 @@ inline EditorComponentLayout make_editor_component_layout(int width, int height)
         {618, 10, 98, 34},
         {18, 78, 130, 22},
         {10, 108, 144, library_height},
-        {14, std::max(112, height - 46), 136, 34},
-        {left, top, canvas_width, canvas_height},
-        {width - right, top, right, canvas_height + waveform_height + 4},
-        {left, top + canvas_height + 8, canvas_width, waveform_height},
-        {left + 10, height - status_height, canvas_width - 20, status_height - 2},
+        {width - right + 12, height - status_height - 40, right - 24, 30},
+        {left + rail, top, canvas_width, canvas_height},
+        {width - right, top, right, height - top - status_height - 44},
+        {left + rail, top + canvas_height + rail, canvas_width, waveform_height},
+        {left + rail + 10, height - status_height, canvas_width - 20, status_height - 2},
+        {0, top, left, height - top},
+        {left, top, rail, height - top - status_height},
+        {width - right - rail, top, rail, height - top - status_height},
+        {left + rail, top + canvas_height, canvas_width, rail},
     };
 }
 

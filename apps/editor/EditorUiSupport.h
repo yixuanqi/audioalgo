@@ -17,6 +17,74 @@ inline const auto compatible_green = juce::Colour(0xff6ed39a);
 inline const auto amber = juce::Colour(0xffe5b56f);
 inline const auto danger = juce::Colour(0xffe28778);
 
+class EditorLookAndFeel final : public juce::LookAndFeel_V4 {
+    class CaptionButton final : public juce::Button {
+    public:
+        explicit CaptionButton(int kind)
+            : juce::Button(kind == juce::DocumentWindow::closeButton ? "Close" :
+                           kind == juce::DocumentWindow::maximiseButton ? "Maximise" : "Minimise"), kind_(kind) {}
+        void paintButton(juce::Graphics& g, bool over, bool down) override {
+            const bool close = kind_ == juce::DocumentWindow::closeButton;
+            if (over || down) { g.setColour(close ? danger.darker(.35f) : raised.brighter(.12f)); g.fillAll(); }
+            g.setColour((over ? ink : muted).withMultipliedAlpha(isEnabled() ? 1.f : .4f));
+            const auto centre = getLocalBounds().toFloat().getCentre();
+            if (close) {
+                g.drawLine(centre.x - 4, centre.y - 4, centre.x + 4, centre.y + 4, 1.3f);
+                g.drawLine(centre.x + 4, centre.y - 4, centre.x - 4, centre.y + 4, 1.3f);
+            } else if (kind_ == juce::DocumentWindow::minimiseButton) {
+                g.drawLine(centre.x - 5, centre.y + 3, centre.x + 5, centre.y + 3, 1.3f);
+            } else {
+                auto box = juce::Rectangle<float>(10, 9).withCentre(centre);
+                if (getToggleState()) { g.drawRect(box.translated(2, -2), 1.f); box = box.translated(-1, 1); }
+                g.drawRect(box, 1.f);
+            }
+        }
+    private:
+        int kind_;
+    };
+public:
+    EditorLookAndFeel() {
+        setDefaultSansSerifTypefaceName("Segoe UI");
+        setColour(juce::Label::textColourId, ink);
+        setColour(juce::TextEditor::backgroundColourId, background);
+        setColour(juce::TextEditor::textColourId, ink);
+        setColour(juce::TextEditor::outlineColourId, muted.withAlpha(.3f));
+        setColour(juce::TextEditor::focusedOutlineColourId, signal);
+        setColour(juce::ComboBox::backgroundColourId, raised);
+        setColour(juce::ComboBox::textColourId, ink);
+        setColour(juce::ComboBox::outlineColourId, muted.withAlpha(.3f));
+        setColour(juce::PopupMenu::backgroundColourId, panel);
+        setColour(juce::PopupMenu::textColourId, ink);
+        setColour(juce::PopupMenu::highlightedBackgroundColourId, raised);
+        setColour(juce::ScrollBar::thumbColourId, muted.withAlpha(.45f));
+    }
+    juce::Font getTextButtonFont(juce::TextButton&, int height) override {
+        return juce::Font(juce::FontOptions(std::min(14.f, height * .55f)));
+    }
+    juce::Button* createDocumentWindowButton(int kind) override { return new CaptionButton(kind); }
+    void drawButtonBackground(juce::Graphics& g, juce::Button& button, const juce::Colour& colour,
+                              bool highlighted, bool down) override {
+        auto bounds = button.getLocalBounds().toFloat().reduced(.5f);
+        g.setColour(down ? signal.withAlpha(.16f) : highlighted ? colour.brighter(.12f) : colour);
+        g.fillRoundedRectangle(bounds, 5.f);
+        g.setColour(button.hasKeyboardFocus(true) ? signal : muted.withAlpha(highlighted ? .65f : .28f));
+        g.drawRoundedRectangle(bounds, 5.f, 1.f);
+    }
+    void drawDocumentWindowTitleBar(juce::DocumentWindow& window, juce::Graphics& g, int width, int height,
+                                    int title_x, int title_width, const juce::Image*, bool active) override {
+        g.fillAll(panel); g.setColour(raised); g.fillRect(0, height - 1, width, 1);
+        g.setColour(active ? ink : muted); g.setFont(juce::FontOptions(14.f, juce::Font::bold));
+        g.drawText(window.getName(), title_x + 12, 0, std::max(0, title_width - 24), height, juce::Justification::centredLeft);
+    }
+};
+
+inline void style_editor_window(juce::DocumentWindow& window) {
+    window.setUsingNativeTitleBar(false);
+    window.setTitleBarHeight(32);
+    window.setColour(juce::DocumentWindow::textColourId, ink);
+    window.setTitleBarButtonsRequired(juce::DocumentWindow::allButtons, false);
+}
+
 inline juce::String native_user_log_notice(const NodeDescriptor& descriptor) {
     if(!descriptor.plugin_origin || descriptor.plugin_origin->runtime!="native")return {};
     const auto metadata=juce::JSON::parse(utf8_string(descriptor.backend_metadata_json));

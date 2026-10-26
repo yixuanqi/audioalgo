@@ -10,7 +10,8 @@ using namespace audioalgo::editor;
 class MainWindow final : public juce::DocumentWindow {
 public:
     MainWindow() : DocumentWindow("AudioAlgo Editor", background, DocumentWindow::allButtons) {
-        setUsingNativeTitleBar(true);
+        setLookAndFeel(&look_and_feel_);
+        style_editor_window(*this);
         auto descriptors = std::make_shared<audioalgo::NodeRegistry>();
         const auto discovery = std::async(std::launch::async, [descriptors] {
             return audioalgo::register_host_nodes(*descriptors);
@@ -50,8 +51,10 @@ public:
                   primary_display->userArea.getWidth(), primary_display->userArea.getHeight());
         centreWithSize(initial_size.width, initial_size.height);
         setResizable(true, true);
+        setResizeLimits(900, 640, 8192, 8192);
         setVisible(true);
     }
+    ~MainWindow() override { setLookAndFeel(nullptr); }
 
     void closeButtonPressed() override { juce::JUCEApplication::getInstance()->systemRequestedQuit(); }
 
@@ -61,6 +64,8 @@ public:
         else if (on_drained)
             on_drained();
     }
+private:
+    EditorLookAndFeel look_and_feel_;
 };
 
 class AudioAlgoApplication final : public juce::JUCEApplication {
