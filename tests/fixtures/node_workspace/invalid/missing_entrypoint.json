@@ -1,0 +1,6 @@
+{
+  "workspace_schema": 1,
+  "language": "python",
+  "node": {"type_id": "user.missing_entrypoint", "version": "1.0.0", "display_name": "Missing entrypoint"},
+  "python": {"source_root": "src"}
+}

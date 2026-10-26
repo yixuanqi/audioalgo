@@ -1,0 +1,6 @@
+{
+  "workspace_schema": 1,
+  "language": "python",
+  "node": {"type_id": "user.escape_entry", "version": "1.0.0", "display_name": "Escape entrypoint"},
+  "python": {"source_root": "src", "entrypoint": "../outside.process:process"}
+}

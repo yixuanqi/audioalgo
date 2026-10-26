@@ -258,15 +258,20 @@ if(AUDIO_BUILD_TESTS)
   target_link_libraries(audio_editor_application_tests PRIVATE Catch2::Catch2WithMain audio_editor_application)
   target_compile_features(audio_editor_application_tests PRIVATE cxx_std_20)
   catch_discover_tests(audio_editor_application_tests PROPERTIES LABELS "R2;pure;application" TIMEOUT 10)
-  add_executable(audio_node_authoring_tests tests/unit/test_authoring_draft_storage.cpp)
+  add_executable(audio_node_authoring_tests tests/unit/test_authoring_draft_storage.cpp
+    tests/unit/test_authoring_workspace_service.cpp)
   target_link_libraries(audio_node_authoring_tests PRIVATE Catch2::Catch2WithMain audio_node_authoring)
   target_compile_definitions(audio_node_authoring_tests PRIVATE AUDIOALGO_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+  if(MSVC)
+    target_compile_options(audio_node_authoring_tests PRIVATE /utf-8)
+  endif()
   catch_discover_tests(audio_node_authoring_tests PROPERTIES LABELS "node_authoring;pure" TIMEOUT 10)
 
   if(AUDIO_BUILD_RUNTIME)
     add_executable(audioalgo_tests tests/unit/test_environment.cpp tests/unit/test_graph.cpp tests/unit/test_io.cpp tests/unit/test_project.cpp tests/unit/test_project_compatibility.cpp tests/unit/test_juce_graph.cpp tests/unit/test_run_service.cpp tests/unit/test_editor_run_job.cpp tests/unit/test_core.cpp tests/unit/test_editor_geometry.cpp tests/unit/test_editor_commands.cpp tests/unit/test_gain_node_adapter.cpp tests/unit/test_node_registry.cpp tests/unit/test_native_node_audio_processor.cpp tests/unit/test_native_node_contracts.cpp tests/unit/test_editor_parameter_panel.cpp tests/unit/test_editor_parameter_binding.cpp apps/editor/EditorParameterPanel.cpp apps/editor/EditorNodeParameterBinding.cpp)
     target_sources(audioalgo_tests PRIVATE tests/unit/test_fixed_frame_fifo.cpp)
     target_sources(audioalgo_tests PRIVATE tests/unit/test_node_authoring.cpp)
+    target_sources(audioalgo_tests PRIVATE tests/unit/test_node_workspace_lock.cpp)
     target_compile_definitions(audioalgo_tests PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1)
     target_sources(audioalgo_tests PRIVATE tests/unit/test_native_cancellation.cpp)
     target_sources(audioalgo_tests PRIVATE tests/unit/test_latest_run_queue.cpp)
@@ -456,6 +461,9 @@ if(AUDIO_BUILD_TESTS)
   add_test(NAME UPN_mapping_fail_closed
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/infrastructure/test_upn_mapping.py")
   set_tests_properties(UPN_mapping_fail_closed PROPERTIES LABELS "UPN;infrastructure" TIMEOUT 10)
+  add_test(NAME NWS-00.contract
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/infrastructure/test_node_workspace_manifest.py")
+  set_tests_properties(NWS-00.contract PROPERTIES LABELS "NWS;W0;infrastructure;contract" TIMEOUT 60)
 
   foreach(case IN ITEMS b c)
     add_test(

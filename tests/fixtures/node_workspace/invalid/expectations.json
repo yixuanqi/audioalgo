@@ -1,0 +1,59 @@
+{
+  "expectations_schema": 1,
+  "validation_order": [
+    "json",
+    "schema",
+    "paths",
+    "existence",
+    "budget",
+    "manifest"
+  ],
+  "cases": [
+    {
+      "fixture": "invalid/duplicate_key.json",
+      "stage": "json",
+      "expected_code": "workspace_json_duplicate_key",
+      "why": "A duplicate object key would silently pick one declaration field"
+    },
+    {
+      "fixture": "invalid/schema2.json",
+      "stage": "schema",
+      "expected_code": "workspace_schema_unsupported",
+      "why": "Only workspace_schema 1 is frozen; a future version must not be guessed"
+    },
+    {
+      "fixture": "invalid/missing_entrypoint.json",
+      "stage": "schema",
+      "expected_code": "workspace_contract_invalid",
+      "why": "A python workspace without python.entrypoint has no importable entry"
+    },
+    {
+      "fixture": "invalid/escape_entrypoint.json",
+      "stage": "paths",
+      "expected_code": "workspace_entrypoint_invalid",
+      "why": "The entrypoint module must resolve inside src/, never above it"
+    },
+    {
+      "fixture": "invalid/absolute_source.json",
+      "stage": "paths",
+      "expected_code": "workspace_path_invalid",
+      "why": "Declared native sources are workspace-relative; absolute escape is refused"
+    },
+    {
+      "fixture": "invalid/case_conflict.json",
+      "stage": "paths",
+      "expected_code": "workspace_path_case_conflict",
+      "why": "NTFS is case insensitive, so two declared paths may not differ only by case"
+    }
+  ],
+  "positive": [
+    {
+      "fixture": "preserve_unknown/node.json",
+      "preserved_paths": [
+        "future_workspace_control",
+        "node.future_node_field"
+      ],
+      "why": "Unknown workspace and node fields are preserved, never silently deleted"
+    }
+  ]
+}

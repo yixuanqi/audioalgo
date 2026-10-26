@@ -51,6 +51,10 @@ template<class Predicate> bool pump(Predicate ready, int timeout_ms = 5000) {
         juce::MessageManager::getInstance()->runDispatchLoopUntil(10);
     return ready();
 }
+std::string file_bytes(const std::filesystem::path& path) {
+    std::ifstream stream(path, std::ios::binary);
+    return std::string(std::istreambuf_iterator<char>(stream), {});
+}
 void click(juce::Component& root, const char* id) {
     auto* b = control<juce::TextButton>(root, id); REQUIRE(b); REQUIRE(b->isEnabled());
     struct ClickObserved final : juce::Button::Listener {
@@ -3909,4 +3913,100 @@ TEST_CASE("NA-08.d relative CLI project path resolves carried exact code without
 #else
     REQUIRE(std::get<audioalgo::authoring::SourceDiagnostic>(checked).code == "python_disabled");
 #endif
+}
+
+TEST_CASE("NWS-01.a production panel creates a node project folder and reopens identical declaration and source",
+          "[NWS-01.a][NWS-01.b][node_workspace][component]") {
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) /
+        "build/reports/loops/NWS0001-workspace-create/panel" / juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root);
+    const auto lock_path = std::filesystem::path(AUDIOALGO_SOURCE_DIR) /
+        "tests/fixtures/node_workspace/expected/workspace_lock.json";
+    const auto lock_text = file_bytes(lock_path);
+    const auto lock = juce::JSON::parse(juce::String::fromUTF8(lock_text.data(), static_cast<int>(lock_text.size())));
+    const auto conversion = lock["conversion"];
+
+    auto registry = std::make_shared<audioalgo::NodeRegistry>(); REQUIRE(audioalgo::register_builtin_nodes(*registry));
+    auto storage = std::make_shared<FileDraftStorage>(root / "recovery");
+    audioalgo::editor::DraftFileActions::Completion draft_selection;
+    audioalgo::editor::DraftFileActions::Completion directory_selection;
+    std::string directory_purpose;
+    audioalgo::editor::EditorComponent workspace(registry, std::make_shared<Documents>(),
+        std::make_shared<audioalgo::ProjectResourceService>(), std::make_shared<Preview>(), storage, false, {}, {}, true,
+        [&](bool, const std::filesystem::path&, auto completion) { draft_selection = std::move(completion); },
+        {}, {}, {},
+        [&](const std::string& purpose, const std::filesystem::path&, audioalgo::editor::DraftFileActions::Completion completion) {
+            directory_purpose = purpose;
+            directory_selection = std::move(completion);
+        });
+    const auto project_revision = workspace.controller().project().revision;
+    const auto legacy = std::filesystem::path(AUDIOALGO_SOURCE_DIR) /
+        "tests/fixtures/node_workspace/legacy/print_a.aadraft";
+    const auto legacy_before = file_bytes(legacy);
+    REQUIRE_FALSE(legacy_before.empty());
+
+    // Production Open reads the frozen legacy draft; nothing is rewritten.
+    click(workspace, "authoring.open");
+    REQUIRE(draft_selection);
+    draft_selection(legacy);
+    REQUIRE(pump([&] { return control<audioalgo::editor::NodeAuthoringPanel>(workspace, "authoring.panel") != nullptr; }));
+    auto* panel = control<audioalgo::editor::NodeAuthoringPanel>(workspace, "authoring.panel");
+    REQUIRE(panel);
+    const auto legacy_draft = panel->session().document();
+    CHECK(legacy_draft.id == "print-a");
+    CHECK(legacy_draft.language == "python");
+
+    // Production intent creates the directory from that declaration and source.
+    const auto target = root / std::filesystem::u8path("Print A 工程");
+    click(*panel, "authoring.workspace_create");
+    REQUIRE(directory_selection);
+    CHECK(directory_purpose.find("Create node project") != std::string::npos);
+    directory_selection(target);
+    REQUIRE(pump([&] { return !panel->workspace_creating(); }));
+    REQUIRE(panel->workspace_created());
+    CHECK(panel->workspace_directory() == target);
+    CHECK(panel->workspace_content_sha256() == conversion["content_sha256"].toString().toStdString());
+    // The directory bytes are the frozen independent expectation, not this run's output.
+    CHECK(file_bytes(target / "node.json") == conversion["node_json"].toString().toStdString());
+    CHECK(file_bytes(target / "src" / "print_a" / "process.py") == legacy_draft.source);
+    const auto* expected_files = conversion["runtime_files"].getArray();
+    REQUIRE(expected_files != nullptr);
+    REQUIRE(expected_files->size() == 3);
+    for (int index = 0; index < expected_files->size(); ++index) {
+        const auto& entry = (*expected_files)[index];
+        const auto relative = entry["path"].toString().toStdString();
+        INFO(relative);
+        CHECK(WorkspaceStore::sha256_hex(file_bytes(target / relative)) == entry["sha256"].toString().toStdString());
+    }
+    CHECK(file_bytes(legacy) == legacy_before);
+
+    // Close and reopen through the production library entry.
+    click(workspace, "authoring.close");
+    REQUIRE(pump([&] { return control<juce::Component>(workspace, "authoring.panel") == nullptr; }));
+    const auto node_json_bytes = file_bytes(target / "node.json");
+    click(workspace, "authoring.open_workspace");
+    REQUIRE(directory_selection);
+    CHECK(directory_purpose.find("Open node project") != std::string::npos);
+    directory_selection(target);
+    REQUIRE(pump([&] { return control<audioalgo::editor::NodeAuthoringPanel>(workspace, "authoring.panel") != nullptr; }));
+    auto* reopened = control<audioalgo::editor::NodeAuthoringPanel>(workspace, "authoring.panel");
+    REQUIRE(reopened);
+    CHECK(reopened->workspace_mode());
+    CHECK(reopened->session().document().language == legacy_draft.language);
+    CHECK(reopened->session().document().source == legacy_draft.source);
+    CHECK(reopened->session().document().declaration == conversion["declaration"].toString().toStdString());
+    CHECK(reopened->workspace_directory() == target);
+    CHECK(reopened->workspace_content_sha256() == conversion["content_sha256"].toString().toStdString());
+    CHECK(file_bytes(target / "node.json") == node_json_bytes);
+    CHECK(file_bytes(legacy) == legacy_before);
+    // Directory mode is read-only in this host: no Save target and no project mutation.
+    auto* save = control<juce::TextButton>(*reopened, "authoring.save");
+    REQUIRE(save);
+    CHECK_FALSE(save->isVisible());
+    CHECK_FALSE(control<juce::TextButton>(workspace, "authoring.workspace_create")->isEnabled());
+    CHECK(workspace.controller().project().revision == project_revision);
+    click(workspace, "authoring.close");
+    REQUIRE(pump([&] { return control<juce::Component>(workspace, "authoring.panel") == nullptr; }));
 }

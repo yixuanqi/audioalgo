@@ -1,0 +1,1061 @@
+{
+  "schema_version": 1,
+  "scope": "node_workspace",
+  "acceptance_source": "doc/testing_node_workspace_authoring.md",
+  "acceptance_source_sha256": "dedbf5b26e3fb479c57a4bd87d3ed4cc6e191f9f45880d8c1be06dc69dfc67a7",
+  "contract_adr": "doc/decisions/0040-node-workspace-schema-v1.md",
+  "contract_adr_sha256": "2fb2500e424e930b106f4bcac3fdf21599c49722203123af4d46fa43f8cd4be3",
+  "fixture_tool": "tests/fixtures/node_workspace/tools/workspace_expectation.py",
+  "fixture_tool_sha256": "cbee69ce8591c071cd5d8d471fc042a8170a87cd3c1a6ba925d57aa3ba54ec9a",
+  "fixture_lock": "tests/fixtures/node_workspace/expected/workspace_lock.json",
+  "fixture_lock_sha256": "cec63b56d9de16dd1d8d843219a2a35a0d96e599a8d855c7047e396e175dabc0",
+  "required_subcase_count": 30,
+  "stages": [
+    "W1",
+    "W2",
+    "W3",
+    "W4",
+    "W5"
+  ],
+  "status_values": [
+    "not_run",
+    "partial",
+    "passed",
+    "failed",
+    "blocked",
+    "not_verified",
+    "skipped",
+    "timeout"
+  ],
+  "notes": "W0 freezes this file, the ADR and the fixture lock. A requirement may only leave not_run when a bound test actually executed on an identified source snapshot; every passed entry must name existing evidence. Real OS desktop items stay not_verified while desktop work is paused.",
+  "requirements": [
+    {
+      "id": "NWS-01.a",
+      "group": "NWS-01",
+      "title": "目录契约与旧草稿迁移：从应用入口创建合法目录",
+      "stage": "W1",
+      "required": true,
+      "layer": "service+component+files",
+      "lead_na_pc": [
+        "NA-01.a",
+        "NA-01.b",
+        "PC-01.a"
+      ],
+      "planned_tests": [
+        "NWS-01.a workspace service creates a schema 1 directory with one authoritative declaration",
+        "NWS-01.a production panel creates a node project folder and reopens identical declaration and source"
+      ],
+      "evidence_requirements": [
+        "real_directory_bytes",
+        "declaration_matches_source",
+        "invalid_cases_rejected",
+        "no_available_package"
+      ],
+      "test_names": [
+        "NWS-01.a workspace create writes the declaration and the entry source then reopens them",
+        "NWS-01.a workspace create refuses a non-empty target and keeps its bytes",
+        "NWS-01.a cpp workspace create writes one declared source",
+        "NWS-01.a frozen invalid workspaces report the documented codes",
+        "NWS-01.a production panel creates a node project folder and reopens identical declaration and source",
+        "NWS-01.a production create reproduces the frozen conversion bytes"
+      ],
+      "test_results": [
+        {
+          "test_name": "NWS-01.a workspace create writes the declaration and the entry source then reopens them",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        },
+        {
+          "test_name": "NWS-01.a workspace create refuses a non-empty target and keeps its bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        },
+        {
+          "test_name": "NWS-01.a cpp workspace create writes one declared source",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        },
+        {
+          "test_name": "NWS-01.a frozen invalid workspaces report the documented codes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        },
+        {
+          "test_name": "NWS-01.a production panel creates a node project folder and reopens identical declaration and source",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        },
+        {
+          "test_name": "NWS-01.a production create reproduces the frozen conversion bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "C++ workspace creation driven from the production entry, not only from the service API",
+        "Duplicate or illegal type_id and unsupported execution capability rejection matrix through the production parser"
+      ]
+    },
+    {
+      "id": "NWS-01.b",
+      "group": "NWS-01",
+      "title": "目录契约与旧草稿迁移：旧 .aadraft 转换保持原字节",
+      "stage": "W1",
+      "required": true,
+      "layer": "service+component+files",
+      "lead_na_pc": [
+        "NA-01.b",
+        "NA-08.d",
+        "PC-01.b"
+      ],
+      "planned_tests": [
+        "NWS-01.b conversion from a legacy draft preserves its bytes and reopens the same declaration and source",
+        "NWS-01.b conversion refuses a non-empty target without touching existing files"
+      ],
+      "evidence_requirements": [
+        "legacy_bytes_before_after",
+        "reopened_directory_identity",
+        "target_conflict_preserved"
+      ],
+      "test_names": [
+        "NWS-01.b conversion from the frozen legacy draft keeps its bytes and reopens",
+        "NWS-01.a production panel creates a node project folder and reopens identical declaration and source"
+      ],
+      "test_results": [
+        {
+          "test_name": "NWS-01.b conversion from the frozen legacy draft keeps its bytes and reopens",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        },
+        {
+          "test_name": "NWS-01.a production panel creates a node project folder and reopens identical declaration and source",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Injected cancel and write/verify/commit failures during conversion, with target bytes preserved",
+        "Converting a draft that the running application itself just saved, and applying the converted result"
+      ]
+    },
+    {
+      "id": "NWS-01.c",
+      "group": "NWS-01",
+      "title": "目录契约与旧草稿迁移：运行内容清单与排除集",
+      "stage": "W1",
+      "required": true,
+      "layer": "service+files",
+      "lead_na_pc": [
+        "NA-04.c",
+        "NC-manifest"
+      ],
+      "planned_tests": [
+        "NWS-01.c runtime manifest follows the frozen lock and excludes tests, editor caches and build output",
+        "NWS-01.c auxiliary source bytes change the content hash while an excluded file does not"
+      ],
+      "evidence_requirements": [
+        "independent_manifest_recompute",
+        "excluded_files_present_on_disk",
+        "stable_ordering"
+      ],
+      "test_names": [
+        "NWS-01.c frozen workspace fixtures match the independent expectation lock",
+        "NWS-01.c excluded author files never change the runtime content hash",
+        "NWS-01.c unknown declaration fields are preserved in the canonical declaration"
+      ],
+      "test_results": [
+        {
+          "test_name": "NWS-01.c frozen workspace fixtures match the independent expectation lock",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        },
+        {
+          "test_name": "NWS-01.c excluded author files never change the runtime content hash",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        },
+        {
+          "test_name": "NWS-01.c unknown declaration fields are preserved in the canonical declaration",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Enumeration order independence proven with a shuffled/large directory layout, not only the sorted fixture tree",
+        "Explicit resource files entering the manifest and the resource budget, which the frozen fixtures do not exercise yet"
+      ]
+    },
+    {
+      "id": "NWS-02.a",
+      "group": "NWS-02",
+      "title": "路径、保存与快照事务：路径拒绝与合法长路径",
+      "stage": "W1",
+      "required": true,
+      "layer": "service+files",
+      "lead_na_pc": [
+        "NA-01.d",
+        "PC-01.a",
+        "PC-01.b"
+      ],
+      "planned_tests": [
+        "NWS-02.a workspace paths reject traversal, absolute, device, ADS, reparse and duplicate normalized entries",
+        "NWS-02.a legal Chinese, space and long paths can be created and reopened"
+      ],
+      "evidence_requirements": [
+        "no_outside_bytes_read",
+        "real_directory_readback",
+        "volume_root_not_verified"
+      ],
+      "test_names": [
+        "NWS-02.a long workspace paths and hostile declared paths are rejected before writing",
+        "NWS-01.a frozen invalid workspaces report the documented codes",
+        "NWS-01.a workspace create writes the declaration and the entry source then reopens them"
+      ],
+      "test_results": [
+        {
+          "test_name": "NWS-02.a long workspace paths and hostile declared paths are rejected before writing",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        },
+        {
+          "test_name": "NWS-01.a frozen invalid workspaces report the documented codes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        },
+        {
+          "test_name": "NWS-01.a workspace create writes the declaration and the entry source then reopens them",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Reparse point / junction escape and cycle rejection (needs a real link fixture)",
+        "Path replacement between snapshot and copy with a controlled barrier",
+        "Real volume-root and UNC directory writes stay not_verified until a writable target is authorised"
+      ]
+    },
+    {
+      "id": "NWS-02.b",
+      "group": "NWS-02",
+      "title": "路径、保存与快照事务：失败注入与原字节保留",
+      "stage": "W1",
+      "required": true,
+      "layer": "service+files",
+      "lead_na_pc": [
+        "NA-01.b",
+        "NA-07.b"
+      ],
+      "planned_tests": [
+        "NWS-02.b injected create, write, verify and replace failures preserve every existing target byte"
+      ],
+      "evidence_requirements": [
+        "fault_injection_phases",
+        "target_bytes_unchanged",
+        "explicit_unsaved_state"
+      ],
+      "test_names": [
+        "NWS-02.b injected create write verify and replace failures leave no partial workspace",
+        "NWS-01.a workspace create refuses a non-empty target and keeps its bytes"
+      ],
+      "test_results": [
+        {
+          "test_name": "NWS-02.b injected create write verify and replace failures leave no partial workspace",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        },
+        {
+          "test_name": "NWS-01.a workspace create refuses a non-empty target and keeps its bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
+          "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        }
+      ],
+      "status": "partial",
+      "remaining_clauses": [
+        "Real disk-full and permission failures (only the injectable phases are exercised)",
+        "Panel-level unsaved state and retry after a production failure",
+        "Recovery copies never overwriting an external editor save, and explicit non-empty target confirmation (W3)"
+      ]
+    },
+    {
+      "id": "NWS-02.c",
+      "group": "NWS-02",
+      "title": "路径、保存与快照事务：检查期间并发修改",
+      "stage": "W2",
+      "required": true,
+      "layer": "service+worker",
+      "lead_na_pc": [
+        "NA-04.c",
+        "NA-11.d"
+      ],
+      "planned_tests": [
+        "NWS-02.c a controlled barrier modification during snapshot returns source_changed_during_snapshot"
+      ],
+      "evidence_requirements": [
+        "barrier_not_race",
+        "no_ready_after_change",
+        "stable_retry_manifest"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "Concurrent modification between enumerate/copy/verify returns the structured diagnostic",
+        "No Ready or Apply produced from a changed tree",
+        "A stable retry produces a staging tree matching the manifest byte for byte",
+        "Link replacement during the snapshot is detected"
+      ]
+    },
+    {
+      "id": "NWS-03.a",
+      "group": "NWS-03",
+      "title": "Python 多文件真实执行：辅助模块参与音频",
+      "stage": "W2",
+      "required": true,
+      "layer": "service+runner+gui/cli",
+      "lead_na_pc": [
+        "NA-04.a",
+        "NA-05.b",
+        "NA-08.a",
+        "PC-02"
+      ],
+      "planned_tests": [
+        "NWS-03.a production File to workspace node to Output runs the auxiliary module against an independent oracle"
+      ],
+      "evidence_requirements": [
+        "independent_float64_oracle",
+        "gui_and_cli_products",
+        "helper_change_changes_result"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "process.py really calls filter.py through Check/Apply/library drop/connect/Run",
+        "GUI and CLI products each match the independent oracle, not each other",
+        "Deleting or changing filter.py yields a missing-module or new-coefficient result with no stale-cache success"
+      ]
+    },
+    {
+      "id": "NWS-03.b",
+      "group": "NWS-03",
+      "title": "Python 多文件真实执行：同名模块与实例隔离",
+      "stage": "W2",
+      "required": true,
+      "layer": "service+runner",
+      "lead_na_pc": [
+        "NA-03.b",
+        "NA-08.d",
+        "PC-03.d"
+      ],
+      "planned_tests": [
+        "NWS-03.b two versions with identical module names import only their frozen package"
+      ],
+      "evidence_requirements": [
+        "frozen_package_only",
+        "multi_instance_state",
+        "old_version_after_source_move"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "Same module names in two packages never cross-import",
+        "Multi-instance state isolated, continuous across host partitions, reset on rerun/cancel",
+        "Applied old version keeps running old bytes after the source directory changes or moves",
+        "A new Check produces the new version"
+      ]
+    },
+    {
+      "id": "NWS-03.c",
+      "group": "NWS-03",
+      "title": "Python 多文件真实执行：语法与导入诊断",
+      "stage": "W2",
+      "required": true,
+      "layer": "service+runner+gui",
+      "lead_na_pc": [
+        "NA-05.b",
+        "PC-03.c",
+        "PC-03.d"
+      ],
+      "planned_tests": [
+        "NWS-03.c every python file reports directory-relative file line and column without top-level side effects"
+      ],
+      "evidence_requirements": [
+        "unicode_coordinates",
+        "no_host_side_effects",
+        "python_off_contract"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "Static syntax diagnostics use workspace-relative file/line/column in the frozen Unicode unit",
+        "Static phase executes no top-level side effect",
+        "Missing dependency, wrong entrypoint and import exceptions stay inside the controlled subprocess",
+        "Host keeps running; Python OFF executes no new python package while C++/builtin nodes keep working; no network or auto-install"
+      ]
+    },
+    {
+      "id": "NWS-04.a",
+      "group": "NWS-04",
+      "title": "Ready、Apply 与异步身份：快照身份与失效",
+      "stage": "W2",
+      "required": true,
+      "layer": "service+component",
+      "lead_na_pc": [
+        "NA-04.c",
+        "NA-07.b",
+        "NA-09.a"
+      ],
+      "planned_tests": [
+        "NWS-04.a Ready binds workspace generation tree declaration environment and request and invalidates on source change"
+      ],
+      "evidence_requirements": [
+        "snapshot_identity_fields",
+        "invalidation_matrix",
+        "excluded_change_no_invalidation"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "Ready binds workspace id/generation, whole runtime tree, declaration, interpreter/runner/wrapper or SDK/toolchain and request",
+        "Changing an auxiliary file, resource, declaration or environment invalidates the old Ready and Apply refuses",
+        "Changing only excluded author tests or editor cache does not invalidate"
+      ]
+    },
+    {
+      "id": "NWS-04.b",
+      "group": "NWS-04",
+      "title": "Ready、Apply 与异步身份：冻结候选与提交失败",
+      "stage": "W2",
+      "required": true,
+      "layer": "service+package",
+      "lead_na_pc": [
+        "NA-07.b",
+        "NA-12",
+        "NA-13"
+      ],
+      "planned_tests": [
+        "NWS-04.b Apply reads only the frozen candidate and stays idempotent for identical content"
+      ],
+      "evidence_requirements": [
+        "package_bytes_identity",
+        "idempotent_single_entry",
+        "staged_failure_recovery"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "Apply never re-reads the development directory",
+        "Repeated identical content is idempotent and yields one package/directory entry",
+        "Same display version with different content never overwrites the old package",
+        "Injected failure at package write, candidate registration, index and in-memory refresh leaves old or new complete version only"
+      ]
+    },
+    {
+      "id": "NWS-04.c",
+      "group": "NWS-04",
+      "title": "Ready、Apply 与异步身份：异步回填身份",
+      "stage": "W2",
+      "required": true,
+      "layer": "component+service",
+      "lead_na_pc": [
+        "NA-04.c",
+        "PC-03.c",
+        "PC-03.d"
+      ],
+      "planned_tests": [
+        "NWS-04.c late check results update Ready only for the exact workspace generation request and project identity"
+      ],
+      "evidence_requirements": [
+        "late_result_matrix",
+        "cross_project_revision_isolation",
+        "closed_panel_no_dangling_callback"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "A is checked, the workspace changes, B starts; any late A success/failure/cancel/log ordering cannot update B's Ready or buttons",
+        "Only matching workspace/generation/request/project-session-revision results update state",
+        "Different project with the same revision and different directory with the same generation never cross",
+        "Closing the panel leaves no dangling callback"
+      ]
+    },
+    {
+      "id": "NWS-05.a",
+      "group": "NWS-05",
+      "title": "面板、声明表单与冲突：目录面板与表单",
+      "stage": "W3",
+      "required": true,
+      "layer": "component+desktop",
+      "lead_na_pc": [
+        "NA-01.a",
+        "NA-02.a",
+        "NA-08.a"
+      ],
+      "planned_tests": [
+        "NWS-05.a production panel opens a directory, shows real paths and file state, and edits one node.json form"
+      ],
+      "evidence_requirements": [
+        "component_events",
+        "desktop_not_verified",
+        "two_file_diagnostics"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "Production entry opens a directory and shows the real path plus file state",
+        "Ports and six parameter kinds are edited through one node.json",
+        "Advanced JSON and empty logs collapse; no log area when there are no logs",
+        "Two separate files can be diagnostics targets; layout/splitter/state need component and desktop evidence"
+      ]
+    },
+    {
+      "id": "NWS-05.b",
+      "group": "NWS-05",
+      "title": "面板、声明表单与冲突：外部修改与保存冲突",
+      "stage": "W3",
+      "required": true,
+      "layer": "component+desktop",
+      "lead_na_pc": [
+        "NA-01.b",
+        "NA-02.d",
+        "NA-09.c"
+      ],
+      "planned_tests": [
+        "NWS-05.b external node.json edits conflict with an unsaved form and preserve both sides"
+      ],
+      "evidence_requirements": [
+        "expected_hash_conflict",
+        "both_side_bytes",
+        "four_state_separation"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "External node.json edit versus unsaved form yields an expected-hash conflict",
+        "Compare, reload and save-as preserve both sides; cancel clears neither",
+        "External source edit disables old Ready/Apply",
+        "Saved, recovery-backed, checked and applied/pending-restart states never impersonate each other"
+      ]
+    },
+    {
+      "id": "NWS-05.c",
+      "group": "NWS-05",
+      "title": "面板、声明表单与冲突：快速源码与撤销边界",
+      "stage": "W3",
+      "required": true,
+      "layer": "component",
+      "lead_na_pc": [
+        "NA-01.c",
+        "NI0015",
+        "NED-11"
+      ],
+      "planned_tests": [
+        "NWS-05.c quick source undo edits only text while directory mode keeps no second source buffer"
+      ],
+      "evidence_requirements": [
+        "component_undo_scope",
+        "no_second_buffer",
+        "project_undo_preserved"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "Quick single-file source Ctrl+Z/Y changes text only",
+        "Directory mode has no second source buffer",
+        "Canvas undo still works after returning from the panel",
+        "Error/cancel/close/reopen keeps body and declaration; existing Save/SaveAs/recovery regressions hold"
+      ]
+    },
+    {
+      "id": "NWS-06.a",
+      "group": "NWS-06",
+      "title": "外部编辑器协议：启动器与参数安全",
+      "stage": "W3",
+      "required": true,
+      "layer": "service+desktop",
+      "lead_na_pc": [
+        "NA-14.c",
+        "PC-03.a"
+      ],
+      "planned_tests": [
+        "NWS-06.a external editor launcher passes Chinese, space and metacharacter paths as arguments only"
+      ],
+      "evidence_requirements": [
+        "real_process_start",
+        "no_shell_interpolation",
+        "failure_keeps_directory"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "One generic editor plus at least one real professional editor configured, with an open-folder fallback",
+        "Opening the real directory works and diagnostics can target the real file/line when supported",
+        "Chinese, space, &, quote, backtick and $() paths are arguments only, never extra commands",
+        "Missing editor, launch failure or cancel changes no directory, package or graph"
+      ]
+    },
+    {
+      "id": "NWS-06.b",
+      "group": "NWS-06",
+      "title": "外部编辑器协议：磁盘变更与刷新",
+      "stage": "W3",
+      "required": true,
+      "layer": "component+files",
+      "lead_na_pc": [
+        "NA-01.b",
+        "NA-04.c"
+      ],
+      "planned_tests": [
+        "NWS-06.b external auxiliary file writes mark the panel stale and the next Check rescans the tree"
+      ],
+      "evidence_requirements": [
+        "stale_state_visible",
+        "full_rescan_on_check",
+        "no_auto_apply"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "An external auxiliary file write makes the panel show disk-changed by notification or explicit refresh",
+        "The next Check rescans the complete tree",
+        "Exiting the external process triggers no Check or Apply",
+        "The workflow works without VS Code installed; editor settings never enter the runtime package"
+      ]
+    },
+    {
+      "id": "NWS-06.c",
+      "group": "NWS-06",
+      "title": "外部编辑器协议：同一检查入口",
+      "stage": "W3",
+      "required": true,
+      "layer": "cli+component",
+      "lead_na_pc": [
+        "PC-02",
+        "PC-03"
+      ],
+      "planned_tests": [
+        "NWS-06.c one CLI check entry returns the same snapshot identity and diagnostics as the panel"
+      ],
+      "evidence_requirements": [
+        "same_snapshot_identity",
+        "structured_diagnostics",
+        "template_optional"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "A Check command/request usable inside the app and from a terminal returns the same snapshot identity",
+        "Optional IDE task templates really call that interface and never overwrite user configuration",
+        "Deleting a template changes no Check/Apply behaviour; templates are never required",
+        "Open Folder alone does not substitute for the core check"
+      ]
+    },
+    {
+      "id": "NWS-07.a",
+      "group": "NWS-07",
+      "title": "C++ 多文件 SDK 构建：仓库外独立构建",
+      "stage": "W4",
+      "required": true,
+      "layer": "build+sdk+host",
+      "lead_na_pc": [
+        "PC-07",
+        "NA-12",
+        "NA-13",
+        "UPN-01"
+      ],
+      "planned_tests": [
+        "NWS-07.a two native sources build outside the repository against the published SDK into a loadable DLL"
+      ],
+      "evidence_requirements": [
+        "published_sdk_only",
+        "independent_cpp_oracle",
+        "host_exe_hash_unchanged"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "node.cpp calls filter.cpp and a header; a staging project is generated from the released SDK only",
+        "The DLL builds outside the repository without JUCE, host tree or host linkage",
+        "Package manifest and DLL descriptor agree; host EXE hash is unchanged across plugin install/update",
+        "Real Run audio matches the independent C++ oracle"
+      ]
+    },
+    {
+      "id": "NWS-07.b",
+      "group": "NWS-07",
+      "title": "C++ 多文件 SDK 构建：构建与 probe 诊断",
+      "stage": "W4",
+      "required": true,
+      "layer": "build+sdk",
+      "lead_na_pc": [
+        "PC-07",
+        "UPN-05"
+      ],
+      "planned_tests": [
+        "NWS-07.b missing sources, compile, link, SDK, ABI, descriptor and probe failures diagnose exactly"
+      ],
+      "evidence_requirements": [
+        "diagnostic_matrix",
+        "old_version_retained",
+        "no_user_cmake"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "Missing source/header, compile/link errors, missing SDK/compiler, wrong ABI/architecture, descriptor mismatch, probe crash/hang each diagnose to a file/line or exact phase",
+        "Failure keeps the old version",
+        "Basic mode executes no user CMake script and downloads no dependency",
+        "Build cancellation reclaims only its own process tree"
+      ]
+    },
+    {
+      "id": "NWS-07.c",
+      "group": "NWS-07",
+      "title": "C++ 多文件 SDK 构建：probe 与 PendingRestart",
+      "stage": "W4",
+      "required": true,
+      "layer": "service+host+desktop",
+      "lead_na_pc": [
+        "PC-07",
+        "UPN-03",
+        "UPN-04"
+      ],
+      "planned_tests": [
+        "NWS-07.c a probed DLL installs atomically as PendingRestart and activates only after a normal restart"
+      ],
+      "evidence_requirements": [
+        "pending_restart_state",
+        "same_host_exe",
+        "two_instance_isolation"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "A new DLL installs atomically only after the independent probe and reports PendingRestart",
+        "The running host keeps the old version and never loads the candidate or hot-swaps",
+        "Save failure or cancel does not restart; a normal restart uses the same EXE and exact new package",
+        "Two instances stay isolated; old projects and historical runs keep the old version"
+      ]
+    },
+    {
+      "id": "NWS-08.a",
+      "group": "NWS-08",
+      "title": "版本、携带及双格式无回退：图版本锁定与显式升级",
+      "stage": "W4",
+      "required": true,
+      "layer": "project+service",
+      "lead_na_pc": [
+        "NA-09.a",
+        "NA-09.b",
+        "NA-09.d",
+        "NA-11.a"
+      ],
+      "planned_tests": [
+        "NWS-08.a a graph locked to v1 keeps v1 audio after v2 Apply and only an explicit upgrade switches"
+      ],
+      "evidence_requirements": [
+        "graph_revision_unchanged",
+        "explicit_upgrade_transaction",
+        "missing_package_refused"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "A graph locked to v1 is unaffected by a directory Apply of v2 (revision and audio)",
+        "Only an explicit upgrade switches, as one transaction, preserving parameters, connections, layout, resources, selected output and undo/redo",
+        "Missing package or changed package hash is refused structurally, never falling back to latest"
+      ]
+    },
+    {
+      "id": "NWS-08.b",
+      "group": "NWS-08",
+      "title": "版本、携带及双格式无回退：Save As 携带",
+      "stage": "W5",
+      "required": true,
+      "layer": "io+gui/cli",
+      "lead_na_pc": [
+        "NA-11.c",
+        "PC-09",
+        "NA-07.c"
+      ],
+      "planned_tests": [
+        "NWS-08.b project Save As carries the exact package and resource bytes to a moved Chinese long path"
+      ],
+      "evidence_requirements": [
+        "independent_oracle_after_move",
+        "user_files_intact",
+        "source_copy_opt_in"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "Save As/export carries exact versions, necessary resources and inputs",
+        "After moving to a Chinese/long path and removing the test source directory, GUI and CLI reopen still match the independent oracle",
+        "The author directory is not implicitly copied unless include-source is chosen",
+        "Source/target failures change no user file; pre-existing Save As gaps are not mislabelled"
+      ]
+    },
+    {
+      "id": "NWS-08.c",
+      "group": "NWS-08",
+      "title": "版本、携带及双格式无回退：旧格式与构型",
+      "stage": "W5",
+      "required": true,
+      "layer": "compat+config",
+      "lead_na_pc": [
+        "NA-11.a",
+        "PC-05.c",
+        "AR-06.d",
+        "UPN-06"
+      ],
+      "planned_tests": [
+        "NWS-08.c legacy draft, project schema 1, external python/native manifests and SDK consumers keep their contracts"
+      ],
+      "evidence_requirements": [
+        "old_contracts_preserved",
+        "python_off_configuration",
+        "no_threshold_weakening"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "Legacy .aadraft, project schema 1, external python/native manifests and independent SDK consumers keep their existing contracts",
+        "Python OFF, editor OFF and runtime OFF configurations build/run for the affected scope",
+        "No old UPN/NA/PC/AR/NED item is deleted or has its threshold weakened"
+      ]
+    },
+    {
+      "id": "NWS-09.a",
+      "group": "NWS-09",
+      "title": "预算、取消和资源归零：预算边界",
+      "stage": "W2",
+      "required": true,
+      "layer": "service+worker",
+      "lead_na_pc": [
+        "PC-04.b",
+        "PC-04.c",
+        "NA-05.b"
+      ],
+      "planned_tests": [
+        "NWS-09.a source file and byte budgets pass exactly at the limit and reject one over"
+      ],
+      "evidence_requirements": [
+        "both_sides_of_each_budget",
+        "no_silent_truncation",
+        "frozen_budget_values"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "Exactly 128 source files / 8 MiB passes; one over fails",
+        "Protocol 1 MiB, payload 64 MiB, UI log tail 256 KiB and full log 16 MiB keep the old boundaries",
+        "Caches/links are never silently truncated and never run over budget",
+        "Resource/C++ limits from W0 are tested on both sides"
+      ]
+    },
+    {
+      "id": "NWS-09.b",
+      "group": "NWS-09",
+      "title": "预算、取消和资源归零：慢任务、取消与回收",
+      "stage": "W4",
+      "required": true,
+      "layer": "worker+process",
+      "lead_na_pc": [
+        "PC-03.a",
+        "PC-03.c",
+        "PC-08"
+      ],
+      "planned_tests": [
+        "NWS-09.b slow import, hung worker, build/probe and log flood cancel inside the documented deadlines"
+      ],
+      "evidence_requirements": [
+        "deadline_seconds",
+        "process_tree_reclaimed",
+        "unrelated_process_alive"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "Default trial 30 s / build 600 s remain configurable and recorded; a short deadline fixture is used",
+        "Python cooperative cancel within 2 s and total reclaim within 5 s",
+        "Build/probe reclaim their own tree within 5 s and leave unrelated editor/compiler processes alive",
+        "Log flood cancellation keeps budgets and recovery"
+      ]
+    },
+    {
+      "id": "NWS-09.c",
+      "group": "NWS-09",
+      "title": "预算、取消和资源归零：二十轮与心跳",
+      "stage": "W5",
+      "required": true,
+      "layer": "component+worker",
+      "lead_na_pc": [
+        "PC-04.c",
+        "PC-04.d",
+        "AR-09.e"
+      ],
+      "planned_tests": [
+        "NWS-09.c twenty alternating rounds drain tasks and keep the 20 ms heartbeat inside budget"
+      ],
+      "evidence_requirements": [
+        "twenty_rounds",
+        "heartbeat_p95_max",
+        "no_ui_thread_work"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "Twenty alternating success/syntax-error/cancel/external-change rounds leave no active task or process",
+        "GUI 20 ms x 10 s heartbeat p95 <= 100 ms and max <= 500 ms",
+        "File scan, import, compile and algorithm execution never run on the UI/device callback",
+        "A valid node can immediately Check/Run after a failure"
+      ]
+    },
+    {
+      "id": "NWS-10.a",
+      "group": "NWS-10",
+      "title": "真实产品与正式出口：桌面 Python 工作流",
+      "stage": "W5",
+      "required": true,
+      "layer": "desktop+gui",
+      "lead_na_pc": [
+        "NA-08.a",
+        "PC-02",
+        "PC-03",
+        "NED-12"
+      ],
+      "planned_tests": [
+        "NWS-10.a real desktop creates a python workspace, edits an auxiliary module externally, checks, applies, wires and runs"
+      ],
+      "evidence_requirements": [
+        "os_level_input",
+        "screenshot_and_audio",
+        "independent_oracle"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_verified",
+      "remaining_clauses": [
+        "Real desktop: new python directory, external auxiliary module edit, Check/trial, Apply, library drag, File/Output wiring, parameter change, Run",
+        "Introduce an error, jump and fix, reopen the project and explicitly upgrade to v2",
+        "Output audio matches the independent oracle",
+        "Component events and screenshots never substitute for OS input; opening VS Code alone proves nothing"
+      ]
+    },
+    {
+      "id": "NWS-10.b",
+      "group": "NWS-10",
+      "title": "真实产品与正式出口：桌面 C++ 与 DPI",
+      "stage": "W5",
+      "required": true,
+      "layer": "desktop+gui+build",
+      "lead_na_pc": [
+        "PC-07",
+        "UPN-04",
+        "NED-02"
+      ],
+      "planned_tests": [
+        "NWS-10.b real desktop compiles a broken native workspace, fixes it, probes, restarts and runs the new DLL"
+      ],
+      "evidence_requirements": [
+        "os_level_input",
+        "dll_and_exe_hash",
+        "dpi_and_logical_sizes"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_verified",
+      "remaining_clauses": [
+        "Real desktop: native multi-file compile error, fix, probe, PendingRestart, save and normal restart, library drag and Run",
+        "New/old DLL, host EXE hash and C++ numbers are independently verified",
+        "100/150/200% DPI at logical 1100x700 and 1440x900 with Chinese/long paths, no clipped buttons/state/diagnostics",
+        "No system DPI change without authorization; vertical-slice desktop items stay not_verified while paused"
+      ]
+    },
+    {
+      "id": "NWS-10.c",
+      "group": "NWS-10",
+      "title": "真实产品与正式出口：正式出口判定",
+      "stage": "W5",
+      "required": true,
+      "layer": "release+manifest",
+      "lead_na_pc": [
+        "PC-08",
+        "AR-01",
+        "R6"
+      ],
+      "planned_tests": [
+        "NWS-10.c formal release export requires every required NWS and affected legacy item to pass"
+      ],
+      "evidence_requirements": [
+        "exact_manifest",
+        "release_matrix",
+        "no_required_skips"
+      ],
+      "test_names": [],
+      "test_results": [],
+      "status": "not_run",
+      "remaining_clauses": [
+        "Current source formal Release, GUI/CLI, published-SDK outside-repository consumption, portable reopen, affected legacy acceptance and exact manifest/evidence all pass with no required failed/skipped/not_run/not_verified/timeout",
+        "Only then may the multi-file workspace be called passed",
+        "This still does not mean R6/G6 or the whole NA/PC/UPN platform is complete"
+      ]
+    }
+  ]
+}

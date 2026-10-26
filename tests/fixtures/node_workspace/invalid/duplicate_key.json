@@ -1,0 +1,7 @@
+{
+  "workspace_schema": 1,
+  "language": "python",
+  "language": "cpp",
+  "node": {"type_id": "user.duplicate_key", "version": "1.0.0", "display_name": "Duplicate key"},
+  "python": {"source_root": "src", "entrypoint": "duplicate.process:process"}
+}

@@ -1,0 +1,6 @@
+{
+  "workspace_schema": 2,
+  "language": "python",
+  "node": {"type_id": "user.future_schema", "version": "1.0.0", "display_name": "Future schema"},
+  "python": {"source_root": "src", "entrypoint": "future.process:process"}
+}

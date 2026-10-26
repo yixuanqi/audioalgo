@@ -1,0 +1,6 @@
+{
+  "workspace_schema": 1,
+  "language": "cpp",
+  "node": {"type_id": "user.case_conflict", "version": "1.0.0", "display_name": "Case conflict"},
+  "native": {"sources": ["src/Node.cpp", "src/node.cpp"], "include_dirs": ["include"]}
+}

@@ -1,0 +1,251 @@
+{
+  "lock_schema": 1,
+  "algorithm": "AudioAlgoNodeWorkspace/1",
+  "generator": "tests/fixtures/node_workspace/tools/workspace_expectation.py",
+  "adr": "doc/decisions/0040-node-workspace-schema-v1.md",
+  "budgets": {
+    "node_json_bytes": 1048576,
+    "source_files": 128,
+    "source_bytes": 8372224,
+    "resource_files": 64,
+    "resource_bytes": 67108864,
+    "relative_path_bytes": 512
+  },
+  "workspaces": {
+    "python_two_files": {
+      "language": "python",
+      "type_id": "user.print_a",
+      "display_name": "Print A",
+      "declaration": "{\"type_id\":\"user.print_a\",\"version\":\"1.0.0\",\"display_name\":\"Print A\",\"execution\":{\"kind\":\"block\",\"stateful\":false,\"realtime_verified\":false},\"inputs\":[{\"id\":\"primary\",\"type\":\"audio.pcm@1\",\"required\":true},{\"id\":\"reference\",\"type\":\"audio.pcm@1\",\"required\":true}],\"outputs\":[{\"id\":\"main\",\"type\":\"audio.pcm@1\"}],\"format\":{\"sample_rates_hz\":[16000,48000],\"channels\":[1,2,4]},\"parameters\":[{\"id\":\"gain\",\"type\":\"float\",\"default\":0.5,\"minimum\":-2,\"maximum\":2}]}",
+      "declaration_sha256": "4bff6c1e2734485b214caee56a69b075e815f4aeb5d50609a740bf358f3d6b11",
+      "node_json_sha256": "c4c8e54189a0771f2f96c882c13100b0bba9e64d37dd757858cf8e36ec69a40f",
+      "runtime_files": [
+        {
+          "path": "node.json",
+          "bytes": 729,
+          "sha256": "c4c8e54189a0771f2f96c882c13100b0bba9e64d37dd757858cf8e36ec69a40f"
+        },
+        {
+          "path": "src/print_a/__init__.py",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "src/print_a/filter.py",
+          "bytes": 345,
+          "sha256": "24724092086de5e43f5f94975b66089265e060196df2080448411abbbc887fff"
+        },
+        {
+          "path": "src/print_a/process.py",
+          "bytes": 437,
+          "sha256": "04bc54e82586b1dbaff4cd1db1c35bddad17f4450f350c728b46845cd1df957b"
+        }
+      ],
+      "content_sha256": "5fef09cc6b9bdc6332697f7a33d1c853ff61648972f4a06b21cfc1244ab55495",
+      "excluded_present": [
+        ".vscode/settings.json",
+        "build/cache.bin",
+        "tests/test_process.py"
+      ],
+      "entrypoint": "print_a.process:process",
+      "entry_source_path": "src/print_a/process.py",
+      "entry_source_sha256": "04bc54e82586b1dbaff4cd1db1c35bddad17f4450f350c728b46845cd1df957b"
+    },
+    "python_two_files_v2": {
+      "language": "python",
+      "type_id": "user.print_a",
+      "display_name": "Print A",
+      "declaration": "{\"type_id\":\"user.print_a\",\"version\":\"1.0.0\",\"display_name\":\"Print A\",\"execution\":{\"kind\":\"block\",\"stateful\":false,\"realtime_verified\":false},\"inputs\":[{\"id\":\"primary\",\"type\":\"audio.pcm@1\",\"required\":true},{\"id\":\"reference\",\"type\":\"audio.pcm@1\",\"required\":true}],\"outputs\":[{\"id\":\"main\",\"type\":\"audio.pcm@1\"}],\"format\":{\"sample_rates_hz\":[16000,48000],\"channels\":[1,2,4]},\"parameters\":[{\"id\":\"gain\",\"type\":\"float\",\"default\":0.5,\"minimum\":-2,\"maximum\":2}]}",
+      "declaration_sha256": "4bff6c1e2734485b214caee56a69b075e815f4aeb5d50609a740bf358f3d6b11",
+      "node_json_sha256": "c4c8e54189a0771f2f96c882c13100b0bba9e64d37dd757858cf8e36ec69a40f",
+      "runtime_files": [
+        {
+          "path": "node.json",
+          "bytes": 729,
+          "sha256": "c4c8e54189a0771f2f96c882c13100b0bba9e64d37dd757858cf8e36ec69a40f"
+        },
+        {
+          "path": "src/print_a/__init__.py",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "src/print_a/filter.py",
+          "bytes": 480,
+          "sha256": "cf54b329863e9d8a0dc1d1ec016c01e416754bb91b399ae4936ba27b109ed25b"
+        },
+        {
+          "path": "src/print_a/process.py",
+          "bytes": 437,
+          "sha256": "04bc54e82586b1dbaff4cd1db1c35bddad17f4450f350c728b46845cd1df957b"
+        }
+      ],
+      "content_sha256": "14d6fbf1496b2f01fdba57f2f5a919b4687491124a803037c9ec0320a9253216",
+      "excluded_present": [
+        ".vscode/settings.json",
+        "build/cache.bin",
+        "tests/test_process.py"
+      ],
+      "entrypoint": "print_a.process:process",
+      "entry_source_path": "src/print_a/process.py",
+      "entry_source_sha256": "04bc54e82586b1dbaff4cd1db1c35bddad17f4450f350c728b46845cd1df957b"
+    },
+    "native_two_sources": {
+      "language": "cpp",
+      "type_id": "user.native_two_sources",
+      "display_name": "Native Two Sources",
+      "declaration": "{\"type_id\":\"user.native_two_sources\",\"version\":\"1.0.0\",\"display_name\":\"Native Two Sources\",\"execution\":{\"kind\":\"block\",\"stateful\":true,\"realtime_verified\":false},\"inputs\":[{\"id\":\"primary\",\"type\":\"audio.pcm@1\",\"required\":true},{\"id\":\"reference\",\"type\":\"audio.pcm@1\",\"required\":true}],\"outputs\":[{\"id\":\"main\",\"type\":\"audio.pcm@1\"}],\"format\":{\"sample_rates_hz\":[16000,48000],\"channels\":[1,2,4]},\"parameters\":[{\"id\":\"step\",\"type\":\"float\",\"default\":0.001,\"minimum\":0,\"maximum\":1}]}",
+      "declaration_sha256": "9d84f570f30875c4dcba3e7225199d9c37bd07c3d4c33bb3eb4ef7d481ec4872",
+      "node_json_sha256": "e83975929d5a1c2525591096634a5700da19683f67189deeedac34c97751277a",
+      "runtime_files": [
+        {
+          "path": "include/my_filter/filter.h",
+          "bytes": 508,
+          "sha256": "358965c10a3fe03ac4c205b0acf8ef522b0efa665b8656ddeb13adb070a435c3"
+        },
+        {
+          "path": "node.json",
+          "bytes": 761,
+          "sha256": "e83975929d5a1c2525591096634a5700da19683f67189deeedac34c97751277a"
+        },
+        {
+          "path": "src/filter.cpp",
+          "bytes": 478,
+          "sha256": "f3a6b001a7d6a9e10c3dae00809119b36a1687259dae3b19b6ba5142b93e853e"
+        },
+        {
+          "path": "src/node.cpp",
+          "bytes": 709,
+          "sha256": "e8f75562b82f8cefc73f87ffef631ad33f717d721a73d4343072e7b8d04a4368"
+        }
+      ],
+      "content_sha256": "29ae39ea2f76b741e54a2b4a4c8c34b72f34d601967cfb6287b6ec250efc63e7",
+      "excluded_present": [
+        "tests/filter_test.cpp"
+      ],
+      "sources": [
+        "src/node.cpp",
+        "src/filter.cpp"
+      ],
+      "include_dirs": [
+        "include"
+      ]
+    },
+    "preserve_unknown": {
+      "language": "python",
+      "type_id": "user.preserve_unknown",
+      "display_name": "Preserve unknown fields",
+      "declaration": "{\"type_id\":\"user.preserve_unknown\",\"version\":\"1.1.0\",\"display_name\":\"Preserve unknown fields\",\"future_node_field\":{\"owner\":\"authoring-tools\",\"revision\":7},\"execution\":{\"kind\":\"block\",\"stateful\":false,\"realtime_verified\":false},\"inputs\":[{\"id\":\"audio_in\",\"type\":\"audio.pcm@1\",\"required\":true}],\"outputs\":[{\"id\":\"main\",\"type\":\"audio.pcm@1\"}],\"format\":{\"sample_rates_hz\":[16000,48000],\"channels\":[1,2]},\"parameters\":[{\"id\":\"gain\",\"type\":\"float\",\"default\":0.5,\"minimum\":-2,\"maximum\":2}]}",
+      "declaration_sha256": "d8804409e536f3e0c6f263ec58e967215bf67387b83abeae57e10ba66e03ff17",
+      "node_json_sha256": "9f1ca206ea4ba3c2412485383a01f234308f6f83c0d4672b5c0bf2c6cdaaf901",
+      "runtime_files": [
+        {
+          "path": "node.json",
+          "bytes": 779,
+          "sha256": "9f1ca206ea4ba3c2412485383a01f234308f6f83c0d4672b5c0bf2c6cdaaf901"
+        },
+        {
+          "path": "src/preserve/process.py",
+          "bytes": 93,
+          "sha256": "d90a309b910591977a1581f8dfa06d34d02311692e96538db2dfb5e5b061b7dc"
+        }
+      ],
+      "content_sha256": "e2b8a3e2b3c4842d62fc866100e2bff6f8505f01594163f2722498e1bb07aa97",
+      "excluded_present": [],
+      "entrypoint": "preserve.process:process",
+      "entry_source_path": "src/preserve/process.py",
+      "entry_source_sha256": "d90a309b910591977a1581f8dfa06d34d02311692e96538db2dfb5e5b061b7dc"
+    }
+  },
+  "legacy": {
+    "path": "legacy/print_a.aadraft",
+    "bytes": 1072,
+    "sha256": "e5f577c02f1235a9cff1b31cb32e60a1be79fe5c4f19ba862f3296c7bedad9a1",
+    "id": "print-a",
+    "generation": 3,
+    "language": "python",
+    "declaration_sha256": "f01d96cdfff8efa869c1188cd3de09a33a6e2c48bc779ea5609317364ce7dc47",
+    "source_sha256": "e8833d00a316f3ec571dbb380427d29f36f3cfb5501a6d8d0dcc8b0607792850",
+    "declaration": "{\"type_id\":\"user.print_a\",\"version\":\"1.0.0\",\"display_name\":\"Print A\",\"execution\":{\"kind\":\"block\",\"stateful\":false,\"realtime_verified\":false},\"inputs\":[{\"id\":\"primary\",\"type\":\"audio.pcm@1\",\"required\":true},{\"id\":\"reference\",\"type\":\"audio.pcm@1\",\"required\":true}],\"outputs\":[{\"id\":\"main\",\"type\":\"audio.pcm@1\"}],\"format\":{\"sample_rates_hz\":[16000,48000],\"channels\":[1,2,4]},\"parameters\":[{\"id\":\"gain\",\"type\":\"float\",\"default\":0.5,\"minimum\":-2,\"maximum\":2}]}"
+  },
+  "conversion": {
+    "draft": "legacy/print_a.aadraft",
+    "module": "print_a",
+    "entrypoint": "print_a.process:process",
+    "declaration": "{\"type_id\":\"user.print_a\",\"version\":\"1.0.0\",\"display_name\":\"Print A\",\"execution\":{\"kind\":\"block\",\"stateful\":false,\"realtime_verified\":false},\"inputs\":[{\"id\":\"primary\",\"type\":\"audio.pcm@1\",\"required\":true},{\"id\":\"reference\",\"type\":\"audio.pcm@1\",\"required\":true}],\"outputs\":[{\"id\":\"main\",\"type\":\"audio.pcm@1\"}],\"format\":{\"sample_rates_hz\":[16000,48000],\"channels\":[1,2,4]},\"parameters\":[{\"id\":\"gain\",\"type\":\"float\",\"default\":0.5,\"minimum\":-2,\"maximum\":2}]}",
+    "node_json": "{\"workspace_schema\":1,\"language\":\"python\",\"node\":{\"type_id\":\"user.print_a\",\"version\":\"1.0.0\",\"display_name\":\"Print A\",\"execution\":{\"kind\":\"block\",\"stateful\":false,\"realtime_verified\":false},\"inputs\":[{\"id\":\"primary\",\"type\":\"audio.pcm@1\",\"required\":true},{\"id\":\"reference\",\"type\":\"audio.pcm@1\",\"required\":true}],\"outputs\":[{\"id\":\"main\",\"type\":\"audio.pcm@1\"}],\"format\":{\"sample_rates_hz\":[16000,48000],\"channels\":[1,2,4]},\"parameters\":[{\"id\":\"gain\",\"type\":\"float\",\"default\":0.5,\"minimum\":-2,\"maximum\":2}]},\"python\":{\"source_root\":\"src\",\"entrypoint\":\"print_a.process:process\"},\"resources\":[]}",
+    "node_json_sha256": "eede91819ab041d31d68d7fba19ff547cd0cd98012a2a4bb1e4157db1170b4ee",
+    "runtime_files": [
+      {
+        "path": "node.json",
+        "bytes": 589,
+        "sha256": "eede91819ab041d31d68d7fba19ff547cd0cd98012a2a4bb1e4157db1170b4ee"
+      },
+      {
+        "path": "src/print_a/__init__.py",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "src/print_a/process.py",
+        "bytes": 306,
+        "sha256": "e8833d00a316f3ec571dbb380427d29f36f3cfb5501a6d8d0dcc8b0607792850"
+      }
+    ],
+    "content_sha256": "e963d8d19072d43a91e41ab02ac5f172cab563e087d9c43a38d5d657b371ce0c"
+  },
+  "invalid": [
+    {
+      "fixture": "invalid/duplicate_key.json",
+      "stage": "json",
+      "expected_code": "workspace_json_duplicate_key",
+      "why": "A duplicate object key would silently pick one declaration field",
+      "observed_code": "workspace_json_duplicate_key"
+    },
+    {
+      "fixture": "invalid/schema2.json",
+      "stage": "schema",
+      "expected_code": "workspace_schema_unsupported",
+      "why": "Only workspace_schema 1 is frozen; a future version must not be guessed",
+      "observed_code": "workspace_schema_unsupported"
+    },
+    {
+      "fixture": "invalid/missing_entrypoint.json",
+      "stage": "schema",
+      "expected_code": "workspace_contract_invalid",
+      "why": "A python workspace without python.entrypoint has no importable entry",
+      "observed_code": "workspace_contract_invalid"
+    },
+    {
+      "fixture": "invalid/escape_entrypoint.json",
+      "stage": "paths",
+      "expected_code": "workspace_entrypoint_invalid",
+      "why": "The entrypoint module must resolve inside src/, never above it",
+      "observed_code": "workspace_entrypoint_invalid"
+    },
+    {
+      "fixture": "invalid/absolute_source.json",
+      "stage": "paths",
+      "expected_code": "workspace_path_invalid",
+      "why": "Declared native sources are workspace-relative; absolute escape is refused",
+      "observed_code": "workspace_path_invalid"
+    },
+    {
+      "fixture": "invalid/case_conflict.json",
+      "stage": "paths",
+      "expected_code": "workspace_path_case_conflict",
+      "why": "NTFS is case insensitive, so two declared paths may not differ only by case",
+      "observed_code": "workspace_path_case_conflict"
+    }
+  ],
+  "positive": [
+    {
+      "fixture": "preserve_unknown/node.json",
+      "preserved_paths": [
+        "future_workspace_control",
+        "node.future_node_field"
+      ],
+      "why": "Unknown workspace and node fields are preserved, never silently deleted"
+    }
+  ]
+}

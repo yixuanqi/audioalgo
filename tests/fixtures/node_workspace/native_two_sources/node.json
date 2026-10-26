@@ -1,0 +1,21 @@
+{
+  "workspace_schema": 1,
+  "language": "cpp",
+  "node": {
+    "type_id": "user.native_two_sources",
+    "version": "1.0.0",
+    "display_name": "Native Two Sources",
+    "execution": {"kind": "block", "stateful": true, "realtime_verified": false},
+    "inputs": [
+      {"id": "primary", "type": "audio.pcm@1", "required": true},
+      {"id": "reference", "type": "audio.pcm@1", "required": true}
+    ],
+    "outputs": [{"id": "main", "type": "audio.pcm@1"}],
+    "format": {"sample_rates_hz": [16000, 48000], "channels": [1, 2, 4]},
+    "parameters": [
+      {"id": "step", "type": "float", "default": 0.001, "minimum": 0, "maximum": 1}
+    ]
+  },
+  "native": {"sources": ["src/node.cpp", "src/filter.cpp"], "include_dirs": ["include"]},
+  "resources": []
+}

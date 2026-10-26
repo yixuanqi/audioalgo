@@ -1,0 +1,6 @@
+{
+  "workspace_schema": 1,
+  "language": "cpp",
+  "node": {"type_id": "user.absolute_source", "version": "1.0.0", "display_name": "Absolute source"},
+  "native": {"sources": ["C:/outside/node.cpp"], "include_dirs": []}
+}

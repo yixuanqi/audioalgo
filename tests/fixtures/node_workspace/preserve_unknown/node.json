@@ -1,0 +1,18 @@
+{
+  "workspace_schema": 1,
+  "language": "python",
+  "node": {
+    "type_id": "user.preserve_unknown",
+    "version": "1.1.0",
+    "display_name": "Preserve unknown fields",
+    "future_node_field": {"owner": "authoring-tools", "revision": 7},
+    "execution": {"kind": "block", "stateful": false, "realtime_verified": false},
+    "inputs": [{"id": "audio_in", "type": "audio.pcm@1", "required": true}],
+    "outputs": [{"id": "main", "type": "audio.pcm@1"}],
+    "format": {"sample_rates_hz": [16000, 48000], "channels": [1, 2]},
+    "parameters": [{"id": "gain", "type": "float", "default": 0.5, "minimum": -2, "maximum": 2}]
+  },
+  "python": {"source_root": "src", "entrypoint": "preserve.process:process"},
+  "future_workspace_control": ["kept", 1, 0.5],
+  "resources": []
+}

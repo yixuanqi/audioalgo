@@ -10,3 +10,8 @@ CMakeLists.txt text eol=lf
 *.json text eol=lf
 *.aaproj text eol=lf
 *.wav binary
+# The .aadraft format is a length-prefixed byte document and the frozen W0
+# authoring fixtures are compared byte for byte (ADR0040). Never convert their
+# line endings, otherwise a checkout would change their SHA-256 identity.
+*.aadraft -text
+tests/fixtures/node_workspace/** -text

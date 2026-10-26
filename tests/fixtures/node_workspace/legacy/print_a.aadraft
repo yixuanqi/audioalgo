@@ -1,0 +1,62 @@
+AudioAlgoDraft/1
+7
+print-a1
+36
+python721
+{
+  "type_id": "user.print_a",
+  "version": "1.0.0",
+  "display_name": "Print A",
+  "execution": {
+    "kind": "block",
+    "stateful": false,
+    "realtime_verified": false
+  },
+  "inputs": [
+    {
+      "id": "primary",
+      "type": "audio.pcm@1",
+      "required": true
+    },
+    {
+      "id": "reference",
+      "type": "audio.pcm@1",
+      "required": true
+    }
+  ],
+  "outputs": [
+    {
+      "id": "main",
+      "type": "audio.pcm@1"
+    }
+  ],
+  "format": {
+    "sample_rates_hz": [
+      16000,
+      48000
+    ],
+    "channels": [
+      1,
+      2,
+      4
+    ]
+  },
+  "parameters": [
+    {
+      "id": "gain",
+      "type": "float",
+      "default": 0.5,
+      "minimum": -2,
+      "maximum": 2
+    }
+  ]
+}306
+"""Single-file legacy draft for the frozen NWS conversion fixture."""
+
+import numpy as np
+
+
+def process(inputs, params, state):
+    primary = inputs["primary"]
+    reference = inputs["reference"]
+    return {"main": (np.float32(0.5) * primary + np.float32(-0.25) * reference) * np.float32(params["gain"])}
