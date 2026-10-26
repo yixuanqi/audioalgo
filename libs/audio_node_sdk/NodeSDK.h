@@ -156,6 +156,12 @@ struct NodeExecutionContext {
     // One worker-owned cache shared by all task instances in this run. Backends
     // use opaque package keys and immutable snapshot directories, never live UI state.
     std::shared_ptr<std::map<std::string,std::string>> frozen_task_packages;
+    // Native adapter sets this only for its owned worker render path, never for
+    // a UI/device callback. Backends must still keep process/reset free of I/O.
+    bool worker_log_io_allowed=false;
+    // One native render task/region shares its complete-log budget across all
+    // instances. Only the owned worker drains/updates it, never process/reset.
+    std::shared_ptr<std::size_t> native_task_log_bytes;
 };
 
 struct NodeProcessRequest {
@@ -251,6 +257,10 @@ public:
     // Called for every owned task before any execution task. Native block nodes
     // need no package snapshot; code-owning backends override this worker-only hook.
     [[nodiscard]] virtual std::optional<Diagnostic> freeze_task(const NodeExecutionContext&) { return {}; }
+    // Worker-only log transfer, outside prepare/process/reset and device callbacks.
+    // final=true follows reset and must detach borrowed sinks before destruction.
+    // Default nodes have no log queue; the C DLL v1 ABI is unchanged.
+    [[nodiscard]] virtual std::optional<Diagnostic> drain_logs(const NodeExecutionContext&, bool /*final*/) { return {}; }
 
     // True only when process_block() runs without allocating, copying whole buffers or doing I/O.
     [[nodiscard]] virtual bool supports_block_processing() const noexcept { return false; }
