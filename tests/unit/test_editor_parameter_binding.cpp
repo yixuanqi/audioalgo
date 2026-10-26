@@ -14,13 +14,16 @@
 #include "audio_editor_application/EditorController.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <juce_cryptography/juce_cryptography.h>
 
 #include <optional>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <limits>
 #include <string>
 
@@ -860,6 +863,88 @@ TEST_CASE("AR-11.a separated view components retain controller intents and prese
     CHECK(status.status_text() == "Missing input");
     status.set_status("Rendered current request", false);
     CHECK(status.status_text() == "Rendered current request");
+}
+
+TEST_CASE("NI0017 waveform wheel reveals detail and double click restores overview", "[NI0017][component]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    audioalgo::AudioBuffer audio(48000, {"left", "right"}, 8192);
+    for (std::size_t n = 0; n < audio.frame_count(); ++n) {
+        audio.mutable_channel(0)[n] = .8f * std::sin(static_cast<float>(n) * .17f);
+        audio.mutable_channel(1)[n] = n == 2301 ? -1.f : 0.f;
+    }
+    audioalgo::editor::WaveformView view;
+    view.setSize(640, 240);
+    const auto ranges = audioalgo::editor::make_waveform(audio);
+    REQUIRE(ranges.detail);
+    CHECK(ranges.detail->frames == 8192);
+    CHECK(ranges.detail->sample_rate_hz == 48000);
+    CHECK(ranges.detail->finest_bucket_frames == 1);
+    CHECK(audioalgo::editor::waveform_visible_range(ranges, 1, 2301, 2302, 1).minimum == -1.f);
+    CHECK(audioalgo::editor::waveform_visible_range(ranges, 1, 2302, 2303, 1).minimum == 0.f);
+    view.set_waveform(ranges);
+    const auto image_hash = [&] {
+        juce::MemoryOutputStream stream;
+        juce::PNGImageFormat{}.writeImageToStream(view.createComponentSnapshot(view.getLocalBounds()), stream);
+        return juce::SHA256(stream.getData(), stream.getDataSize()).toHexString();
+    };
+    const auto preview_root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) / "build/reports/loops/NI0017-waveform-zoom/artifacts" /
+                              juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(preview_root);
+    std::cout << "NI0017_PREVIEW_ROOT=" << preview_root.generic_string() << '\n';
+    const auto save_preview = [&](const char* name) {
+        juce::FileOutputStream stream(juce::File((preview_root / name).generic_string()));
+        REQUIRE(stream.openedOk());
+        CHECK(juce::PNGImageFormat{}.writeImageToStream(view.createComponentSnapshot(view.getLocalBounds()), stream));
+    };
+    const auto before = image_hash();
+    save_preview("overview.png");
+    CHECK(view.visible_frames() == std::make_pair(0.0, 8192.0));
+    juce::MouseWheelDetails wheel{}; wheel.deltaY = 1.f;
+    view.mouseWheelMove(canvas_mouse(view, {180, 100}, 0, {180, 100}), wheel);
+    const auto zoomed = image_hash();
+    save_preview("zoomed.png");
+    CHECK(zoomed != before);
+    const auto zoom_frames = view.visible_frames();
+    CHECK(zoom_frames.second - zoom_frames.first == 1024.0);
+    const auto anchor = (180.0 - 14) / (640.0 - 28);
+    CHECK(zoom_frames.first + anchor * 1024.0 == Catch::Approx(anchor * 8192.0));
+    view.mouseDown(canvas_mouse(view, {320, 100}, juce::ModifierKeys::leftButtonModifier, {320, 100}));
+    view.mouseDrag(canvas_mouse(view, {240, 100}, juce::ModifierKeys::leftButtonModifier, {320, 100}, true));
+    view.mouseUp(canvas_mouse(view, {240, 100}, 0, {320, 100}, true));
+    CHECK(image_hash() != zoomed);
+    save_preview("panned.png");
+    CHECK(view.visible_frames().first - zoom_frames.first == Catch::Approx(80.0 * 1024.0 / 612.0));
+    view.mouseDoubleClick(canvas_mouse(view, {180, 100}, juce::ModifierKeys::leftButtonModifier, {180, 100}));
+    CHECK(image_hash() == before);
+    CHECK(view.visible_frames() == std::make_pair(0.0, 8192.0));
+    wheel.deltaY = 100.f;
+    view.mouseWheelMove(canvas_mouse(view, {320, 100}, 0, {320, 100}), wheel);
+    CHECK(view.visible_frames().second - view.visible_frames().first == 8.0);
+    wheel.deltaY = -100.f;
+    view.mouseWheelMove(canvas_mouse(view, {320, 100}, 0, {320, 100}), wheel);
+    CHECK(view.visible_frames() == std::make_pair(0.0, 8192.0));
+    view.set_waveform({});
+    CHECK(view.visible_frames() == std::make_pair(0.0, 0.0));
+}
+
+TEST_CASE("NI0017 bounded zoom cache preserves isolated peaks across levels", "[NI0017][component]") {
+    audioalgo::AudioBuffer audio(48000, {"L", "R"}, 300000);
+    audio.mutable_channel(0)[199999] = .75f;
+    audio.mutable_channel(1)[0] = -1.f;
+    auto ranges = audioalgo::editor::make_waveform(audio);
+    REQUIRE(ranges.detail);
+    CHECK(ranges.detail->finest_bucket_frames == 2);
+    CHECK(ranges.detail->frames == 300000);
+    std::size_t cached_ranges = 0;
+    std::size_t bucket_frames = ranges.detail->finest_bucket_frames;
+    for (const auto& level : ranges.detail->levels) {
+        for (const auto& channel : level) cached_ranges += channel.size();
+        CHECK(level[0][199999 / bucket_frames].maximum == .75f);
+        bucket_frames *= 2;
+    }
+    CHECK(cached_ranges <= 1'048'576);
+    CHECK(audioalgo::editor::waveform_visible_range(ranges, 1, 0, 2, 1).minimum == -1.f);
+    CHECK(audioalgo::editor::waveform_visible_range(ranges, 0, 199999, 200000, 1).maximum == .75f);
 }
 
 TEST_CASE("AR-12.d ChannelSwap library controls native rendering and CLI follow the stereo oracle",

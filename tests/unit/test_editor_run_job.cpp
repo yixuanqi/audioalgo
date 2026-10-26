@@ -551,6 +551,9 @@ TEST_CASE("AR-09.d production RunJob publishes a real run and drops delivery aft
     CHECK(live_target->identity == live_identity);
     REQUIRE(live_target->waveform.size() == 2);
     REQUIRE(live_target->waveform[0].size() == input.frame_count());
+    REQUIRE(live_target->waveform.detail);
+    CHECK(live_target->waveform.detail->frames == input.frame_count());
+    CHECK(live_target->waveform.detail->sample_rate_hz == input.sample_rate_hz());
     CHECK(live_target->waveform[0][0].minimum == Catch::Approx(
         input.channel(0)[0] * static_cast<float>(std::pow(10.0, 6.0 / 20.0))).margin(2.0e-6));
 

@@ -4,13 +4,15 @@
 
 
 
-## 唯一当前摘要（2026-10-26：NI0016参考VS Code深灰/蓝色配色已完成用户外观子集；PC与平台完整专项未通过）
+## 唯一当前摘要（2026-10-26：NI0017波形滚轮缩放已完成自动化交互子集；PC与平台完整专项未通过）
 
 
 
 
 
-当前用户UI出口NI0016：按用户VS Code截图改为中性深灰背景/侧栏/控件、浅灰文字、蓝色主操作/焦点/选择；新增共享EditorColours.h，Inspector不再自带旧蓝绿色表，统一标题栏、画布网格/节点、源码/日志选择、JUCE默认控件颜色。不改布局、运行合同或音频算法，不新增装饰性镜像测试。最终Debug编辑器/测试构建通过，同源码/二进制直接108/108共16164断言、0失败/错误/跳过；包含原NI0015两条组件和106条画布/Inspector/Print/Check/Apply/Run相关回归。独立读取4份组件PNG尺寸/hash及实际5行Python打印，已查看最终主界面/工作台预览；不是OS桌面/DPI证据，Python OFF/Release本片未重跑。首次SDK沙箱拒绝及一次不支持的JUCE颜色属性编译失败保留并修复；用户窗口未操作/重启。用法[调整界面](editor_layout.md)，精确命令/源码/二进制及验收映射见`build/reports/loops/NI0016-vscode-colours/summary.json`。完整NA/NED/AR/G/UPN/PC仍未通过，下一主线PC0701不变。
+当前用户UI出口NI0017：底部波形区支持指针锚点滚轮缩放、左键拖动时间平移、双击恢复全览、显示可见时间范围；实际生产RunJob在线程内从输出音频建立多级min/max缓存，整段概览保留，缓存峰值范围约8MiB，长音频按预算降低最细时间粒度。新增真实行为Red：旧组件滚轮和拖动后图像不变，两条失败保留；目标同用例Green后扩精确锚点/极限/脉冲峰值/预算/空结果，最终Debug测试/编辑器构建成功，目标2条及生产RunJob1条合计3/3、96断言、0失败/跳过。实际JUCE组件3张overview/zoom/pan PNG已查看，放大后波周期与单点脉冲可见。`build/reports/loops/NI0017-waveform-zoom/`留命令、二进制及预览证据；OS桌面/DPI、完整长文件G5与平台所有Gate仍未通过，用户窗口未自动操作/重启。用法[调整界面](editor_layout.md)，下一主线PC0701不变。
+
+此前NI0016：按用户VS Code截图改为中性深灰背景/侧栏/控件、浅灰文字、蓝色主操作/焦点/选择；共享EditorColours.h并统一Inspector、标题栏、画布、源码、日志、默认控件。最终Debug构建、直接108/108共16164断言、0失败/错误/跳过；独立4份组件PNG、真实5行Python试跑，非OS桌面/DPI证据。首次SDK沙箱拒绝及一次JUCE颜色属性编译失败保留并修复；用户窗口未操作/重启。精确证据`build/reports/loops/NI0016-vscode-colours/summary.json`；完整NA/NED/AR/G/UPN/PC仍未通过。
 
 此前NI0015：主界面节点库/Inspector/结果区三处分隔条，工作台定义/源码/检查日志两处分隔条，8px拖动区、可见握柄/光标、极限最小尺寸/双击复位/方向键，本会话尺寸保留；拖动不修改模型/revision/dirty或草稿generation/正文/Ready。JUCE自绘暗色标题栏/中性窗口图标、统一扁平控件与代码字体、长路径正常字号省略显示；删除按钮移至Inspector底部避免与Upgrade重叠。两条缺控件Red保留；目标2/2共68断言、直接106/106共16096（随后仅Label最小字号逆向SHA审计复用）、Python OFF几何/编辑目标2/2共60，0失败/跳过。独立ON/OFF各4PNG、真实Python试跑5行（513帧/最大127块）核验；组件预览含暗色标题栏并已查看，不是OS桌面/DPI证据。中间一次夹具请求超出100px最小源码高度的失败保留，改用非夹取拖动且极限断言保留。证据`build/reports/loops/NI0015-resizable-workspace/summary.json`；原PC0613/14保留，完整阶段和真实桌面未通过。
 
