@@ -23,6 +23,16 @@ TEST_CASE("PC-01.a production draft parent preserves volume and UNC roots", "[PC
         CHECK_THROWS(draft_parent_directory(bad));
         CHECK(std::holds_alternative<audioalgo::Diagnostic>(audioalgo::authoring::DraftFiles{}.save(bad, audioalgo::authoring::python_draft("invalid"), {})));
     }
+    const auto mounted_root = std::filesystem::current_path().root_path();
+    REQUIRE(std::filesystem::is_directory(mounted_root));
+    const auto root_target = mounted_root / L"PrintA.aadraft";
+    CHECK_NOTHROW(audioalgo::authoring::ensure_draft_parent_directory(root_target));
+    CHECK_NOTHROW(audioalgo::authoring::ensure_draft_parent_directory(
+        std::filesystem::path(L"\\\\?\\" + root_target.wstring())));
+    // The reported failure used the mounted D: root. This check is read-only:
+    // it must not attempt to create or modify that existing volume root.
+    if (std::filesystem::is_directory(LR"(D:\)"))
+        CHECK_NOTHROW(audioalgo::authoring::ensure_draft_parent_directory(LR"(D:\PrintA.aadraft)"));
 }
 #endif
 TEST_CASE("PC-01.b extended long draft save recovery binding and directory probe round trip", "[PC-01.b][PC-01.d][draft_files][pure]") {

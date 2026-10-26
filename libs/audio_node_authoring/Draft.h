@@ -24,6 +24,8 @@ using SaveResult = std::optional<Diagnostic>;
 SaveResult probe_authoring_directory(const std::filesystem::path&);
 // Parent used by draft I/O, including extended Windows volume/share roots.
 std::filesystem::path draft_parent_directory(const std::filesystem::path&);
+// Existing drive/share roots must be reused; creating a root can fail with access denied.
+void ensure_draft_parent_directory(const std::filesystem::path&);
 using LoadResult = std::variant<Draft, Diagnostic>;
 using ListResult = std::variant<std::vector<std::string>, Diagnostic>;
 struct DraftRecovery {

@@ -132,13 +132,18 @@ std::filesystem::path draft_parent_directory(const std::filesystem::path& path) 
 #endif
     return io_path(parent);
 }
+void ensure_draft_parent_directory(const std::filesystem::path& path) {
+    const auto parent = draft_parent_directory(path);
+    if (!std::filesystem::is_directory(parent))
+        std::filesystem::create_directories(parent);
+}
 std::filesystem::path FileDraftStorage::file_path(const std::string& id) const { return checked(root_, id); }
 SaveResult FileDraftStorage::save(const Draft& draft) const {
     std::filesystem::path temporary;
     try {
         const auto path = checked(root_, draft.id);
         const auto bytes = encode(draft);
-        std::filesystem::create_directories(draft_parent_directory(path));
+        ensure_draft_parent_directory(path);
         static std::atomic<std::uint64_t> counter{0};
         temporary = path; temporary += ".tmp-" + std::to_string(++counter);
         auto allow = [&](SavePhase phase) { if (allow_ && !allow_(phase)) throw std::runtime_error("Injected draft storage failure"); };
@@ -267,7 +272,7 @@ SaveResult probe_authoring_directory(const std::filesystem::path& directory) {
         static std::atomic<std::uint64_t> serial{0};
         const auto name = "write-probe-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "-" + std::to_string(++serial);
         first = checked(directory, name); second = first; second += ".replaced";
-        std::filesystem::create_directories(draft_parent_directory(first));
+        ensure_draft_parent_directory(first);
         { std::ofstream stream(first, std::ios::binary); stream << name; stream.close(); if (!stream) throw std::runtime_error("Cannot write directory probe"); }
         if (read(first) != name) throw std::runtime_error("Directory probe could not be read back");
         std::filesystem::rename(first, second); first.clear();
@@ -287,7 +292,7 @@ DraftFileOutcome DraftFiles::save(const std::filesystem::path& selected, const D
         const auto bytes = encode(draft);
         auto unchanged = [&] { return expected ? std::filesystem::exists(path) && read(path) == *expected : !std::filesystem::exists(path); };
         if (!unchanged()) return Diagnostic{"draft_file_conflict", "The selected file changed outside this editor. Choose another name to preserve both versions."};
-        std::filesystem::create_directories(draft_parent_directory(path));
+        ensure_draft_parent_directory(path);
         static std::atomic<std::uint64_t> serial{0};
         temporary = path; temporary += ".tmp-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "-" + std::to_string(++serial);
         auto phase = [&](SavePhase p) { if (allow_ && !allow_(p)) throw std::runtime_error("Injected draft file storage failure"); };
