@@ -4,6 +4,7 @@
 #include "EditorUiSupport.h"
 #include "EditorPanelSplitter.h"
 #include "audio_node_authoring/Draft.h"
+#include "audio_node_authoring/Workspace.h"
 #include "audio_node_authoring/AuthoringChecks.h"
 #include <juce_gui_extra/juce_gui_extra.h>
 #include <future>
@@ -27,6 +28,17 @@ struct DraftFileActions {
     std::function<bool()> allow_apply;
     std::function<void()> library_change_queued;
     std::string initial_location_message;
+    struct WorkspaceBinding {
+        std::filesystem::path directory;
+        std::string content_sha256;
+        std::size_t files = 0;
+        std::uint64_t bytes = 0;
+    };
+    // Read-only directory binding: the directory is authoritative, so this panel
+    // holds no second source buffer and never writes a .aadraft for it.
+    std::optional<WorkspaceBinding> workspace;
+    std::function<void(std::function<void(std::filesystem::path)>)> choose_workspace_directory;
+    std::function<authoring::WorkspaceOutcome(const std::filesystem::path&, const authoring::Draft&)> create_workspace;
 };
 class NodeAuthoringPanel final : public juce::Component, private juce::Timer,
                                  private juce::CodeDocument::Listener {
@@ -118,6 +130,22 @@ public:
         style_button(save_, signal); style_button(close_button_);
         save_.onClick = [this] { save_requested_ = true; save(); };
         close_button_.onClick = [this] { close_requested_ = true; save_requested_ = true; save(); };
+        addAndMakeVisible(workspace_);
+        workspace_.setComponentID("authoring.workspace_create");
+        workspace_.setTooltip("Create a node project folder from this draft; the .aadraft file is never modified");
+        style_button(workspace_);
+        workspace_.onClick = [this] { request_workspace_create(); };
+        workspace_.setEnabled(!files_.workspace && files_.create_workspace && files_.choose_workspace_directory);
+        if (files_.workspace) {
+            workspace_directory_ = files_.workspace->directory;
+            workspace_content_sha256_ = files_.workspace->content_sha256;
+            workspace_file_count_ = files_.workspace->files;
+            title_.setText("Node project", juce::dontSendNotification);
+            close_button_.setButtonText("Close");
+            source_.setReadOnly(true); definition_.setReadOnly(true);
+            type_id_.setEnabled(false); display_name_.setEnabled(false); templates_.setEnabled(false);
+            check_state_.setText(utf8_literal("Node project · editing the files on disk is authoritative (W2 adds Check)"), juce::dontSendNotification);
+        }
         update_status(); startTimer(50);
     }
     ~NodeAuthoringPanel() override {
@@ -132,6 +160,7 @@ public:
         if (cancel_apply_) cancel_apply_->store(true);
         if (preparing_.valid()) preparing_.wait();
         if (applying_.valid()) applying_.wait();
+        if (workspace_creating_.valid()) workspace_creating_.wait();
         if (discard_catalog_) discard_catalog_();
         setLookAndFeel(nullptr);
     }
@@ -158,6 +187,7 @@ public:
         auto bottom = area.removeFromBottom(42);
         close_button_.setBounds(bottom.removeFromRight(120).reduced(4));
         save_.setBounds(bottom.removeFromRight(120).reduced(4)); state_.setBounds(bottom.reduced(4));
+        workspace_.setBounds(bottom.removeFromRight(170).reduced(4));
         save_as_.setBounds(bottom.removeFromRight(110).reduced(4));
         discard_.setBounds(bottom.removeFromRight(140).reduced(4)); state_.setBounds(bottom.reduced(4));
         auto diagnostics = area.removeFromBottom(64);
@@ -179,6 +209,12 @@ public:
     const authoring::DraftSession& session() const { return session_; }
     const std::optional<authoring::ReadyPackage>& ready() const { return ready_; }
     const std::filesystem::path& file_path() const { return files_.path; }
+    bool workspace_mode() const { return files_.workspace.has_value(); }
+    bool workspace_creating() const { return workspace_creating_.valid(); }
+    bool workspace_created() const { return !workspace_directory_.empty(); }
+    const std::filesystem::path& workspace_directory() const { return workspace_directory_; }
+    const std::string& workspace_content_sha256() const { return workspace_content_sha256_; }
+    std::size_t workspace_file_count() const { return workspace_file_count_; }
     bool file_save_pending() const { return choosing_file_ || choosing_overwrite_ || file_target_loading_.valid() || file_saving_.valid(); }
     bool check_in_progress() const { return checking_.valid(); }
     bool check_result_pending() const { return checking_.valid() && checking_.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready; }
@@ -232,6 +268,19 @@ private:
         templates_.setSelectedId(0, juce::dontSendNotification);
     }
     void update_status() {
+        if (files_.workspace) {
+            const auto hash = workspace_content_sha256_.substr(0, std::min<std::size_t>(12, workspace_content_sha256_.size()));
+            file_path_.setText("Project: " + utf8_string(path_to_utf8(workspace_directory_)), juce::dontSendNotification);
+            file_path_.setTooltip(file_path_.getText());
+            state_.setText("Node project · read-only · " + juce::String(static_cast<int>(workspace_file_count_)) +
+                " files · " + utf8_string(hash), juce::dontSendNotification);
+            state_.setColour(juce::Label::textColourId, failed_ ? danger : muted);
+            state_.setTooltip(state_.getText());
+            save_.setVisible(false); save_as_.setVisible(false); discard_.setVisible(false); workspace_.setVisible(false);
+            check_.setEnabled(false); apply_.setEnabled(false);
+            work_folder_.setEnabled(false); recovery_folder_.setEnabled(false); library_folder_.setEnabled(false);
+            return;
+        }
         const bool user_files = static_cast<bool>(files_.choose_save);
         file_path_.setText(user_files ? (files_.path.empty() ? "File: not saved - choose a location with Save" : "File: " + utf8_string(path_to_utf8(files_.path))) : "Managed draft storage", juce::dontSendNotification);
         file_path_.setTooltip(file_path_.getText());
@@ -251,7 +300,19 @@ private:
         work_folder_.setTooltip(checks_ ? "Current work directory: " + utf8_string(path_to_utf8(checks_->work_directory())) : "No checker configured");
         recovery_folder_.setTooltip("Current recovery directory: " + utf8_string(path_to_utf8(storage_->directory())));
     }
+    void request_workspace_create() {
+        if (files_.workspace || workspace_creating_.valid() || !files_.choose_workspace_directory || !files_.create_workspace) return;
+        auto safe = juce::Component::SafePointer<NodeAuthoringPanel>(this);
+        files_.choose_workspace_directory([safe](std::filesystem::path target) {
+            if (safe == nullptr || target.empty()) return;
+            const auto draft = safe->session_.document();
+            const auto create = safe->files_.create_workspace;
+            safe->workspace_creating_ = std::async(std::launch::async, [target, draft, create] { return create(target, draft); });
+            safe->update_status();
+        });
+    }
     void save() {
+        if (files_.workspace) { save_requested_ = false; if (close_requested_) finish_close(); return; }
         if (files_.choose_save) { request_file_save(false); return; }
         if (saving_.valid()) return;
         if (!session_.dirty()) { save_requested_ = false; if (close_requested_) finish_close(); return; }
@@ -317,6 +378,25 @@ private:
         });
     }
     void timerCallback() override {
+        if (workspace_creating_.valid() && workspace_creating_.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+            auto outcome = workspace_creating_.get();
+            if (auto* error = std::get_if<Diagnostic>(&outcome)) {
+                failed_ = true; error_ = error->code + ": " + error->message;
+            } else {
+                auto created = std::get<authoring::Workspace>(std::move(outcome));
+                workspace_directory_ = std::move(created.directory);
+                workspace_content_sha256_ = std::move(created.content_sha256);
+                workspace_file_count_ = created.files.size();
+                failed_ = false; error_.clear();
+                locations_.setText(utf8_string("Node project: " + path_to_utf8(workspace_directory_) + " | " +
+                    std::to_string(workspace_file_count_) + " files | " + workspace_content_sha256_.substr(0, 12)),
+                    juce::dontSendNotification);
+                locations_.setTooltip(locations_.getText());
+                check_state_.setText(utf8_literal("Node project created - reopen the folder to verify declaration and source"),
+                    juce::dontSendNotification);
+            }
+            update_status();
+        }
         if (file_target_loading_.valid() && file_target_loading_.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
             auto outcome = file_target_loading_.get();
             if (auto* error = std::get_if<Diagnostic>(&outcome)) {
@@ -444,7 +524,10 @@ private:
             update_status();
             if (!failed_ && close_requested_) { if (session_.dirty()) save_requested_ = true; else finish_close(); }
         }
-        if (files_.choose_save) {
+        if (files_.workspace) {
+            // Directory mode never writes a .aadraft or a recovery copy: the
+            // directory bytes are the only authority (ADR0040 §8).
+        } else if (files_.choose_save) {
             if (!failed_ && save_requested_) save();
             if (!saving_.valid() && recovery_error_.empty() && session_.recovery_due(now())) {
                 const auto draft = session_.document(); saving_generation_ = draft.generation;
@@ -453,8 +536,8 @@ private:
             }
             update_status();
         } else if (!failed_ && (save_requested_ || session_.save_due(now()))) save();
-        check_.setEnabled(checks_ && !apply_in_progress() && !location_work_.valid() && !choosing_directory_);
-        apply_.setEnabled(ready_ && ready_->draft == session_.document() && !checking_.valid() && !apply_in_progress() && !location_work_.valid() && !choosing_directory_ && (!files_.allow_apply || files_.allow_apply()) && catalog_ && applied_);
+        check_.setEnabled(!files_.workspace && checks_ && !apply_in_progress() && !location_work_.valid() && !choosing_directory_);
+        apply_.setEnabled(!files_.workspace && ready_ && ready_->draft == session_.document() && !checking_.valid() && !apply_in_progress() && !location_work_.valid() && !choosing_directory_ && (!files_.allow_apply || files_.allow_apply()) && catalog_ && applied_);
     }
     void apply_failed(const authoring::SourceDiagnostic& error) {
         if (discard_catalog_) discard_catalog_();
@@ -551,6 +634,11 @@ private:
     std::string error_;
     DraftFileActions files_;
     juce::TextButton save_as_{"Save as..."};
+    juce::TextButton workspace_{"Node project folder..."};
+    std::future<authoring::WorkspaceOutcome> workspace_creating_;
+    std::filesystem::path workspace_directory_;
+    std::string workspace_content_sha256_;
+    std::size_t workspace_file_count_ = 0;
     juce::Label file_path_;
     std::future<authoring::DraftFileOutcome> file_saving_;
     std::future<authoring::DraftTargetOutcome> file_target_loading_;

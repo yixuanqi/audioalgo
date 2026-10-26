@@ -68,7 +68,8 @@ public:
                     std::function<void(bool, const std::filesystem::path&, DraftFileActions::Completion)> draft_picker = {},
                     std::function<authoring::SaveResult(bool, const std::filesystem::path&)> location_persistence = {},
                     std::function<authoring::SaveResult(const std::filesystem::path&)> library_location_persistence = {},
-                    RunConfiguration run_configuration = {})
+                    RunConfiguration run_configuration = {},
+                    std::function<void(const std::string&, const std::filesystem::path&, DraftFileActions::Completion)> directory_picker = {})
         : document_service_(std::move(document_service)), project_resources_(std::move(project_resources)),
           preview_service_(std::move(preview_service)), descriptors_owner_(std::move(descriptors)),
           available_catalog_(std::make_shared<const NodeRegistry>(descriptors_)), controller_(descriptors_), project_(controller_.project()),
@@ -90,10 +91,11 @@ public:
                   }),
           inspector_(controller_, selection_, [this] { mark_changed(); }),
           library_(descriptors_, [this](std::string id) { add_library_node(id); }, [this] { return project_epoch_; },
-                   [this] { new_custom_node(); }, [this] { open_custom_draft(); }, [this] { preview_node_upgrade(); }, [this] { recover_custom_draft(); }),
+                   [this] { new_custom_node(); }, [this] { open_custom_draft(); }, [this] { preview_node_upgrade(); }, [this] { recover_custom_draft(); },
+                   [this] { open_node_workspace(); }),
           drafts_(drafts ? std::move(drafts) : std::make_shared<authoring::FileDraftStorage>(
               path_from_juce_file(juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-                  .getChildFile("AudioAlgo").getChildFile("authoring").getChildFile("drafts")))), checks_(std::move(checks)), allow_catalog_prepare_(std::move(allow_catalog_prepare)), user_draft_files_(user_draft_files), draft_picker_(std::move(draft_picker)), location_persistence_(std::move(location_persistence)), library_location_persistence_(std::move(library_location_persistence)) {
+                  .getChildFile("AudioAlgo").getChildFile("authoring").getChildFile("drafts")))), checks_(std::move(checks)), allow_catalog_prepare_(std::move(allow_catalog_prepare)), user_draft_files_(user_draft_files), draft_picker_(std::move(draft_picker)), directory_picker_(std::move(directory_picker)), location_persistence_(std::move(location_persistence)), library_location_persistence_(std::move(library_location_persistence)) {
         run_configuration_=run_configuration;
         setLookAndFeel(&look_and_feel_);
         library_splitter_.configure("workspace.splitter.library", "Resize node library", true,
@@ -448,8 +450,45 @@ private:
                 completion(std::move(selected));
             }, true);
     }
+    void choose_directory(const juce::String& title, const std::filesystem::path& initial,
+                          DraftFileActions::Completion completion) {
+        if (directory_picker_) { directory_picker_(title.toStdString(), initial, std::move(completion)); return; }
+        launch_file_chooser(title, initial.empty() ? juce::File::getSpecialLocation(juce::File::userDocumentsDirectory) : to_juce_file(initial), {},
+            juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
+            std::move(completion), true);
+    }
+    void open_node_workspace() {
+        if (authoring_panel_) { authoring_panel_->toFront(true); return; }
+        choose_directory("Open node project folder", {}, [this](std::filesystem::path directory) {
+            if (directory.empty()) return;
+            const auto epoch = project_epoch_;
+            submit_work<authoring::WorkspaceOutcome>(
+                [directory] { return authoring::WorkspaceStore{}.open(directory); },
+                [epoch](EditorComponent& target, authoring::WorkspaceOutcome outcome) {
+                    if (target.authoring_panel_ || target.project_epoch_ != epoch) return;
+                    if (auto* error = std::get_if<Diagnostic>(&outcome)) {
+                        target.set_status(utf8_string(error->code) + ": " + utf8_string(error->message), true);
+                        return;
+                    }
+                    auto workspace = std::get<authoring::Workspace>(std::move(outcome));
+                    authoring::Draft draft;
+                    draft.id = "node-" + workspace.content_sha256.substr(0, 12);
+                    draft.language = workspace.language;
+                    draft.declaration = workspace.declaration;
+                    draft.source = workspace.entry_source;
+                    std::uint64_t bytes = 0;
+                    for (const auto& file : workspace.files) bytes += file.bytes;
+                    DraftFileActions files;
+                    files.workspace = DraftFileActions::WorkspaceBinding{workspace.directory, workspace.content_sha256,
+                                                                        workspace.files.size(), bytes};
+                    files.initial_location_message = "Node project: " + path_to_utf8(workspace.directory) + " | " +
+                                                     std::to_string(workspace.files.size()) + " files";
+                    target.show_draft(std::move(draft), true, std::move(files));
+                });
+        });
+    }
     void show_draft(authoring::Draft draft, bool saved, DraftFileActions files = {}) {
-        if (user_draft_files_) {
+        if (user_draft_files_ && !files.workspace) {
             files.choose_save = [this](const std::filesystem::path& initial, DraftFileActions::Completion completion) { choose_draft_file(true, initial, std::move(completion)); };
             files.confirm_overwrite = [this](const std::filesystem::path& path, std::function<void(bool)> done) {
                 juce::AlertWindow::showOkCancelBox(juce::MessageBoxIconType::WarningIcon, "Replace draft file?", "Replace the existing draft at:\n" + utf8_string(path_to_utf8(path)) + "\nExternal changes after this confirmation will still be rejected.", "Replace", "Cancel", this,
@@ -472,6 +511,13 @@ private:
             files.allow_apply = [this] { return !library_restart_pending_; };
             files.library_change_queued = [this] { library_restart_pending_ = true; };
             if (library_restart_pending_) files.initial_location_message += (files.initial_location_message.empty() ? "" : " | ") + std::string("Library change queued; save and restart before applying new versions");
+            files.choose_workspace_directory = [this](DraftFileActions::Completion completion) {
+                choose_directory("Create node project folder", {}, std::move(completion));
+            };
+            if (!files.create_workspace)
+                files.create_workspace = [](const std::filesystem::path& target, const authoring::Draft& source) {
+                    return authoring::WorkspaceStore{}.create(target, source);
+                };
         }
         authoring_panel_ = std::make_unique<NodeAuthoringPanel>(std::move(draft), saved, drafts_, [this] {
             auto after_close = std::move(after_draft_close_);
@@ -1314,6 +1360,7 @@ private:
     std::shared_ptr<const authoring::DraftStorage> drafts_;
     bool user_draft_files_ = false;
     std::function<void(bool, const std::filesystem::path&, DraftFileActions::Completion)> draft_picker_;
+    std::function<void(const std::string&, const std::filesystem::path&, DraftFileActions::Completion)> directory_picker_;
     std::function<authoring::SaveResult(bool, const std::filesystem::path&)> location_persistence_;
     std::function<authoring::SaveResult(const std::filesystem::path&)> library_location_persistence_;
     bool library_restart_pending_ = false;

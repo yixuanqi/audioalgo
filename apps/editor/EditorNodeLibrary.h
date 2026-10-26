@@ -60,12 +60,17 @@ class NodeLibrary final : public juce::Component {
 public:
     NodeLibrary(const NodeCatalog& catalog, std::function<void(std::string)> clicked,
                 std::function<std::uint64_t()> epoch,
-                std::function<void()> create_custom = {}, std::function<void()> open_draft = {}, std::function<void()> upgrade = {}, std::function<void()> recover = {})
+                std::function<void()> create_custom = {}, std::function<void()> open_draft = {}, std::function<void()> upgrade = {}, std::function<void()> recover = {},
+                std::function<void()> open_workspace = {})
         : clicked_(std::move(clicked)), epoch_(std::move(epoch)) {
         setInterceptsMouseClicks(false, true);
         addAndMakeVisible(title_);
         addAndMakeVisible(viewport_);
         addAndMakeVisible(new_custom_); addAndMakeVisible(open_draft_);
+        addAndMakeVisible(open_workspace_); open_workspace_.setComponentID("authoring.open_workspace");
+        open_workspace_.onClick = std::move(open_workspace);
+        open_workspace_.setEnabled(static_cast<bool>(open_workspace_.onClick)); style_button(open_workspace_);
+        open_workspace_.setTooltip("Open a node project folder; the directory is authoritative");
         addAndMakeVisible(recover_); recover_.setComponentID("authoring.recover"); recover_.onClick = std::move(recover);
         recover_.setEnabled(static_cast<bool>(recover_.onClick)); style_button(recover_);
         addAndMakeVisible(upgrade_); upgrade_.setComponentID("authoring.upgrade"); upgrade_.onClick = std::move(upgrade);
@@ -111,8 +116,9 @@ public:
         title_.setBounds(18, 24, getWidth() - 34, 22);
         new_custom_.setBounds(12, 52, getWidth() - 24, 30);
         open_draft_.setBounds(12, 86, getWidth() - 24, 28);
-        recover_.setBounds(12, 118, getWidth() - 24, 28);
-        viewport_.setBounds(10, 150, getWidth() - 20, std::max(48, getHeight() - 206));
+        open_workspace_.setBounds(12, 118, getWidth() - 24, 28);
+        recover_.setBounds(12, 150, getWidth() - 24, 28);
+        viewport_.setBounds(10, 182, getWidth() - 20, std::max(48, getHeight() - 238));
         upgrade_.setBounds(12, getHeight() - 40, getWidth() - 24, 28);
         const int width = std::max(96, viewport_.getWidth() - 20);
         int y = 8;
@@ -126,6 +132,7 @@ private:
     std::function<void(std::string)> clicked_;
     std::function<std::uint64_t()> epoch_;
     juce::TextButton new_custom_{"New custom node"}, open_draft_{"Open draft"};
+    juce::TextButton open_workspace_{"Open node project"};
     juce::TextButton upgrade_{"Upgrade project"};
     juce::TextButton recover_{"Recover draft"};
     juce::Label title_;
