@@ -10,6 +10,7 @@
 #include <future>
 #include <chrono>
 #include <tuple>
+#include <utility>
 
 namespace audioalgo::editor {
 struct DraftFileActions {
@@ -40,8 +41,11 @@ struct DraftFileActions {
     // holds no second source buffer and never writes a .aadraft for it.
     std::optional<WorkspaceBinding> workspace;
     std::function<void(std::function<void(std::filesystem::path)>)> choose_workspace_directory;
+    std::function<void(Completion)> choose_workspace_for_edit;
     std::function<authoring::WorkspaceOutcome(const std::filesystem::path&, const authoring::Draft&)> create_workspace;
-    std::function<void()> choose_editor;
+    std::function<authoring::WorkspaceOutcome(const std::filesystem::path&)> scan_workspace;
+    std::function<void(std::function<void(bool)>)> choose_editor;
+    std::function<std::string()> editor_description;
     std::function<std::optional<std::string>(const std::filesystem::path&, const std::string&, int, int)> open_project;
 };
 class NodeAuthoringPanel final : public juce::Component, private juce::Timer,
@@ -61,10 +65,10 @@ public:
         setLookAndFeel(&look_and_feel_);
         definition_splitter_.configure("authoring.splitter.definition", "Resize definition and source", false,
             [this](int delta) { definition_height_ += delta; resized(); },
-            [this] { definition_height_ = 160; resized(); });
+            [this] { definition_height_ = 112; resized(); });
         logs_splitter_.configure("authoring.splitter.logs", "Resize check logs", false,
             [this](int delta) { check_log_height_ -= delta; resized(); },
-            [this] { check_log_height_ = 180; resized(); });
+            [this] { check_log_height_ = 128; resized(); });
         addAndMakeVisible(definition_splitter_); addAndMakeVisible(logs_splitter_); addAndMakeVisible(trial_hint_);
         trial_hint_.setText("Check calls process() once per audio block; repeated print output is normal.", juce::dontSendNotification);
         trial_hint_.setColour(juce::Label::textColourId, muted); trial_hint_.setFont(juce::FontOptions(12.f));
@@ -80,9 +84,15 @@ public:
         addAndMakeVisible(check_logs_);
         for (juce::Component* c : std::initializer_list<juce::Component*>{&source_, &definition_, &title_, &source_label_,
                        &definition_label_, &state_, &save_, &close_button_}) addAndMakeVisible(*c);
-        title_.setText("Python node", juce::dontSendNotification); title_.setFont(juce::FontOptions(17.f, juce::Font::bold));
+        title_.setText("Python node - single-file draft", juce::dontSendNotification); title_.setFont(juce::FontOptions(17.f, juce::Font::bold));
         source_label_.setText("Source  /  process(inputs, params, state)", juce::dontSendNotification);
-        definition_label_.setText("Definition  /  ports and parameters", juce::dontSendNotification);
+        definition_label_.setText("Ports and parameters - advanced JSON", juce::dontSendNotification);
+        for (auto* label : {&workflow_hint_, &editor_status_, &definition_summary_}) {
+            addAndMakeVisible(*label); label->setColour(juce::Label::textColourId, muted);
+            label->setFont(juce::FontOptions(12.f)); label->setMinimumHorizontalScale(1.f);
+        }
+        workflow_hint_.setComponentID("authoring.workflow_hint"); editor_status_.setComponentID("authoring.editor_status");
+        definition_summary_.setComponentID("authoring.definition_summary");
         for (auto* label : {&source_label_, &definition_label_}) { label->setFont(juce::FontOptions(12.f, juce::Font::bold)); label->setColour(juce::Label::textColourId, muted); }
         source_.setComponentID("authoring.source"); definition_.setComponentID("authoring.definition");
         addAndMakeVisible(type_id_); addAndMakeVisible(display_name_);
@@ -118,12 +128,13 @@ public:
         check_.setEnabled(static_cast<bool>(checks_)); style_button(check_, signal); style_button(cancel_);
         check_.onClick = [this] { check_requested(); };
         cancel_.onClick = [this] {
+            workspace_check_after_refresh_ = workspace_apply_after_refresh_ = false;
             pending_check_.reset(); if (cancel_check_) cancel_check_->store(true);
             if (cancel_apply_) cancel_apply_->store(true);
             ready_.reset(); check_state_.setText(utf8_literal("Draft · check cancelled"), juce::dontSendNotification);
         };
         diagnostic_.onClick = [this] {
-            if (workspace_mode()) { preview_workspace_file(diagnostic_file_, diagnostic_line_, diagnostic_column_); open_project(diagnostic_file_, diagnostic_line_, diagnostic_column_); return; }
+            if (workspace_mode()) { preview_workspace_file(diagnostic_file_, diagnostic_line_, diagnostic_column_); edit_externally(diagnostic_file_, diagnostic_line_, diagnostic_column_); return; }
             if (diagnostic_line_ > 0) source_.moveCaretTo(juce::CodeDocument::Position(source_document_, diagnostic_line_ - 1, std::max(0, diagnostic_column_ - 1)), false);
         };
         check_state_.setText(checks_ ? utf8_literal("Draft · not checked") : "Checking unavailable in this host", juce::dontSendNotification);
@@ -137,6 +148,7 @@ public:
         close_button_.onClick = [this] { close_requested_ = true; save_requested_ = true; save(); };
         addAndMakeVisible(workspace_);
         workspace_.setComponentID("authoring.workspace_create");
+        workspace_.setButtonText("Create project folder...");
         workspace_.setTooltip("Create a node project folder from this draft; the .aadraft file is never modified");
         style_button(workspace_);
         workspace_.onClick = [this] { request_workspace_create(); };
@@ -146,11 +158,18 @@ public:
         open_project_.setComponentID("authoring.workspace_open");
         refresh_project_.setComponentID("authoring.workspace_refresh");
         choose_editor_.setComponentID("authoring.workspace_editor");
+        open_folder_.setComponentID("authoring.workspace_folder");
         toggle_definition_.setComponentID("authoring.workspace_definition"); toggle_workspace_logs_.setComponentID("authoring.workspace_logs");
-        for (auto* button : {&open_project_, &refresh_project_, &choose_editor_, &toggle_definition_, &toggle_workspace_logs_}) { addChildComponent(button); style_button(*button); }
+        for (auto* button : {&open_project_, &refresh_project_, &choose_editor_, &toggle_definition_, &toggle_workspace_logs_, &open_folder_}) { addChildComponent(button); style_button(*button); }
+        for (auto* button : {&open_project_, &choose_editor_, &toggle_definition_, &toggle_workspace_logs_}) button->setVisible(true);
+        style_button(open_project_, signal);
         addChildComponent(workspace_files_);
-        open_project_.onClick = [this] { open_project({}, 0, 0); };
-        choose_editor_.onClick = [this] { if (files_.choose_editor) files_.choose_editor(); };
+        open_project_.onClick = [this] { edit_externally(); };
+        choose_editor_.onClick = [this] { choose_editor(false); };
+        open_folder_.onClick = [this] {
+            if (workspace_mode() && !to_juce_file(workspace_directory_).startAsProcess())
+                diagnostic_.setButtonText("Could not open the project folder; use the displayed path");
+        };
         refresh_project_.onClick = [this] { refresh_workspace(); };
         toggle_definition_.onClick = [this] { workspace_definition_expanded_ = !workspace_definition_expanded_; resized(); };
         toggle_workspace_logs_.onClick = [this] { workspace_logs_expanded_ = !workspace_logs_expanded_; resized(); };
@@ -195,29 +214,36 @@ public:
     void paint(juce::Graphics& g) override { g.fillAll(panel); g.setColour(muted.withAlpha(.35f)); g.drawRect(getLocalBounds(), 1); }
     void resized() override {
         auto area = getLocalBounds().reduced(12);
-        auto heading = area.removeFromTop(30);
-        if (workspace_mode()) {
-            toggle_workspace_logs_.setBounds(heading.removeFromRight(80).reduced(2));
-            toggle_definition_.setBounds(heading.removeFromRight(100).reduced(2));
-            refresh_project_.setBounds(heading.removeFromRight(110).reduced(2));
-            choose_editor_.setBounds(heading.removeFromRight(120).reduced(2));
-            open_project_.setBounds(heading.removeFromRight(140).reduced(2));
-        }
-        title_.setBounds(heading);
+        title_.setBounds(area.removeFromTop(28));
         file_path_.setBounds(area.removeFromTop(22));
         const bool folder = workspace_mode();
+        workflow_hint_.setText(folder ? "Edit the files in your editor, return here, then Check and Apply." :
+            "Edit externally opens an existing node project, or creates one in an empty folder.", juce::dontSendNotification);
+        workflow_hint_.setBounds(area.removeFromTop(20));
+        auto tools = area.removeFromTop(32);
+        workspace_.setVisible(!folder);
+        if (!folder) workspace_.setBounds(tools.removeFromLeft(182).reduced(2));
+        open_project_.setBounds(tools.removeFromLeft(144).reduced(2));
+        choose_editor_.setBounds(tools.removeFromLeft(136).reduced(2));
+        open_folder_.setVisible(folder); refresh_project_.setVisible(folder);
+        if (folder) { open_folder_.setBounds(tools.removeFromLeft(104).reduced(2)); refresh_project_.setBounds(tools.removeFromLeft(104).reduced(2)); }
+        toggle_workspace_logs_.setBounds(tools.removeFromRight(70).reduced(2));
+        toggle_definition_.setBounds(tools.removeFromRight(168).reduced(2));
+        toggle_definition_.setButtonText(workspace_definition_expanded_ ? "Hide advanced JSON" : "Ports & parameters...");
+        toggle_workspace_logs_.setButtonText(workspace_logs_expanded_ ? "Hide logs" : "Logs");
+        editor_status_.setBounds(area.removeFromTop(18));
         for (auto* c : std::initializer_list<juce::Component*>{&work_folder_, &recovery_folder_, &library_folder_, &locations_, &templates_, &type_id_, &display_name_}) c->setVisible(!folder);
-        auto locations = folder ? juce::Rectangle<int>{} : area.removeFromTop(28);
+        auto locations = folder ? juce::Rectangle<int>{} : area.removeFromTop(26);
         work_folder_.setBounds(locations.removeFromLeft(130).reduced(2)); recovery_folder_.setBounds(locations.removeFromLeft(145).reduced(2)); library_folder_.setBounds(locations.removeFromLeft(135).reduced(2)); locations_.setBounds(locations);
-        auto fields = folder ? juce::Rectangle<int>{} : area.removeFromTop(34); templates_.setBounds(fields.removeFromLeft(180).reduced(2));
+        auto fields = folder ? juce::Rectangle<int>{} : area.removeFromTop(32); templates_.setBounds(fields.removeFromLeft(180).reduced(2));
         type_id_.setBounds(fields.removeFromLeft(fields.getWidth() / 2).reduced(2));
         display_name_.setBounds(fields.reduced(2));
+        definition_summary_.setBounds(area.removeFromTop(22));
         auto bottom = area.removeFromBottom(42);
         close_button_.setBounds(bottom.removeFromRight(120).reduced(4));
         if (folder) state_.setBounds(bottom.reduced(4));
         else {
         save_.setBounds(bottom.removeFromRight(120).reduced(4)); state_.setBounds(bottom.reduced(4));
-        workspace_.setBounds(bottom.removeFromRight(170).reduced(4));
         save_as_.setBounds(bottom.removeFromRight(110).reduced(4));
         discard_.setBounds(bottom.removeFromRight(140).reduced(4)); state_.setBounds(bottom.reduced(4));
         }
@@ -226,33 +252,22 @@ public:
         check_.setBounds(actions.removeFromLeft(150).reduced(2)); cancel_.setBounds(actions.removeFromLeft(90).reduced(2));
         apply_.setBounds(actions.removeFromRight(100).reduced(2)); check_state_.setBounds(actions);
         diagnostic_.setBounds(diagnostics);
-        if (folder) {
-            check_logs_.setVisible(workspace_logs_expanded_); trial_hint_.setVisible(false); logs_splitter_.setVisible(workspace_logs_expanded_);
+        {
+            check_logs_.setVisible(workspace_logs_expanded_); trial_hint_.setVisible(workspace_logs_expanded_); logs_splitter_.setVisible(workspace_logs_expanded_);
             definition_.setVisible(workspace_definition_expanded_); definition_label_.setVisible(workspace_definition_expanded_); definition_splitter_.setVisible(workspace_definition_expanded_);
             if (workspace_logs_expanded_) {
                 check_log_height_ = std::clamp(check_log_height_, 76, std::max(76, area.getHeight() - 280));
-                check_logs_.setBounds(area.removeFromBottom(check_log_height_)); logs_splitter_.setBounds(area.removeFromBottom(8));
+                check_logs_.setBounds(area.removeFromBottom(check_log_height_));
+                trial_hint_.setBounds(area.removeFromBottom(20)); logs_splitter_.setBounds(area.removeFromBottom(8));
             }
             if (workspace_definition_expanded_) {
                 definition_height_ = std::clamp(definition_height_, 72, std::max(72, area.getHeight() - 160));
                 auto definition = area.removeFromTop(definition_height_ + 24); definition_label_.setBounds(definition.removeFromTop(24)); definition_.setBounds(definition); definition_splitter_.setBounds(area.removeFromTop(8));
             }
             source_label_.setBounds(area.removeFromTop(24));
-            workspace_files_.setBounds(area.removeFromLeft(std::min(240, area.getWidth() / 3)).reduced(0, 2));
+            if (folder) workspace_files_.setBounds(area.removeFromLeft(std::min(240, area.getWidth() / 3)).reduced(0, 2));
             source_.setBounds(area); return;
         }
-        const int usable = std::max(248, area.getHeight() - 84);
-        definition_height_ = std::clamp(definition_height_, 72, std::max(72, usable - 100 - 76));
-        check_log_height_ = std::clamp(check_log_height_, 76, std::max(76, usable - definition_height_ - 100));
-        check_logs_.setBounds(area.removeFromBottom(check_log_height_));
-        trial_hint_.setBounds(area.removeFromBottom(20));
-        logs_splitter_.setBounds(area.removeFromBottom(8));
-        auto definition = area.removeFromTop(definition_height_ + 24);
-        definition_label_.setBounds(definition.removeFromTop(24)); definition_.setBounds(definition);
-        definition_splitter_.setBounds(area.removeFromTop(8));
-        source_label_.setBounds(area.removeFromTop(24));
-        if (workspace_mode()) workspace_files_.setBounds(area.removeFromLeft(std::min(240, area.getWidth() / 3)).reduced(0, 2));
-        source_.setBounds(area);
     }
     const authoring::DraftSession& session() const { return session_; }
     const std::optional<authoring::ReadyPackage>& ready() const { return ready_; }
@@ -292,6 +307,19 @@ private:
         type_id_.setEnabled(valid); display_name_.setEnabled(valid);
         type_id_.setText(valid ? definition["type_id"].toString() : juce::String{}, false);
         display_name_.setText(valid ? definition["display_name"].toString() : juce::String{}, false);
+        update_definition_summary();
+    }
+    void update_definition_summary() {
+        const auto value = juce::JSON::parse(definition_document_.getAllContent());
+        juce::StringArray parts;
+        for (const auto& [field, label] : std::initializer_list<std::pair<const char*,const char*>>{
+                 {"inputs","Inputs"},{"outputs","Outputs"},{"parameters","Parameters"}}) {
+            juce::StringArray ids;
+            if (const auto* items = value[field].getArray()) for (const auto& item : *items) ids.add(item["id"].toString());
+            parts.add(juce::String(label) + ": " + (ids.isEmpty() ? "none" : ids.joinIntoString(", ")));
+        }
+        definition_summary_.setText(value.isObject() ? parts.joinIntoString("   |   ") : "Definition needs valid JSON - open Ports & parameters", juce::dontSendNotification);
+        definition_summary_.setTooltip(definition_summary_.getText());
     }
     void definition_fields_changed() {
         auto definition = juce::JSON::parse(definition_document_.getAllContent());
@@ -317,6 +345,11 @@ private:
         templates_.setSelectedId(0, juce::dontSendNotification);
     }
     void update_status() {
+        const auto editor = files_.editor_description ? files_.editor_description() : std::string{};
+        editor_status_.setText(!editor.empty() ? "Editor: " + utf8_string(editor) : editor_chosen_ ? "Editor selected for this session" : "No editor selected. Choose your editor; VS Code is optional.", juce::dontSendNotification);
+        editor_status_.setTooltip(editor_status_.getText());
+        choose_editor_.setEnabled(files_.choose_editor && !choosing_editor_);
+        open_project_.setEnabled(!choosing_editor_ && !workspace_creating_.valid() && (workspace_mode() || (files_.choose_workspace_directory && files_.create_workspace)));
         if (files_.workspace) {
             const auto hash = workspace_content_sha256_.substr(0, std::min<std::size_t>(12, workspace_content_sha256_.size()));
             file_path_.setText("Project: " + utf8_string(path_to_utf8(workspace_directory_)), juce::dontSendNotification);
@@ -358,6 +391,9 @@ private:
         if (row < 0 || row >= getNumRows()) return;
         preview_workspace_file(files_.workspace->document->files[static_cast<std::size_t>(row)].path, 0, 0);
     }
+    void listBoxItemDoubleClicked(int row, const juce::MouseEvent&) override {
+        if (row >= 0 && row < getNumRows()) edit_externally(files_.workspace->document->files[static_cast<std::size_t>(row)].path);
+    }
     void preview_workspace_file(const std::string& relative, int line, int column) {
         if (!files_.workspace || !files_.workspace->document) return;
         if (workspace_preview_.valid()) { pending_preview_ = std::make_tuple(relative, line, column); return; }
@@ -391,6 +427,7 @@ private:
         source_.setReadOnly(true); definition_.setReadOnly(true);
         source_document_.replaceAllContent(workspace.entry_source.size() <= 256 * 1024 ? utf8_string(workspace.entry_source) : "Open this file in your editor; it exceeds the 256 KiB preview budget."); source_document_.clearUndoHistory();
         definition_document_.replaceAllContent(utf8_string(workspace.declaration)); definition_document_.clearUndoHistory();
+        update_definition_summary();
         type_id_.setEnabled(false); display_name_.setEnabled(false); templates_.setEnabled(false);
         workspace_.setEnabled(false);
         workspace_files_.setVisible(true); workspace_files_.updateContent();
@@ -400,8 +437,11 @@ private:
     }
     void refresh_workspace() {
         if (!workspace_mode() || workspace_refresh_.valid()) return;
+        ++workspace_scan_sequence_;
         workspace_last_scan_ = now();
-        workspace_refresh_ = std::async(std::launch::async, [directory = workspace_directory_] { return authoring::WorkspaceStore{}.open(directory); });
+        workspace_refresh_ = std::async(std::launch::async, [directory = workspace_directory_, scan = files_.scan_workspace] {
+            return scan ? scan(directory) : authoring::WorkspaceStore{}.open(directory);
+        });
     }
     void open_project(const std::string& file, int line, int column) {
         if (!workspace_mode()) return;
@@ -414,17 +454,57 @@ private:
             if (auto error = files_.open_project(workspace_directory_, file, line, column)) diagnostic_.setButtonText(utf8_string(*error));
         } else if (!to_juce_file(workspace_directory_).startAsProcess()) diagnostic_.setButtonText("Could not open project folder; choose an editor or open the shown path");
     }
-    void request_workspace_create() {
+    void choose_editor(bool open_after, const std::string& file = {}, int line = 0, int column = 0) {
+        if (!files_.choose_editor || choosing_editor_) return;
+        choosing_editor_ = true; update_status();
+        auto safe = juce::Component::SafePointer<NodeAuthoringPanel>(this);
+        files_.choose_editor([safe,open_after,file,line,column](bool selected) {
+            if (!safe) return;
+            safe->choosing_editor_ = false;
+            if (selected) safe->editor_chosen_ = true;
+            safe->update_status();
+            if (selected && open_after) safe->edit_externally(file,line,column);
+        });
+    }
+    void edit_externally(const std::string& file = {}, int line = 0, int column = 0) {
+        if (choosing_editor_ || workspace_creating_.valid()) return;
+        const bool configured = editor_chosen_ || (files_.editor_description && !files_.editor_description().empty());
+        // Hosts with only an open callback keep their existing configured launcher.
+        if (!configured && files_.choose_editor) { choose_editor(true,file,line,column); return; }
+        if (workspace_mode()) open_project(file,line,column);
+        else request_workspace_create(true);
+    }
+    void request_workspace_create(bool open_after = false) {
         if (files_.workspace || workspace_creating_.valid() || !files_.choose_workspace_directory || !files_.create_workspace) return;
         auto safe = juce::Component::SafePointer<NodeAuthoringPanel>(this);
-        files_.choose_workspace_directory([safe](std::filesystem::path target) {
-            if (safe == nullptr || target.empty()) return;
-            const auto draft = safe->session_.document();
-            safe->workspace_creating_draft_ = draft;
-            const auto create = safe->files_.create_workspace;
-            safe->workspace_creating_ = std::async(std::launch::async, [target, draft, create] { return create(target, draft); });
-            safe->update_status();
+        const auto choose = open_after && files_.choose_workspace_for_edit ? files_.choose_workspace_for_edit : files_.choose_workspace_directory;
+        choose([safe,open_after](std::filesystem::path target) {
+            if (safe) safe->select_workspace(target,open_after,false);
         });
+    }
+    void select_workspace(const std::filesystem::path& target, bool open_after, bool only_open) {
+        if (target.empty() || workspace_mode() || workspace_creating_.valid()) return;
+        workspace_open_after_create_ = open_after;
+        const auto draft = session_.document();
+        workspace_creating_draft_ = draft;
+        const auto create = files_.create_workspace;
+        const auto scan = files_.scan_workspace;
+        workspace_creating_ = std::async(std::launch::async, [target, draft, create, scan, open_after, only_open]() -> WorkspaceSelection {
+                if (open_after || only_open) {
+                    auto existing = scan ? scan(target) : authoring::WorkspaceStore{}.open(target);
+                    if (std::holds_alternative<authoring::Workspace>(existing)) return {std::move(existing),true};
+                    if (only_open) return {std::move(existing),true};
+                    std::error_code error;
+                    const bool present = std::filesystem::exists(target,error);
+                    if (error || (present && (!std::filesystem::is_directory(target,error) || !std::filesystem::is_empty(target,error) || error))) {
+                        auto diagnostic = std::get<Diagnostic>(std::move(existing));
+                        diagnostic.message = "Could not open node project. Choose a folder containing valid node.json, or an empty folder to create one. " + diagnostic.message;
+                        return {std::move(diagnostic),true};
+                    }
+                }
+                return {create(target,draft),false};
+            });
+        update_status();
     }
     void save() {
         if (files_.workspace) { save_requested_ = false; if (close_requested_) finish_close(); return; }
@@ -502,6 +582,7 @@ private:
             if (pending_preview_) { const auto [file, line, column] = *pending_preview_; pending_preview_.reset(); preview_workspace_file(file, line, column); }
         }
         if (workspace_refresh_.valid() && workspace_refresh_.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+            const auto completed_scan = workspace_scan_sequence_;
             auto result = workspace_refresh_.get();
             if (auto* current = std::get_if<authoring::Workspace>(&result)) adopt_workspace(*current, current->content_sha256 != workspace_content_sha256_ ||
                 (files_.workspace->document && current->authoring_metadata != files_.workspace->document->authoring_metadata));
@@ -510,13 +591,19 @@ private:
                 diagnostic_.setButtonText(utf8_string(error.code + ": " + error.message));
                 check_state_.setText("Node project unavailable · correct files and Refresh", juce::dontSendNotification);
             }
-            if (workspace_check_after_refresh_) { workspace_check_after_refresh_ = false; if (workspace_valid_) queue_check(); }
-            if (workspace_apply_after_refresh_) { workspace_apply_after_refresh_ = false; if (workspace_valid_) start_apply(); }
+            if ((workspace_check_after_refresh_ && completed_scan < workspace_check_min_scan_) ||
+                (workspace_apply_after_refresh_ && completed_scan < workspace_apply_min_scan_)) refresh_workspace();
+            else {
+                if (workspace_check_after_refresh_) { workspace_check_after_refresh_ = false; if (workspace_valid_) queue_check(); }
+                if (workspace_apply_after_refresh_) { workspace_apply_after_refresh_ = false; if (workspace_valid_) start_apply(); }
+            }
             update_status();
         }
         if (workspace_mode() && !workspace_refresh_.valid() && now() - workspace_last_scan_ >= 750) refresh_workspace();
         if (workspace_creating_.valid() && workspace_creating_.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
-            auto outcome = workspace_creating_.get();
+            auto selection = workspace_creating_.get();
+            auto outcome = std::move(selection.first);
+            const bool open_after = std::exchange(workspace_open_after_create_,false);
             if (workspace_creating_draft_ != session_.document()) {
                 check_state_.setText("Created an older draft; current edits retained. Open its folder explicitly.", juce::dontSendNotification);
                 if (const auto* created = std::get_if<authoring::Workspace>(&outcome))
@@ -525,6 +612,8 @@ private:
                 failed_ = true; error_ = error->code + ": " + error->message;
             } else {
                 auto created = std::get<authoring::Workspace>(std::move(outcome));
+                invalidate_workspace_check();
+                diagnostic_.setButtonText({}); diagnostic_file_.clear();
                 files_.workspace = DraftFileActions::WorkspaceBinding{};
                 adopt_workspace(created, false);
                 workspace_directory_ = created.directory;
@@ -535,8 +624,9 @@ private:
                     std::to_string(workspace_file_count_) + " files | " + workspace_content_sha256_.substr(0, 12)),
                     juce::dontSendNotification);
                 locations_.setTooltip(locations_.getText());
-                check_state_.setText(utf8_literal("Node project created · edit files externally, then Check"),
+                check_state_.setText(selection.second ? utf8_literal("Node project opened · edit files externally, then Check") : utf8_literal("Node project created · edit files externally, then Check"),
                     juce::dontSendNotification);
+                if (open_after) open_project({},0,0);
             }
             update_status();
         }
@@ -668,9 +758,10 @@ private:
             update_status();
             if (!failed_ && close_requested_) { if (session_.dirty()) save_requested_ = true; else finish_close(); }
         }
-        if (files_.workspace) {
-            // Directory mode never writes a .aadraft or a recovery copy: the
-            // directory bytes are the only authority (ADR0040 §8).
+        if (files_.workspace || workspace_creating_.valid()) {
+            // Pause automatic saves during conversion as well. A slow create
+            // must not race the draft debounce and leave a second source copy.
+            // Failed or stale conversion resumes the normal draft policy.
         } else if (files_.choose_save) {
             if (!failed_ && save_requested_) save();
             if (!saving_.valid() && recovery_error_.empty() && session_.recovery_due(now())) {
@@ -690,7 +781,7 @@ private:
         check_state_.setText(utf8_literal("Draft · apply failed"), juce::dontSendNotification);
     }
     void apply_requested() {
-        if (workspace_mode()) { workspace_apply_after_refresh_ = true; refresh_workspace(); return; }
+        if (workspace_mode()) { workspace_apply_after_refresh_ = true; workspace_apply_min_scan_ = workspace_scan_sequence_ + 1; refresh_workspace(); return; }
         start_apply();
     }
     void start_apply() {
@@ -704,7 +795,7 @@ private:
         });
     }
     void check_requested() {
-        if (workspace_mode()) { workspace_check_after_refresh_ = true; refresh_workspace(); return; }
+        if (workspace_mode()) { workspace_check_after_refresh_ = true; workspace_check_min_scan_ = workspace_scan_sequence_ + 1; refresh_workspace(); return; }
         queue_check();
     }
     void queue_check() {
@@ -766,7 +857,9 @@ private:
     }
     EditorLookAndFeel look_and_feel_;
     PanelSplitter definition_splitter_, logs_splitter_;
-    int definition_height_ = 160, check_log_height_ = 180;
+    int definition_height_ = 112, check_log_height_ = 128;
+    juce::Label workflow_hint_, editor_status_, definition_summary_;
+    bool editor_chosen_ = false, choosing_editor_ = false, workspace_open_after_create_ = false;
     juce::Label trial_hint_;
     authoring::DraftSession session_;
     std::shared_ptr<const authoring::DraftStorage> storage_;
@@ -787,13 +880,14 @@ private:
     DraftFileActions files_;
     juce::TextButton save_as_{"Save as..."};
     juce::TextButton workspace_{"Node project folder..."};
-    std::future<authoring::WorkspaceOutcome> workspace_creating_;
+    using WorkspaceSelection = std::pair<authoring::WorkspaceOutcome,bool>;
+    std::future<WorkspaceSelection> workspace_creating_;
     authoring::Draft workspace_creating_draft_;
     std::filesystem::path workspace_directory_;
     std::string workspace_content_sha256_;
     std::size_t workspace_file_count_ = 0;
     juce::ListBox workspace_files_;
-    juce::TextButton open_project_{"Open code project"}, refresh_project_{"Refresh disk"}, choose_editor_{"Choose editor..."};
+    juce::TextButton open_project_{"Edit externally..."}, refresh_project_{"Refresh disk"}, choose_editor_{"Choose editor..."}, open_folder_{"Open folder"};
     juce::TextButton toggle_definition_{"Definition"}, toggle_workspace_logs_{"Logs"};
     bool workspace_definition_expanded_ = false, workspace_logs_expanded_ = false;
     std::future<authoring::WorkspaceOutcome> workspace_refresh_;
@@ -801,6 +895,7 @@ private:
     std::uint64_t workspace_last_scan_ = 0;
     bool workspace_valid_ = false, workspace_disk_changed_ = false;
     bool workspace_check_after_refresh_ = false, workspace_apply_after_refresh_ = false;
+    std::uint64_t workspace_scan_sequence_ = 0, workspace_check_min_scan_ = 0, workspace_apply_min_scan_ = 0;
     int preview_line_ = 0, preview_column_ = 0;
     std::string diagnostic_file_;
     std::string preview_hash_;

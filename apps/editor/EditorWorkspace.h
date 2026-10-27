@@ -69,7 +69,8 @@ public:
                     std::function<authoring::SaveResult(bool, const std::filesystem::path&)> location_persistence = {},
                     std::function<authoring::SaveResult(const std::filesystem::path&)> library_location_persistence = {},
                     RunConfiguration run_configuration = {},
-                    std::function<void(const std::string&, const std::filesystem::path&, DraftFileActions::Completion)> directory_picker = {})
+                    std::function<void(const std::string&, const std::filesystem::path&, DraftFileActions::Completion)> directory_picker = {},
+                    std::function<void(DraftFileActions::Completion)> editor_picker = {})
         : document_service_(std::move(document_service)), project_resources_(std::move(project_resources)),
           preview_service_(std::move(preview_service)), descriptors_owner_(std::move(descriptors)),
           available_catalog_(std::make_shared<const NodeRegistry>(descriptors_)), controller_(descriptors_), project_(controller_.project()),
@@ -95,7 +96,7 @@ public:
                    [this] { open_node_workspace(); }),
           drafts_(drafts ? std::move(drafts) : std::make_shared<authoring::FileDraftStorage>(
               path_from_juce_file(juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-                  .getChildFile("AudioAlgo").getChildFile("authoring").getChildFile("drafts")))), checks_(std::move(checks)), allow_catalog_prepare_(std::move(allow_catalog_prepare)), user_draft_files_(user_draft_files), draft_picker_(std::move(draft_picker)), directory_picker_(std::move(directory_picker)), location_persistence_(std::move(location_persistence)), library_location_persistence_(std::move(library_location_persistence)) {
+                  .getChildFile("AudioAlgo").getChildFile("authoring").getChildFile("drafts")))), checks_(std::move(checks)), allow_catalog_prepare_(std::move(allow_catalog_prepare)), user_draft_files_(user_draft_files), draft_picker_(std::move(draft_picker)), directory_picker_(std::move(directory_picker)), editor_picker_(std::move(editor_picker)), location_persistence_(std::move(location_persistence)), library_location_persistence_(std::move(library_location_persistence)) {
         run_configuration_=run_configuration;
         setLookAndFeel(&look_and_feel_);
         library_splitter_.configure("workspace.splitter.library", "Resize node library", true,
@@ -511,26 +512,39 @@ private:
             files.choose_workspace_directory = [this](DraftFileActions::Completion completion) {
                 choose_directory("Create node project folder", {}, std::move(completion));
             };
+            files.choose_workspace_for_edit = [this](DraftFileActions::Completion completion) {
+                choose_directory("Open an existing node project or choose an empty folder to create one", {}, std::move(completion));
+            };
             if (!files.create_workspace)
                 files.create_workspace = [](const std::filesystem::path& target, const authoring::Draft& source) {
                     return authoring::WorkspaceStore{}.create(target, source);
                 };
         }
-        files.choose_editor = [this] {
-            launch_file_chooser("Choose code editor executable", juce::File::getSpecialLocation(juce::File::userHomeDirectory), "*.exe",
+        files.editor_description = [this] { return path_to_utf8(code_editor_); };
+        files.choose_editor = [this](std::function<void(bool)> done) {
+            juce::Component::SafePointer<EditorComponent> safe(this);
+            auto selected = [safe,done=std::move(done)](std::filesystem::path executable) {
+                if (!safe) return;
+                const bool chosen = !executable.empty();
+                if (chosen) safe->code_editor_ = std::move(executable);
+                done(chosen);
+            };
+            if (editor_picker_) { editor_picker_(std::move(selected)); return; }
+            if (active_file_chooser_) { selected({}); return; }
+            launch_file_chooser("Choose code editor executable", code_editor_.empty() ? juce::File::getSpecialLocation(juce::File::userHomeDirectory) : to_juce_file(code_editor_), "*.exe",
                 juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
-                [this](std::filesystem::path executable) { if (!executable.empty()) code_editor_ = std::move(executable); }, true);
+                std::move(selected), true);
         };
         files.open_project = [this](const std::filesystem::path& directory, const std::string& file, int line, int column) -> std::optional<std::string> {
             if (code_editor_.empty()) {
                 if (to_juce_file(directory).startAsProcess()) return {};
                 return "Could not open the node project folder; choose an editor executable";
             }
-            if (code_editor_.extension() != ".exe") return "Choose an editor .exe; shell scripts are not executable editor configurations";
+            if (!to_juce_file(code_editor_).getFileExtension().equalsIgnoreCase(".exe")) return "Choose an editor .exe; shell scripts are not executable editor configurations";
             juce::StringArray arguments{to_juce_file(code_editor_).getFullPathName()};
             if (!file.empty()) {
                 const auto path = to_juce_file(directory / std::filesystem::u8path(file)).getFullPathName();
-                if (code_editor_.filename() == "Code.exe") { arguments.add("--goto"); arguments.add(path + ":" + juce::String(std::max(1, line)) + ":" + juce::String(std::max(1, column))); }
+                if (to_juce_file(code_editor_).getFileName().equalsIgnoreCase("Code.exe")) { arguments.add("--goto"); arguments.add(path + ":" + juce::String(std::max(1, line)) + ":" + juce::String(std::max(1, column))); }
                 else arguments.add(path);
             } else arguments.add(to_juce_file(directory).getFullPathName());
             juce::ChildProcess process;
@@ -1379,6 +1393,7 @@ private:
     bool user_draft_files_ = false;
     std::function<void(bool, const std::filesystem::path&, DraftFileActions::Completion)> draft_picker_;
     std::function<void(const std::string&, const std::filesystem::path&, DraftFileActions::Completion)> directory_picker_;
+    std::function<void(DraftFileActions::Completion)> editor_picker_;
     std::function<authoring::SaveResult(bool, const std::filesystem::path&)> location_persistence_;
     std::function<authoring::SaveResult(const std::filesystem::path&)> library_location_persistence_;
     bool library_restart_pending_ = false;

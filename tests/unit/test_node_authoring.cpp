@@ -3548,6 +3548,8 @@ TEST_CASE("NA-14 NI0015 authoring splitters preserve source and expose all real 
     auto checks = std::make_shared<authoring::PythonAuthoring>(root / "library");
     editor::NodeAuthoringPanel panel(draft, false, std::make_shared<authoring::FileDraftStorage>(root / "drafts"), [] {}, checks);
     panel.setSize(1404, 864);
+    click(panel, "authoring.workspace_definition");
+    click(panel, "authoring.workspace_logs");
     auto* source = control<juce::CodeEditorComponent>(panel, "authoring.source"); REQUIRE(source);
     auto* definition = control<juce::CodeEditorComponent>(panel, "authoring.definition"); REQUIRE(definition);
     auto* logs = control<editor::RunLogTextView>(panel, "authoring.check_logs"); REQUIRE(logs);
@@ -4309,16 +4311,46 @@ TEST_CASE("NWS-02.b edits during directory creation are retained when an older c
     const auto entered=std::make_shared<std::atomic<bool>>(false), release=std::make_shared<std::atomic<bool>>(false);
     struct Release { std::shared_ptr<std::atomic<bool>> flag; ~Release(){flag->store(true);} };
     audioalgo::editor::DraftFileActions actions;
+    int opened=0;
+    actions.open_project=[&](const auto&,const auto&,int,int)->std::optional<std::string>{++opened;return {};};
     actions.choose_workspace_directory=[root](auto done){done(root/"author");};
     actions.create_workspace=[entered,release](const auto& directory,const auto& draft){entered->store(true);while(!release->load())std::this_thread::yield();return WorkspaceStore{}.create(directory,draft);};
     audioalgo::editor::NodeAuthoringPanel panel(python_draft("create-late"),true,std::make_shared<FileDraftStorage>(root/"drafts"),[]{},{},{},{},{},{},actions);
     Release guard{release};
-    click(panel,"authoring.workspace_create"); REQUIRE(without_ui([&]{return entered->load();}));
+    click(panel,"authoring.workspace_open"); REQUIRE(without_ui([&]{return entered->load();}));
     auto* source=control<juce::CodeEditorComponent>(panel,"authoring.source"); REQUIRE(source);
     source->getDocument().replaceAllContent("# newer unsaved source\n");
     release->store(true); REQUIRE(pump([&]{return !panel.workspace_creating();}));
     CHECK_FALSE(panel.workspace_mode()); CHECK(panel.session().document().source=="# newer unsaved source\n");
+    CHECK(opened==0);
     CHECK(control<juce::Label>(panel,"authoring.check_status")->getText().contains("older draft"));
+}
+
+TEST_CASE("NWS-02.b slow directory creation never starts a second automatic source save",
+          "[NWS0009][slow_workspace_create][project_entry][NWS-02.b][node_workspace][component]") {
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    for (const bool recovery : {false,true}) {
+        INFO(recovery);
+        const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/NWS0009-project-entry/slow-create"/juce::Uuid().toString().toStdString();
+        const auto entered=std::make_shared<std::atomic<bool>>(false), release=std::make_shared<std::atomic<bool>>(false);
+        struct Release {std::shared_ptr<std::atomic<bool>> flag;~Release(){flag->store(true);}};
+        audioalgo::editor::DraftFileActions actions;
+        if(recovery) actions.choose_save=[](const auto&,auto){};
+        actions.choose_workspace_directory=[root](auto done){done(root/"author");};
+        actions.create_workspace=[entered,release](const auto& directory,const auto& draft){entered->store(true);while(!release->load())std::this_thread::yield();return WorkspaceStore{}.create(directory,draft);};
+        const auto original=python_draft("slow-create");
+        audioalgo::editor::NodeAuthoringPanel panel(original,false,std::make_shared<FileDraftStorage>(root/"drafts"),[]{},{},{},{},{},{},actions);
+        Release guard{release};
+        click(panel,"authoring.workspace_create");REQUIRE(without_ui([&]{return entered->load();}));
+        const auto started=std::chrono::steady_clock::now();
+        REQUIRE(pump([&]{return std::chrono::steady_clock::now()-started>=std::chrono::milliseconds(1100);},2000));
+        CHECK_FALSE(std::filesystem::exists(root/"drafts"));
+        release->store(true);REQUIRE(pump([&]{return panel.workspace_mode();}));
+        CHECK_FALSE(std::filesystem::exists(root/"drafts"));
+        CHECK(panel.session().document().source.empty());
+        CHECK(file_bytes(root/"author/src/slow_create/process.py")==original.source);
+    }
 }
 
 TEST_CASE("NWS-03.c directory import failures locate helper files and subsequent valid check recovers",
@@ -4548,4 +4580,376 @@ TEST_CASE("NWS-09.a workspace resources pass exactly at frozen count and byte li
         CHECK(std::get<audioalgo::Diagnostic>(excess).code == "workspace_budget_exceeded");
     }
 #endif
+}
+TEST_CASE("NWS-05.a fresh draft presents external editing and keeps raw definition collapsed",
+          "[NWS0009][project_entry][NWS-05.a][component][node_workspace]") {
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/NWS0009-project-entry/layout"/juce::Uuid().toString().toStdString();
+    audioalgo::editor::DraftFileActions actions;
+    actions.choose_workspace_directory = [](auto) {};
+    actions.choose_editor = [](auto done) { done(false); };
+    actions.create_workspace = [](const auto& target, const auto& draft) { return WorkspaceStore{}.create(target,draft); };
+    const auto original = python_draft("visible-project");
+    audioalgo::editor::NodeAuthoringPanel panel(original,false,std::make_shared<FileDraftStorage>(root/"drafts"),[]{},std::make_shared<PythonAuthoring>(root/"library"),{},{},{},{},actions);
+    panel.setSize(1100,700);
+    CHECK_FALSE(control<juce::CodeEditorComponent>(panel,"authoring.definition")->isVisible());
+    CHECK(control<juce::TextButton>(panel,"authoring.workspace_open")->isVisible());
+    CHECK(control<juce::TextButton>(panel,"authoring.workspace_editor")->isVisible());
+    CHECK(control<juce::TextButton>(panel,"authoring.workspace_create")->getY()<control<juce::CodeEditorComponent>(panel,"authoring.source")->getY());
+    auto* toggle=control<juce::TextButton>(panel,"authoring.workspace_definition"); REQUIRE(toggle);
+    CHECK(toggle->isVisible());
+    click(panel,"authoring.workspace_definition");
+    CHECK(control<juce::CodeEditorComponent>(panel,"authoring.definition")->isVisible());
+    click(panel,"authoring.workspace_definition");
+    CHECK_FALSE(control<juce::CodeEditorComponent>(panel,"authoring.definition")->isVisible());
+    CHECK(panel.session().document()==original);
+    CHECK(control<juce::Label>(panel,"authoring.definition_summary")->getText().contains("audio_in"));
+    CHECK(control<juce::Label>(panel,"authoring.definition_summary")->getText().contains("gain"));
+    std::filesystem::create_directories(root);
+    for (const auto size : {juce::Point<int>{1100,700},juce::Point<int>{1440,900}}) {
+        panel.setSize(size.x,size.y);
+        CHECK(control<juce::CodeEditorComponent>(panel,"authoring.source")->getHeight()>250);
+        save_component_image(panel,root/("draft-"+std::to_string(size.x)+".png"));
+    }
+}
+
+TEST_CASE("NWS-06.a external edit resumes an existing project without creating or replacing its files",
+          "[NWS0011][workspace_resume][NWS-01.b][NWS-06.a][component][node_workspace]") {
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/NWS0011-resume-project/files"/juce::Uuid().toString().toStdString();
+    const auto target=root/"existing project";
+    const auto fixture=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"tests/fixtures/node_workspace/python_two_files";
+    std::filesystem::create_directories(root);std::filesystem::copy(fixture,target,std::filesystem::copy_options::recursive);
+    std::ofstream(target/"notes.txt",std::ios::binary)<<"keep my existing project notes\n";
+    const auto before=std::get<Workspace>(WorkspaceStore{}.open(target));
+    const auto original=python_draft("unrelated-draft");
+    int creates=0,opens=0;
+    audioalgo::editor::DraftFileActions actions;
+    actions.choose_workspace_directory=[&](auto done){done(target);};
+    actions.create_workspace=[&](const auto& directory,const auto& draft){++creates;return WorkspaceStore{}.create(directory,draft);};
+    actions.open_project=[&](const auto& directory,const auto& file,int,int)->std::optional<std::string>{CHECK(directory==target);CHECK(file.empty());++opens;return {};};
+    auto checks=std::make_shared<PythonAuthoring>(root/"library");
+    auto registry=std::make_shared<audioalgo::NodeRegistry>();REQUIRE(audioalgo::register_builtin_nodes(*registry));
+    audioalgo::editor::NodeAuthoringPanel panel(original,true,std::make_shared<FileDraftStorage>(root/"drafts"),[]{},checks,[registry]{return registry;},{},{},{},actions);
+    panel.setSize(1100,700);click(panel,"authoring.workspace_open");
+    REQUIRE(pump([&]{return !panel.workspace_creating();}));
+    CHECK(creates==0);CHECK(opens==1);
+    CHECK(std::get<Workspace>(WorkspaceStore{}.open(target))==before);
+    CHECK(file_bytes(target/"notes.txt")=="keep my existing project notes\n");
+    REQUIRE(panel.workspace_mode());CHECK(panel.workspace_directory()==target);
+    CHECK(panel.session().document().id==workspace_identity(before).id);
+    CHECK(panel.session().document().source.empty());
+    CHECK(control<juce::CodeEditorComponent>(panel,"authoring.source")->getDocument().getAllContent().toStdString()==before.entry_source);
+    CHECK(control<juce::Label>(panel,"authoring.check_status")->getText().contains("opened"));
+    CHECK_FALSE(std::filesystem::exists(root/"drafts"));
+#if AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    click(panel,"authoring.check");REQUIRE(pump([&]{return panel.ready().has_value();},10000));
+    CHECK(panel.ready()->workspace->content_sha256==before.content_sha256);
+#endif
+    std::ofstream(root/"resume-receipt.json")<<"{\"project\":\"existing project\",\"fixture\":\"python_two_files\"}";
+    save_component_image(panel,root/"resumed-1100.png");
+    // Explicit Create still refuses the same occupied folder.
+    audioalgo::editor::NodeAuthoringPanel creating(original,true,std::make_shared<FileDraftStorage>(root/"drafts"),[]{},{},{},{},{},{},actions);
+    click(creating,"authoring.workspace_create");REQUIRE(pump([&]{return !creating.workspace_creating();}));
+    CHECK(creates==1);CHECK(opens==1);CHECK_FALSE(creating.workspace_mode());
+    CHECK(creating.session().document()==original);
+    CHECK(control<juce::Label>(creating,"authoring.status")->getText().contains("workspace_target_not_empty"));
+    CHECK(std::get<Workspace>(WorkspaceStore{}.open(target))==before);
+}
+
+TEST_CASE("NWS-06.a a late existing project open never replaces newer draft edits or launches its editor",
+          "[NWS0011][workspace_resume][NWS-04.c][NWS-06.a][component][node_workspace]") {
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/NWS0011-resume-project/late"/juce::Uuid().toString().toStdString();
+    const auto target=root/"existing";REQUIRE(std::holds_alternative<Workspace>(WorkspaceStore{}.create(target,python_draft("existing"))));
+    const auto entered=std::make_shared<std::atomic<bool>>(false),release=std::make_shared<std::atomic<bool>>(false);
+    struct Release{std::shared_ptr<std::atomic<bool>> flag;~Release(){flag->store(true);}};
+    int creates=0,opens=0;
+    audioalgo::editor::DraftFileActions actions;
+    actions.choose_workspace_directory=[&](auto done){done(target);};
+    actions.create_workspace=[&](const auto& directory,const auto& draft){++creates;return WorkspaceStore{}.create(directory,draft);};
+    actions.scan_workspace=[entered,release](const auto& directory){auto result=WorkspaceStore{}.open(directory);entered->store(true);while(!release->load())std::this_thread::yield();return result;};
+    actions.open_project=[&](const auto&,const auto&,int,int)->std::optional<std::string>{++opens;return {};};
+    audioalgo::editor::NodeAuthoringPanel panel(python_draft("current"),true,std::make_shared<FileDraftStorage>(root/"drafts"),[]{},{},{},{},{},{},actions);
+    Release guard{release};click(panel,"authoring.workspace_open");REQUIRE(without_ui([&]{return entered->load();}));
+    control<juce::CodeEditorComponent>(panel,"authoring.source")->getDocument().replaceAllContent("# newer edit\n");
+    release->store(true);REQUIRE(pump([&]{return !panel.workspace_creating();}));
+    CHECK_FALSE(panel.workspace_mode());CHECK(creates==0);CHECK(opens==0);
+    CHECK(panel.session().document().source=="# newer edit\n");
+}
+
+TEST_CASE("NWS-06.a production external edit launches the selected generic editor with an existing project directory",
+          "[NWS0011][workspace_resume][NWS-06.a][component][node_workspace]") {
+#ifdef AUDIOALGO_EDITOR_CAPTURE_EXECUTABLE
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/NWS0011-resume-project/launcher"/juce::Uuid().toString().toStdString();
+    const auto target=root/std::filesystem::u8path("上次编辑的工程 & $() `");
+    const auto created=WorkspaceStore{}.create(target,python_draft("previous-work"));REQUIRE(std::holds_alternative<Workspace>(created));
+    const auto before=std::get<Workspace>(created);
+    const auto executable=root/"Trae CN.exe";std::filesystem::copy_file(AUDIOALGO_EDITOR_CAPTURE_EXECUTABLE,executable);
+    auto registry=std::make_shared<audioalgo::NodeRegistry>();REQUIRE(audioalgo::register_builtin_nodes(*registry));
+    std::string purpose;
+    audioalgo::editor::EditorComponent editor(registry,std::make_shared<Documents>(),std::make_shared<audioalgo::ProjectResourceService>(),std::make_shared<Preview>(),
+        std::make_shared<FileDraftStorage>(root/"drafts"),false,std::make_shared<PythonAuthoring>(root/"library"),{},true,{},{},{},{},
+        [&](const std::string& title,const auto&,auto done){purpose=title;done(target);},[&](auto done){done(executable);});
+    editor.setSize(1440,900);click(editor,"authoring.new");
+    auto* panel=control<audioalgo::editor::NodeAuthoringPanel>(editor,"authoring.panel");REQUIRE(panel);
+    click(*panel,"authoring.workspace_open");
+    const auto capture=root/"editor-argv.bin";REQUIRE(pump([&]{return std::filesystem::is_regular_file(capture);},5000));
+    CHECK(purpose.find("existing node project")!=std::string::npos);
+    CHECK(panel->workspace_mode());CHECK(panel->workspace_directory()==target);
+    CHECK(std::get<Workspace>(WorkspaceStore{}.open(target))==before);
+    std::ifstream input;
+    REQUIRE(pump([&]{if(input.is_open())return true;input.open(capture,std::ios::binary);if(input.is_open())return true;input.clear();return false;},5000));
+    std::uint32_t count=0;input.read(reinterpret_cast<char*>(&count),4);REQUIRE(count==2);
+    std::vector<std::wstring> arguments;
+    for(std::uint32_t index=0;index<count;++index){std::uint32_t bytes=0;input.read(reinterpret_cast<char*>(&bytes),4);REQUIRE(bytes<=65536);REQUIRE(bytes%2==0);std::wstring value(bytes/2,L'\0');input.read(reinterpret_cast<char*>(value.data()),bytes);REQUIRE(input);arguments.push_back(value);}
+    CHECK(arguments[0]==std::filesystem::path(executable).make_preferred().wstring());
+    CHECK(arguments[1]==std::filesystem::path(target).make_preferred().wstring());
+    juce::DynamicObject::Ptr receipt=new juce::DynamicObject;juce::Array<juce::var> expected;
+    expected.add(juce::String(executable.wstring().c_str()));expected.add(juce::String(target.wstring().c_str()));
+    receipt->setProperty("expected",expected);
+    std::ofstream(root/"launcher-receipt.json")<<juce::JSON::toString(juce::var(receipt.get())).toStdString();
+    save_component_image(*panel,root/"resumed-production-1440.png");
+#endif
+}
+
+TEST_CASE("NWS-06.a external edit refuses an unrelated folder and invalid project without writing",
+          "[NWS0011][workspace_resume][NWS-06.a][NWS-02.b][component][node_workspace]") {
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    for(const bool malformed:{false,true}) {
+        const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/NWS0011-resume-project/invalid"/juce::Uuid().toString().toStdString();
+        std::filesystem::create_directories(root);std::ofstream(root/"user.txt")<<"keep";
+        if(malformed)std::ofstream(root/"node.json")<<"{broken";
+        int creates=0,opens=0;
+        audioalgo::editor::DraftFileActions actions;
+        actions.choose_workspace_directory=[&](auto done){done(root);};
+        actions.create_workspace=[&](const auto& directory,const auto& draft){++creates;return WorkspaceStore{}.create(directory,draft);};
+        actions.open_project=[&](const auto&,const auto&,int,int)->std::optional<std::string>{++opens;return {};};
+        const auto original=python_draft("preserve-this");
+        audioalgo::editor::NodeAuthoringPanel panel(original,true,std::make_shared<FileDraftStorage>(root/"drafts"),[]{},{},{},{},{},{},actions);
+        click(panel,"authoring.workspace_open");REQUIRE(pump([&]{return !panel.workspace_creating();}));
+        CHECK(creates==0);CHECK(opens==0);CHECK_FALSE(panel.workspace_mode());CHECK(panel.session().document()==original);
+        CHECK(file_bytes(root/"user.txt")=="keep");if(malformed)CHECK(file_bytes(root/"node.json")=="{broken");
+        CHECK(control<juce::Label>(panel,"authoring.status")->getText().contains("node"));
+    }
+}
+
+TEST_CASE("NWS-06.a external edit from a draft selects an editor creates its project then opens the directory",
+          "[NWS0009][project_entry][NWS-06.a][NWS-01.a][component][node_workspace]") {
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/NWS0009-project-entry/flow"/juce::Uuid().toString().toStdString();
+    const auto target=root/std::filesystem::u8path("My node 工程 & $() ` folder");
+    bool editor_chosen=false;std::filesystem::path opened;
+    audioalgo::editor::DraftFileActions actions;
+    actions.choose_editor=[&](auto done){editor_chosen=true;done(true);};
+    actions.choose_workspace_directory=[&](auto done){CHECK(editor_chosen);done(target);};
+    actions.create_workspace=[](const auto& directory,const auto& draft){return WorkspaceStore{}.create(directory,draft);};
+    actions.open_project=[&](const auto& directory,const auto& file,int,int)->std::optional<std::string>{CHECK(file.empty());CHECK(std::filesystem::is_regular_file(directory/"node.json"));opened=directory;return {};};
+    auto draft=python_draft("external-flow");
+    audioalgo::editor::NodeAuthoringPanel panel(draft,false,std::make_shared<FileDraftStorage>(root/"drafts"),[]{},{},{},{},{},{},actions);
+    panel.setSize(1100,700);
+    click(panel,"authoring.workspace_open");
+    REQUIRE(pump([&]{return !opened.empty();},750));
+    CHECK(editor_chosen);CHECK(opened==target);CHECK(panel.workspace_mode());
+    CHECK(panel.session().document().source.empty());
+    CHECK(file_bytes(target/"src/external_flow/process.py")==draft.source);
+    CHECK_FALSE(std::filesystem::exists(root/"drafts"));
+    for (const auto size : {juce::Point<int>{1100,700},juce::Point<int>{1440,900}}) {
+        panel.setSize(size.x,size.y);
+        save_component_image(panel,root/("project-"+std::to_string(size.x)+".png"));
+    }
+}
+TEST_CASE("NWS-06.a production external editor launcher preserves Unicode paths and optional Code diagnostic arguments",
+          "[NWS0009][NWS-06.a][external_editor_process][component][node_workspace]") {
+#ifdef AUDIOALGO_EDITOR_CAPTURE_EXECUTABLE
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/NWS0009-project-entry/launcher"/juce::Uuid().toString().toStdString();
+    const auto generic = root/std::filesystem::u8path("Generic 编辑器 & $() `")/"editor.EXE";
+    const auto code = root/"Code editor"/"Code.exe";
+    const auto author=root/std::filesystem::u8path("Node 工程 & $() `");
+    const auto native=[](std::filesystem::path path){return path.make_preferred().wstring();};
+    for(const auto& exe:{generic,code}) {std::filesystem::create_directories(exe.parent_path());std::filesystem::copy_file(AUDIOALGO_EDITOR_CAPTURE_EXECUTABLE,exe);}
+    const auto read_arguments=[](const std::filesystem::path& path) {
+        // MoveFileEx publishes the complete capture atomically, but Windows can
+        // briefly deny an open while that publishing operation still holds it.
+        std::ifstream input;
+        REQUIRE(pump([&]{if(input.is_open())return true;input.open(path,std::ios::binary);if(input.is_open())return true;input.clear();return false;},5000));
+        std::uint32_t count=0;input.read(reinterpret_cast<char*>(&count),sizeof(count));
+        REQUIRE(input);REQUIRE(count<=8);std::vector<std::wstring> arguments;
+        for(std::uint32_t i=0;i<count;++i) {std::uint32_t bytes=0;input.read(reinterpret_cast<char*>(&bytes),sizeof(bytes));REQUIRE(bytes<=65536);REQUIRE(bytes%sizeof(wchar_t)==0);std::wstring value(bytes/sizeof(wchar_t),L'\0');input.read(reinterpret_cast<char*>(value.data()),bytes);REQUIRE(input);arguments.push_back(std::move(value));}
+        return arguments;
+    };
+    auto registry=std::make_shared<audioalgo::NodeRegistry>();REQUIRE(audioalgo::register_builtin_nodes(*registry));
+    auto chosen=generic;
+    audioalgo::editor::EditorComponent workspace(registry,std::make_shared<Documents>(),std::make_shared<audioalgo::ProjectResourceService>(),std::make_shared<Preview>(),
+        std::make_shared<FileDraftStorage>(root/"drafts"),false,std::make_shared<PythonAuthoring>(root/"library"),{},true,{},{},{},{},
+        [&](const std::string&,const auto&,auto done){done(author);},[&](auto done){done(chosen);});
+    workspace.setSize(1440,900);click(workspace,"authoring.new");
+    auto* panel=control<audioalgo::editor::NodeAuthoringPanel>(workspace,"authoring.panel");REQUIRE(panel);
+    click(*panel,"authoring.workspace_open");
+    const auto generic_capture=generic.parent_path()/"editor-argv.bin";
+    REQUIRE(pump([&]{return std::filesystem::is_regular_file(generic_capture);},5000));
+    auto arguments=read_arguments(generic_capture);REQUIRE(arguments.size()==2);
+    CHECK(arguments[0]==native(generic));CHECK(arguments[1]==native(author));
+    REQUIRE(panel->workspace_mode());const auto original_hash=panel->workspace_content_sha256();
+    CHECK(control<juce::Label>(*panel,"authoring.editor_status")->getText().contains("editor.EXE"));
+    chosen=root/"missing.EXE";click(*panel,"authoring.workspace_editor");click(*panel,"authoring.workspace_open");
+    CHECK(control<juce::TextButton>(*panel,"authoring.diagnostic")->getButtonText().contains("Could not start"));
+    CHECK(panel->workspace_content_sha256()==original_hash);
+    chosen=code;click(*panel,"authoring.workspace_editor");
+    const auto code_capture=code.parent_path()/"editor-argv.bin";
+    CHECK_FALSE(std::filesystem::exists(code_capture));
+    const auto helper=author/"src/helper.py";
+    std::ofstream(helper,std::ios::binary)<<"# external error\nvalue = (\n";
+#if AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    click(*panel,"authoring.check");
+    const auto syntax_reported=pump([&]{return control<juce::TextButton>(*panel,"authoring.diagnostic")->getButtonText().contains("python_syntax_error");},10000);
+    INFO(control<juce::TextButton>(*panel,"authoring.diagnostic")->getButtonText().toStdString());
+    INFO(control<juce::Label>(*panel,"authoring.check_status")->getText().toStdString());
+    REQUIRE(syntax_reported);
+    click(*panel,"authoring.diagnostic");
+    const auto expected_location=native(helper)+L":2:9";
+#else
+    click(*panel,"authoring.workspace_refresh");
+    REQUIRE(pump([&]{return panel->workspace_file_count()==4;}));
+    auto* list=control<juce::ListBox>(*panel,"authoring.workspace_files");REQUIRE(list);
+    const auto disk=std::get<Workspace>(WorkspaceStore{}.open(author));
+    const auto found=std::find_if(disk.files.begin(),disk.files.end(),[](const auto& file){return file.path=="src/helper.py";});REQUIRE(found!=disk.files.end());
+    list->getModel()->listBoxItemDoubleClicked(static_cast<int>(found-disk.files.begin()),juce::MouseEvent(
+        juce::Desktop::getInstance().getMainMouseSource(),{},juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier),0,0,0,0,0,list,list,juce::Time(100),{},juce::Time(0),2,false));
+    const auto expected_location=native(helper)+L":1:1";
+#endif
+    REQUIRE(pump([&]{return std::filesystem::is_regular_file(code_capture);},5000));
+    arguments=read_arguments(code_capture);REQUIRE(arguments.size()==3);
+    CHECK(arguments[0]==native(code));CHECK(arguments[1]==L"--goto");CHECK(arguments[2]==expected_location);
+    CHECK(panel->session().document().source.empty());
+    juce::Array<juce::var> rows;
+    for(const auto& pair:{std::pair{generic_capture,std::vector<std::wstring>{native(generic),native(author)}},std::pair{code_capture,std::vector<std::wstring>{native(code),L"--goto",expected_location}}}) {
+        juce::DynamicObject::Ptr row=new juce::DynamicObject;juce::Array<juce::var> values;
+        for(const auto& arg:pair.second)values.add(juce::String(arg.c_str()));
+        row->setProperty("capture",juce::String(pair.first.wstring().c_str()));row->setProperty("expected",values);rows.add(juce::var(row.get()));
+    }
+    std::ofstream(root/"launcher-receipt.json")<<juce::JSON::toString(rows).toStdString();
+#endif
+}
+TEST_CASE("NWS-06.a cancelling external editor or project selection and creation failure preserve the draft",
+          "[NWS0009][project_entry][NWS-06.a][NWS-02.b][node_workspace][component]") {
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    for(const std::string step:{"editor_cancel","folder_cancel","create_failed"}) {
+        INFO(step);
+        const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/NWS0009-project-entry/cancel"/juce::Uuid().toString().toStdString();
+        const auto target=root/"author";int opens=0,creates=0,folders=0;
+        audioalgo::editor::DraftFileActions actions;
+        actions.choose_editor=[&](auto done){done(step!="editor_cancel");};
+        actions.choose_workspace_directory=[&](auto done){++folders;done(step=="folder_cancel"?std::filesystem::path{}:target);};
+        actions.create_workspace=[&](const auto&,const auto&)->WorkspaceOutcome{++creates;return audioalgo::Diagnostic{"workspace_write_failed","injected storage failure"};};
+        actions.open_project=[&](const auto&,const auto&,int,int)->std::optional<std::string>{++opens;return {};};
+        const auto draft=python_draft("cancel-external");
+        audioalgo::editor::NodeAuthoringPanel panel(draft,false,std::make_shared<FileDraftStorage>(root/"drafts"),[]{},{},{},{},{},{},actions);
+        panel.setSize(1100,700);click(panel,"authoring.workspace_open");
+        REQUIRE(pump([&]{return !panel.workspace_creating();}));
+        CHECK(opens==0);CHECK_FALSE(panel.workspace_mode());CHECK(panel.session().document()==draft);
+        CHECK_FALSE(std::filesystem::exists(target));
+        CHECK(folders==(step=="editor_cancel"?0:1));CHECK(creates==(step=="create_failed"?1:0));
+    }
+}
+TEST_CASE("NWS-04.c Check after an external edit waits for a scan started after the click",
+          "[NWS0009][NWS-04.c][fresh_workspace_scan][component][node_workspace]") {
+#if AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/NWS0009-project-entry/fresh-scan"/juce::Uuid().toString().toStdString();
+    const auto author=root/"author";std::filesystem::create_directories(root);
+    REQUIRE(std::holds_alternative<Workspace>(WorkspaceStore{}.create(author,python_draft("fresh-scan"))));
+    const auto document=std::get<Workspace>(WorkspaceStore{}.open(author));
+    const auto captured=std::make_shared<std::atomic<bool>>(false),release=std::make_shared<std::atomic<bool>>(false);
+    const auto scans=std::make_shared<std::atomic<int>>(0);
+    struct Release { std::shared_ptr<std::atomic<bool>> flag; ~Release(){flag->store(true);} };
+    audioalgo::editor::DraftFileActions actions;
+    actions.workspace=audioalgo::editor::DraftFileActions::WorkspaceBinding{author,document.content_sha256,document.files.size(),0,document};
+    actions.scan_workspace=[captured,release,scans](const auto& directory)->WorkspaceOutcome {
+        auto result=WorkspaceStore{}.open(directory);
+        if(scans->fetch_add(1)==0) {captured->store(true);while(!release->load())std::this_thread::yield();}
+        return result;
+    };
+    audioalgo::editor::NodeAuthoringPanel panel(workspace_identity(document),true,std::make_shared<FileDraftStorage>(root/"drafts"),[]{},std::make_shared<PythonAuthoring>(root/"library"),{},{},{},{},actions);
+    Release guard{release};panel.setSize(1100,700);
+    click(panel,"authoring.workspace_refresh");REQUIRE(without_ui([&]{return captured->load();}));
+    std::ofstream(author/"src/helper.py")<<"# new disk content\nvalue = (\n";
+    click(panel,"authoring.check");release->store(true);
+    auto* diagnostic=control<juce::TextButton>(panel,"authoring.diagnostic");REQUIRE(diagnostic);
+    REQUIRE(pump([&]{return diagnostic->getButtonText().contains("python_syntax_error")||diagnostic->getButtonText().contains("source_changed_during_snapshot");},10000));
+    INFO(diagnostic->getButtonText().toStdString());
+    CHECK(diagnostic->getButtonText().contains("python_syntax_error"));
+    CHECK(diagnostic->getButtonText().contains("src/helper.py:2:9"));
+    CHECK(scans->load()>=2);
+    CHECK_FALSE(panel.ready());CHECK(panel.session().document().source.empty());
+#endif
+}
+TEST_CASE("NWS-04.a Apply waits for a new disk scan and rejects Ready after external source changes",
+          "[NWS0009][NWS-04.a][fresh_workspace_scan][component][node_workspace]") {
+#if AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/NWS0009-project-entry/fresh-apply"/juce::Uuid().toString().toStdString();
+    const auto author=root/"author";std::filesystem::create_directories(root);
+    REQUIRE(std::holds_alternative<Workspace>(WorkspaceStore{}.create(author,python_draft("fresh-apply"))));
+    const auto document=std::get<Workspace>(WorkspaceStore{}.open(author));
+    const auto block=std::make_shared<std::atomic<bool>>(false),captured=std::make_shared<std::atomic<bool>>(false),release=std::make_shared<std::atomic<bool>>(false);
+    struct Release { std::shared_ptr<std::atomic<bool>> flag; ~Release(){flag->store(true);} };
+    audioalgo::editor::DraftFileActions actions;
+    actions.workspace=audioalgo::editor::DraftFileActions::WorkspaceBinding{author,document.content_sha256,document.files.size(),0,document};
+    actions.scan_workspace=[block,captured,release](const auto& directory)->WorkspaceOutcome {
+        auto result=WorkspaceStore{}.open(directory);
+        if(block->exchange(false)) {captured->store(true);while(!release->load())std::this_thread::yield();}
+        return result;
+    };
+    auto registry=std::make_shared<audioalgo::NodeRegistry>();REQUIRE(audioalgo::register_builtin_nodes(*registry));
+    int published=0;
+    audioalgo::editor::NodeAuthoringPanel panel(workspace_identity(document),true,std::make_shared<FileDraftStorage>(root/"drafts"),[]{},std::make_shared<PythonAuthoring>(root/"library"),[&]{return registry;},[&](auto){++published;},{},{},actions);
+    Release guard{release};panel.setSize(1100,700);
+    click(panel,"authoring.check");REQUIRE(pump([&]{return panel.ready().has_value();},10000));
+    block->store(true);click(panel,"authoring.workspace_refresh");REQUIRE(without_ui([&]{return captured->load();}));
+    std::ofstream(author/"src/helper.py")<<"# newer source on disk\nvalue = 2\n";
+    click(panel,"authoring.apply");release->store(true);
+    REQUIRE(pump([&]{return panel.workspace_content_sha256()!=document.content_sha256&&!panel.apply_in_progress();},10000));
+    CHECK(published==0);CHECK_FALSE(panel.ready());CHECK_FALSE(std::filesystem::exists(root/"library/index.json"));
+#endif
+}
+
+TEST_CASE("NWS-04.c cancellation while a project scan is pending never queues Check",
+          "[NWS0009][project_entry][NWS-04.c][component][node_workspace]") {
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    struct Checks final : AuthoringChecks {
+        mutable std::atomic<int> calls{0};
+        CheckOutcome check(Draft,const std::shared_ptr<std::atomic<bool>>&) const override {++calls;return SourceDiagnostic{"unexpected_check","cancelled scan must not start Check"};}
+        CheckOutcome check_workspace(Draft draft,const Workspace&,const std::shared_ptr<std::atomic<bool>>& cancel) const override {return check(std::move(draft),cancel);}
+    };
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/NWS0009-project-entry/cancel-scan"/juce::Uuid().toString().toStdString();
+    const auto author=root/"author";std::filesystem::create_directories(root);
+    REQUIRE(std::holds_alternative<Workspace>(WorkspaceStore{}.create(author,python_draft("cancel-scan"))));
+    const auto document=std::get<Workspace>(WorkspaceStore{}.open(author));
+    const auto captured=std::make_shared<std::atomic<bool>>(false),release=std::make_shared<std::atomic<bool>>(false);
+    struct Release { std::shared_ptr<std::atomic<bool>> flag; ~Release(){flag->store(true);} };
+    audioalgo::editor::DraftFileActions actions;
+    actions.workspace=audioalgo::editor::DraftFileActions::WorkspaceBinding{author,document.content_sha256,document.files.size(),0,document};
+    actions.scan_workspace=[captured,release](const auto& directory)->WorkspaceOutcome {auto result=WorkspaceStore{}.open(directory);captured->store(true);while(!release->load())std::this_thread::yield();return result;};
+    const auto checks=std::make_shared<Checks>();
+    audioalgo::editor::NodeAuthoringPanel panel(workspace_identity(document),true,std::make_shared<FileDraftStorage>(root/"drafts"),[]{},checks,{},{},{},{},actions);
+    Release guard{release};panel.setSize(1100,700);
+    click(panel,"authoring.check");REQUIRE(without_ui([&]{return captured->load();}));
+    click(panel,"authoring.cancel");release->store(true);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil(200);
+    CHECK(checks->calls.load()==0);CHECK_FALSE(panel.check_in_progress());CHECK_FALSE(panel.ready());
+    CHECK(control<juce::Label>(panel,"authoring.check_status")->getText().contains("cancelled"));
 }
