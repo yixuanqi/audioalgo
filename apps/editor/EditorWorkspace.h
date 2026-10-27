@@ -5,6 +5,7 @@
 #include "EditorComponentLayout.h"
 #include "EditorPanelSplitter.h"
 #include "EditorText.h"
+#include "EditorExternalProcess.h"
 #include "EditorNodeCreation.h"
 #include "EditorNodeDragDrop.h"
 #include "EditorTopologyHistory.h"
@@ -547,9 +548,7 @@ private:
                 if (to_juce_file(code_editor_).getFileName().equalsIgnoreCase("Code.exe")) { arguments.add("--goto"); arguments.add(path + ":" + juce::String(std::max(1, line)) + ":" + juce::String(std::max(1, column))); }
                 else arguments.add(path);
             } else arguments.add(to_juce_file(directory).getFullPathName());
-            juce::ChildProcess process;
-            if (!process.start(arguments)) return "Could not start the selected editor; the project remains on disk";
-            return {};
+            return launch_external_editor(arguments);
         };
         authoring_panel_ = std::make_unique<NodeAuthoringPanel>(std::move(draft), saved, drafts_, [this] {
             auto after_close = std::move(after_draft_close_);

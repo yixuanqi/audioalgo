@@ -24,5 +24,26 @@ int wmain(int argc, wchar_t** argv) {
     }
     output.close();if(!output)return 3;
     if(!MoveFileExW(temporary.c_str(),target.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH))return 4;
-    return 0;
+    // Optional lifecycle probe: write only after the launch owner has gone away.
+    std::ifstream request(target.parent_path()/"probe-stdio",std::ios::binary);
+    if(!request)return 0;
+    const std::string name(std::istreambuf_iterator<char>(request),{});
+    const std::wstring event_name(name.begin(),name.end());
+    const auto gate=OpenEventW(SYNCHRONIZE,FALSE,event_name.c_str());
+    if(!gate)return 5;
+    const auto waited=WaitForSingleObject(gate,5000);CloseHandle(gate);
+    if(waited!=WAIT_OBJECT_0)return 6;
+    const char message[]="editor warning after launch owner returned\n";
+    std::uint32_t observations[6]{};
+    for(int index=0;index<2;++index){
+        const auto handle=GetStdHandle(index==0?STD_OUTPUT_HANDLE:STD_ERROR_HANDLE);
+        observations[index*3]=GetFileType(handle);
+        DWORD written=0;SetLastError(ERROR_SUCCESS);
+        observations[index*3+1]=WriteFile(handle,message,sizeof(message)-1,&written,nullptr)!=FALSE;
+        observations[index*3+2]=observations[index*3+1]?ERROR_SUCCESS:GetLastError();
+    }
+    const auto report=target.parent_path()/"stdio.bin";auto staged=report;staged+=L".tmp";
+    std::ofstream log(staged,std::ios::binary);log.write(reinterpret_cast<const char*>(observations),sizeof(observations));log.close();
+    if(!log)return 7;
+    return MoveFileExW(staged.c_str(),report.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH)?0:8;
 }

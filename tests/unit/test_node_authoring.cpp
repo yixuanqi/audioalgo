@@ -4718,6 +4718,38 @@ TEST_CASE("NWS-06.a production external edit launches the selected generic edito
 #endif
 }
 
+TEST_CASE("NWS-06.a external editor can write both log streams after its launch owner is destroyed",
+          "[NWS0012][editor_stdio_lifetime][NWS-06.a][component][node_workspace]") {
+#if defined(_WIN32) && defined(AUDIOALGO_EDITOR_CAPTURE_EXECUTABLE)
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/NWS0012-editor-stdio/probe"/juce::Uuid().toString().toStdString();
+    const auto target=root/std::filesystem::u8path("工程 & $() `");
+    REQUIRE(std::holds_alternative<Workspace>(WorkspaceStore{}.create(target,python_draft("log-probe"))));
+    const auto executable=root/"Trae CN.exe";std::filesystem::copy_file(AUDIOALGO_EDITOR_CAPTURE_EXECUTABLE,executable);
+    const auto name="Local\\AudioAlgoEditorStdio-"+juce::Uuid().toString().toStdString();
+    const std::wstring event_name(name.begin(),name.end());
+    const auto event=CreateEventW(nullptr,TRUE,FALSE,event_name.c_str());REQUIRE(event!=nullptr);
+    struct Release {HANDLE event;~Release(){SetEvent(event);CloseHandle(event);}} release{event};
+    std::ofstream(root/"probe-stdio",std::ios::binary)<<name;
+    auto registry=std::make_shared<audioalgo::NodeRegistry>();REQUIRE(audioalgo::register_builtin_nodes(*registry));
+    {
+        audioalgo::editor::EditorComponent editor(registry,std::make_shared<Documents>(),std::make_shared<audioalgo::ProjectResourceService>(),std::make_shared<Preview>(),
+            std::make_shared<FileDraftStorage>(root/"drafts"),false,std::make_shared<PythonAuthoring>(root/"library"),{},true,{},{},{},{},
+            [&](const std::string&,const auto&,auto done){done(target);},[&](auto done){done(executable);});
+        click(editor,"authoring.new");auto* panel=control<audioalgo::editor::NodeAuthoringPanel>(editor,"authoring.panel");REQUIRE(panel);
+        click(*panel,"authoring.workspace_open");
+        REQUIRE(pump([&]{return std::filesystem::is_regular_file(root/"editor-argv.bin");},5000));
+    }
+    REQUIRE(SetEvent(event)!=FALSE);
+    REQUIRE(pump([&]{return std::filesystem::is_regular_file(root/"stdio.bin");},5000));
+    std::ifstream input;
+    REQUIRE(pump([&]{if(input.is_open())return true;input.open(root/"stdio.bin",std::ios::binary);if(input.is_open())return true;input.clear();return false;},5000));
+    std::uint32_t observations[6]{};input.read(reinterpret_cast<char*>(observations),sizeof(observations));REQUIRE(input);
+    for(int index=0;index<2;++index){INFO("stream "<<index<<" type "<<observations[index*3]<<" Windows error "<<observations[index*3+2]);CHECK(observations[index*3+1]==1);CHECK(observations[index*3+2]==ERROR_SUCCESS);CHECK(observations[index*3]!=FILE_TYPE_PIPE);}
+#endif
+}
+
 TEST_CASE("NWS-06.a external edit refuses an unrelated folder and invalid project without writing",
           "[NWS0011][workspace_resume][NWS-06.a][NWS-02.b][component][node_workspace]") {
     using namespace audioalgo::authoring;
