@@ -1,6 +1,6 @@
 # 自定义节点文件与目录
 
-2026-10-24，适用于 NA0024～30 的新版源码。旧的已运行窗口不会随编译自动更新；正常启动入口见 [一键编译并运行](build_and_run.md)。
+2026-10-28，包含已有工程恢复编辑、NWS0012 独立编辑器启动修复和 NWS0013 编辑器/最近工程记忆。旧的已运行窗口不会随编译自动更新；保存当前工作后正常关闭并重开 `build/windows-debug/bin/AudioAlgo Editor.exe`。正常启动入口见 [一键编译并运行](build_and_run.md)。
 
 ## 保存和打开
 
@@ -14,17 +14,31 @@
 
 ## Python 多文件节点工程（2026-10-27 开发子集）
 
-1. 在 **New custom node** 填写 Python 声明和入口源码，然后点击 **Node project folder...** 选择空目录。也可先用 **Open draft** 打开旧 .aadraft，再复制转换；原文件不改写。目录内可选 `.audioalgo-authoring.json` 只记录原作者 ID，以便转换已应用节点后仍沿用原受管包；它不是源码或第二份节点声明，请保留。
-2. 成功后直接显示 **Python node project**、工程路径和文件列表。**Choose editor...** 可选择编辑器 .exe，随后 **Open code project** 打开目录；没有选择时使用系统打开文件夹。VS Code 可选，设置当前仅在本次宿主会话内保留。
+1. **New custom node** 先显示 **Python node - single-file draft**。顶部 **Edit externally...** 首次让你选择编辑器 `.exe`，随后可选择已有节点工程目录继续编辑，或选择空目录新建。已有工程通过 `node.json` 和源码树校验后直接打开，保留文件、作者身份和辅助模块；不会调用创建流程。普通非空文件夹或损坏工程会说明具体错误，不写入文件。**Create project folder...** 专门用于将当前草稿创建到空目录，仍拒绝覆盖已有文件；已有工程请使用 **Edit externally...**，或关闭面板后从节点库 **Open node project** 打开。取消选择或创建失败保留当前草稿；**Open draft** 打开的旧 `.aadraft` 可以同样转换，原文件不改写。目录内可选 `.audioalgo-authoring.json` 只记录原作者 ID，以便转换已应用节点后仍沿用原受管包；它不是源码或第二份节点声明，请保留。
+2. 成功后显示 **Python node project**、工程路径和左侧文件列表。**Choose editor...** 更换编辑器，下面一行显示当前选择；**Edit externally...** 打开工程，双击文件打开该文件。VS Code 可选，通用编辑器接收目录或文件路径。编辑器和最近成功打开/创建的工程路径会自动保存，重启后恢复；**Open folder** 可独立使用系统文件夹窗口。
 3. 在编辑器中修改 `src/` 的入口和辅助模块。模块内用相对导入，例如 `from .filter import mix`。AudioAlgo 的预览只读，磁盘是唯一源码来源；每 750ms 后台核对，也可点 **Refresh disk**。运行内容变化显示 **Disk changed** 并撤销旧 Ready。
-4. 点击 **Check / trial run**，稳定冻结整个源码树后静态检查全部 .py，再在独立 runner 契约试跑。语法错误显示相对文件、1-based 行/列（Unicode 字符），点击诊断可在预览定位，并交给选定编辑器；VS Code 支持行列，通用编辑器至少收到文件路径。**Definition** 和 **Logs** 可按需展开。
+4. 点击 **Check / trial run**，等待一次点击后的磁盘核对，稳定冻结整个源码树后静态检查全部 .py，再在独立 runner 契约试跑。语法错误显示相对文件、1-based 行/列（Unicode 字符），点击诊断可在预览定位，并交给选定编辑器；VS Code 支持行列，通用编辑器至少收到文件路径。取消检查后，晚到的磁盘核对不会重新排入检查。
 5. Ready 后 **Apply** 安装本机不可变版本并刷新节点库。关闭工程面板，从库拖入画布、连接输入和 Output、Run。Apply 新版本不会升级已有图；保存过的图继续锁定原精确包，升级走原 **Upgrade project** 流程。
 
 终端可调用同一检查服务：`audio_cli check-node <node-project-folder> <work-directory>`。输出 Ready 的 workspace/content/package 身份，失败返回结构化 code/file/line/column，失败退出非零；不自动 Apply。
 
 Python 目录也冻结 src/ 下的数据文件与 node.json 的 resources 显式资源列表。源码旁文件可由 Path(__file__).parent 定位，根资源可由入口文件所在位置向上定位工程根；资源随不可变版本安装，运行不依赖作者目录。资源路径与内部 manifest.json/snapshot.json 或映射后的 workspace_src 路径冲突会拒绝。
 
-当前限制：极长清单/大声明与极限源码组合、完整冲突/状态/故障矩阵及编辑器真实启动仍待验收。声明表单当前只读，可从外部编辑 node.json。C++ 目录可只读重开，但工作台多文件独立构建/probe/待重启尚未交付。W1/W2/W3 正式出口未通过；组件预览和 CLI 数值不替代暂停中的真实桌面/DPI。
+原来的 **Definition / ports and parameters** 大区域是输入端口、输出端口和参数的 JSON 声明，例如 `audio_in`、`audio_out`、`gain`。现在默认折叠，摘要始终可见；需要时点 **Ports & parameters...** 展开高级 JSON，**Logs** 展开检查日志。源码和工程文件列表优先占据主区域。
+
+当前限制：极长清单/大声明与极限源码组合、完整冲突/状态/故障矩阵仍待验收。已用自有隐藏捕获进程验证生产启动器的参数，包括中文、空格和特殊字符及 Code 行列协议；实际专业编辑器、原生选择器和桌面仍未验收。声明表单当前只读，可从外部编辑 node.json。C++ 目录可只读重开，但工作台多文件独立构建/probe/待重启尚未交付。W1/W2/W3 正式出口未通过；组件预览和 CLI 数值不替代暂停中的真实桌面/DPI。
+
+创建期间若目标被外部换成目录联接，程序会拒绝继续，并避免沿新联接回收文件。若原目录已被外部移走，其中可能保留部分创建文件；目前不会猜测其新位置自动删除，完整恢复策略仍待补齐。
+
+Windows 外部编辑器使用独立进程启动：可执行文件和工程/文件路径分别传参，空格、中文和元字符按Windows参数规则编码，不经过cmd或PowerShell。标准输入/输出/错误连接到子进程可独立持有的NUL设备，只继承这些专用句柄；AudioAlgo不会收集外部编辑器的控制台日志，也不会在面板关闭时结束编辑器。此前临时ChildProcess输出管道会在启动函数返回时关闭，可能引发Trae的EPIPE错误。更新后请保存工作并正常退出报错的旧Trae实例和旧AudioAlgo，再用新版重试；编译不会更改既有进程的标准流。
+
+## 记住编辑器与最近工程
+
+新版首次使用时选择一次编辑器并成功创建或打开工程。之后正常关闭、重新启动 AudioAlgo，再打开自定义节点面板，编辑器路径会恢复；点击 **Continue last project** 直接打开上次工程，随后 **Edit externally...** 启动已配置的编辑器。程序记住一个最近工程；不会在启动时自动切换当前草稿，也不会自动启动外部编辑器。选择器同样以记住的位置为起点。旧版只存在于内存的选择需要在新版中重新选择一次。
+
+设置保存在 `%APPDATA%/AudioAlgo/node-workspace-preferences.json`，只包含编辑器和工程的路径，不包含源码。选择后在后台写入，正常关闭前会完成最后一次保存。取消选择或打开失败保留原设置；上次目录被删除时会报错，不会在该路径重新创建工程。更换或移动编辑器后使用 **Choose editor...** 重新选择。
+
+无法保存时显示 **Session only; settings not saved**，当前选择仍可在本次会话使用；损坏或不支持的设置文件会显示诊断并保留原字节。这些错误需要排除后才能保证下次恢复。
 
 ## 恢复备份
 

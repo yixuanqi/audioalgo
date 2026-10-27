@@ -28,9 +28,12 @@ def function_body(signature: str, source: str = MAIN) -> str:
 
 class EditorWorkRouteTests(unittest.TestCase):
     def test_document_resource_and_demo_file_work_is_submitted_to_worker_pool(self):
+        # The chooser forwards to the shared path-based route (also used when
+        # reopening saved graphs); that route owns the asynchronous file work.
+        self.assertIn("open_project_file(path)", function_body("void open_project()"))
         for signature in (
             "bool save_to(",
-            "void open_project()",
+            "void open_project_file(",
             "void load_staged_demo()",
             "void add_source_node(",
         ):

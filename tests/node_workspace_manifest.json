@@ -27,7 +27,7 @@
     "skipped",
     "timeout"
   ],
-  "notes": "W0 freezes this file, the ADR and the fixture lock. A requirement may only leave not_run when a bound test actually executed on an identified source snapshot; every passed entry must name existing evidence. Real OS desktop items stay not_verified while desktop work is paused.",
+  "notes": "W0 freezes this file, the ADR and the fixture lock. A requirement may only leave not_run when a bound test actually executed on an identified source snapshot; every passed entry must name existing evidence. Real OS desktop items stay not_verified while desktop work is paused. NWS0013 remembers editor executable and one last successful workspace in a separate path-only settings file; fresh host/store and final shutdown flush are component/file verified, real OS restart remains not_verified. Formal stage statuses unchanged. NWS0014 user-authorized module commits: transaction 92ef968; project UI/reopen 81edcf2; Trae CN stdio fix alone 0958815; editor/project preferences 2ef79ad. Final product/behavior-test bytes retain the NWS0013 executed snapshot. Commit bookkeeping does not promote any formal status; original evidence records retained.",
   "requirements": [
     {
       "id": "NWS-01.a",
@@ -57,7 +57,8 @@
         "NWS-01.a cpp workspace create writes one declared source",
         "NWS-01.a frozen invalid workspaces report the documented codes",
         "NWS-01.a production panel creates a node project folder and reopens identical declaration and source",
-        "NWS-01.a production create reproduces the frozen conversion bytes"
+        "NWS-01.a production create reproduces the frozen conversion bytes",
+        "NWS-06.a external edit from a draft selects an editor creates its project then opens the directory"
       ],
       "test_results": [
         {
@@ -101,6 +102,118 @@
           "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
           "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
           "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        },
+        {
+          "test_name": "NWS-01.a production panel creates a node project folder and reopens identical declaration and source",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-01.a production create reproduces the frozen conversion bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-06.a external edit from a draft selects an editor creates its project then opens the directory",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-01.a workspace create writes the declaration and the entry source then reopens them",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.a workspace create refuses a non-empty target and keeps its bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.a cpp workspace create writes one declared source",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.a frozen invalid workspaces report the documented codes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.a production panel creates a node project folder and reopens identical declaration and source",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.a production create reproduces the frozen conversion bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-06.a external edit from a draft selects an editor creates its project then opens the directory",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.a production panel creates a node project folder and reopens identical declaration and source",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-01.a production create reproduces the frozen conversion bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-06.a external edit from a draft selects an editor creates its project then opens the directory",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-01.a production panel creates a node project folder and reopens identical declaration and source",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-01.a production create reproduces the frozen conversion bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-06.a external edit from a draft selects an editor creates its project then opens the directory",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
         }
       ],
       "status": "partial",
@@ -134,7 +247,9 @@
         "NWS-01.b conversion from the frozen legacy draft keeps its bytes and reopens",
         "NWS-01.a production panel creates a node project folder and reopens identical declaration and source",
         "NWS-01.b converting an applied draft preserves its managed package identity after directory reopen",
-        "NWS-01.b author identity survives snapshot and changes revoke an otherwise identical runtime tree"
+        "NWS-01.b author identity survives snapshot and changes revoke an otherwise identical runtime tree",
+        "NWS-06.a external edit resumes an existing project without creating or replacing its files",
+        "NWS-06.a reopening the host restores editor and last project and resumes without another picker"
       ],
       "test_results": [
         {
@@ -164,6 +279,97 @@
           "evidence": "build/reports/loops/NWS0004-conversion-identity/pure-exit.xml",
           "command_record": "build/reports/loops/NWS0004-conversion-identity/pure-exit.json",
           "snapshot_scope": "NWS0004; original .aadraft and W0 runtime bytes preserved; see ADR0041"
+        },
+        {
+          "test_name": "NWS-01.a production panel creates a node project folder and reopens identical declaration and source",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-01.b converting an applied draft preserves its managed package identity after directory reopen",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-01.b conversion from the frozen legacy draft keeps its bytes and reopens",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.b author identity survives snapshot and changes revoke an otherwise identical runtime tree",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.a production panel creates a node project folder and reopens identical declaration and source",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.b converting an applied draft preserves its managed package identity after directory reopen",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.a production panel creates a node project folder and reopens identical declaration and source",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-01.b converting an applied draft preserves its managed package identity after directory reopen",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-06.a external edit resumes an existing project without creating or replacing its files",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-01.a production panel creates a node project folder and reopens identical declaration and source",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-01.b converting an applied draft preserves its managed package identity after directory reopen",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-06.a external edit resumes an existing project without creating or replacing its files",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-06.a reopening the host restores editor and last project and resumes without another picker",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0013-editor-memory/direct-current.xml",
+          "command_record": "build/reports/loops/NWS0013-editor-memory/direct-current.json",
+          "snapshot_scope": "NWS0013 current Debug source hashes in command: disk preferences, fresh host/store restore, continue last project and shutdown final flush. Independent ON/OFF disk and argv readers passed. Owned capture process only; OS restart/installed editors/desktop not_verified. Direct affected regression only; no formal stage promotion."
         }
       ],
       "status": "partial",
@@ -218,6 +424,48 @@
           "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
           "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
           "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        },
+        {
+          "test_name": "NWS-01.c frozen workspace fixtures match the independent expectation lock",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-01.c excluded author files never change the runtime content hash",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.c unknown declaration fields are preserved in the canonical declaration",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.c frozen workspace fixtures match the independent expectation lock",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.c frozen workspace fixtures match the independent expectation lock",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-01.c frozen workspace fixtures match the independent expectation lock",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
         }
       ],
       "status": "partial",
@@ -251,7 +499,8 @@
         "NWS-02.a long workspace paths and hostile declared paths are rejected before writing",
         "NWS-01.a frozen invalid workspaces report the documented codes",
         "NWS-01.a workspace create writes the declaration and the entry source then reopens them",
-        "NWS-02.a create refuses a Windows junction target or ancestor before writing any file"
+        "NWS-02.a create refuses a Windows junction target or ancestor before writing any file",
+        "NWS-02.b a target replaced by a junction during creation never overwrites or rolls back foreign files"
       ],
       "test_results": [
         {
@@ -281,13 +530,49 @@
           "evidence": "build/reports/loops/NWS0007-create-path/pure.xml",
           "command_record": "build/reports/loops/NWS0007-create-path/pure.json",
           "snapshot_scope": "NWS0007 pure Debug; real Windows FSCTL junction, no desktop evidence"
+        },
+        {
+          "test_name": "NWS-02.a long workspace paths and hostile declared paths are rejected before writing",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.a frozen invalid workspaces report the documented codes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.a workspace create writes the declaration and the entry source then reopens them",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-02.a create refuses a Windows junction target or ancestor before writing any file",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-02.b a target replaced by a junction during creation never overwrites or rolls back foreign files",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
         }
       ],
       "status": "partial",
       "remaining_clauses": [
         "Reparse point / junction escape and cycle rejection (needs a real link fixture)",
         "Path replacement between snapshot and copy with a controlled barrier",
-        "Real volume-root and UNC directory writes stay not_verified until a writable target is authorised"
+        "Real volume-root and UNC directory writes stay not_verified until a writable target is authorised",
+        "NWS0010 rejects deterministic write/verify/replace junction swaps and never follows them during rollback. Handle-bound physical-open races and cleanup/recovery of externally relocated original trees remain; relocated original temporary files are deliberately retained."
       ]
     },
     {
@@ -312,7 +597,12 @@
       "test_names": [
         "NWS-02.b injected create write verify and replace failures leave no partial workspace",
         "NWS-01.a workspace create refuses a non-empty target and keeps its bytes",
-        "NWS-02.b late source failure removes every newly created ancestor and permits retry"
+        "NWS-02.b late source failure removes every newly created ancestor and permits retry",
+        "NWS-02.b slow directory creation never starts a second automatic source save",
+        "NWS-06.a cancelling external editor or project selection and creation failure preserve the draft",
+        "NWS-02.b a target replaced by a junction during creation never overwrites or rolls back foreign files",
+        "NWS-06.a external edit refuses an unrelated folder and invalid project without writing",
+        "NWS-06.a missing remembered projects are never recreated and save failures show session only"
       ],
       "test_results": [
         {
@@ -335,13 +625,118 @@
           "evidence": "build/reports/loops/NWS0002-review-fixes/green-rollback.xml",
           "command_record": "build/reports/loops/NWS0002-review-fixes/green-rollback.json",
           "snapshot_scope": "NWS0002; exact source hashes in command record"
+        },
+        {
+          "test_name": "NWS-02.b slow directory creation never starts a second automatic source save",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-06.a cancelling external editor or project selection and creation failure preserve the draft",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-02.b injected create write verify and replace failures leave no partial workspace",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.a workspace create refuses a non-empty target and keeps its bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-02.b late source failure removes every newly created ancestor and permits retry",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-02.b a target replaced by a junction during creation never overwrites or rolls back foreign files",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-02.b slow directory creation never starts a second automatic source save",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-06.a cancelling external editor or project selection and creation failure preserve the draft",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-02.b slow directory creation never starts a second automatic source save",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-06.a cancelling external editor or project selection and creation failure preserve the draft",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-06.a external edit refuses an unrelated folder and invalid project without writing",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-02.b slow directory creation never starts a second automatic source save",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-06.a cancelling external editor or project selection and creation failure preserve the draft",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-06.a external edit refuses an unrelated folder and invalid project without writing",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-06.a missing remembered projects are never recreated and save failures show session only",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0013-editor-memory/direct-current.xml",
+          "command_record": "build/reports/loops/NWS0013-editor-memory/direct-current.json",
+          "snapshot_scope": "NWS0013 current Debug source hashes in command: disk preferences, fresh host/store restore, continue last project and shutdown final flush. Independent ON/OFF disk and argv readers passed. Owned capture process only; OS restart/installed editors/desktop not_verified. Direct affected regression only; no formal stage promotion."
         }
       ],
       "status": "partial",
       "remaining_clauses": [
-        "Real disk-full and permission failures (only the injectable phases are exercised)",
-        "Panel-level unsaved state and retry after a production failure",
-        "Recovery copies never overwriting an external editor save, and explicit non-empty target confirmation (W3)"
+        "Real disk-full and permission failures; complete panel retry/failure/lifecycle matrix.",
+        "Recovery copies never overwriting an external editor save, and explicit non-empty target confirmation/conflict comparison (W3). Slow-create automatic saves and cancel/create-failure preservation are covered by NWS0009.",
+        "NWS0010 rejects deterministic write/verify/replace junction swaps and never follows them during rollback. Handle-bound physical-open races and cleanup/recovery of externally relocated original trees remain; relocated original temporary files are deliberately retained."
       ]
     },
     {
@@ -389,6 +784,27 @@
           "evidence": "build/reports/loops/NWS0007-create-path/pure-final.xml",
           "command_record": "build/reports/loops/NWS0007-create-path/pure-final.json",
           "snapshot_scope": "NWS0007 pure Debug; real controlled source junction replacement; existing read guard verified, not a new fix; independent-files.json checks byte postconditions"
+        },
+        {
+          "test_name": "NWS-02.c snapshot rejects concurrent helper edits and stable retry freezes exact runtime bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.b author identity survives snapshot and changes revoke an otherwise identical runtime tree",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-02.c swapping a source folder to a junction during capture rejects all outside bytes and permits retry",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/pure-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/pure-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
         }
       ],
       "status": "partial",
@@ -435,6 +851,62 @@
           "evidence": "build/reports/loops/NWS0006-assets/direct.xml",
           "command_record": "build/reports/loops/NWS0006-assets/direct.json",
           "snapshot_scope": "NWS0006 Debug; source hashes in command; independent byte/audio evidence in summary.json; no desktop claim"
+        },
+        {
+          "test_name": "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-03.a explicit resource and adjacent data file are frozen and change real Python audio",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-03.a explicit resource and adjacent data file are frozen and change real Python audio",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-03.a explicit resource and adjacent data file are frozen and change real Python audio",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-03.a explicit resource and adjacent data file are frozen and change real Python audio",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
         }
       ],
       "status": "partial",
@@ -480,6 +952,62 @@
           "evidence": "build/reports/loops/NWS0003-python-tree/audio-green.xml",
           "command_record": "build/reports/loops/NWS0003-python-tree/audio-green.json",
           "snapshot_scope": "NWS0003 development subset only; command record binds exact source and raw JUnit"
+        },
+        {
+          "test_name": "NWS-03.a directory check executes helper modules and immutable Apply keeps both versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-03.a directory check executes helper modules and immutable Apply keeps both versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-03.a directory check executes helper modules and immutable Apply keeps both versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-03.a directory check executes helper modules and immutable Apply keeps both versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
         }
       ],
       "status": "partial",
@@ -525,6 +1053,20 @@
           "evidence": "build/reports/loops/NWS0004-conversion-identity/direct-exit.xml",
           "command_record": "build/reports/loops/NWS0004-conversion-identity/direct-exit.json",
           "snapshot_scope": "NWS0004 cumulative direct regression, current Python-enabled product"
+        },
+        {
+          "test_name": "NWS-03.c all Python files are checked statically with relative Unicode locations before import",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-03.c directory import failures locate helper files and subsequent valid check recovers",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
         }
       ],
       "status": "partial",
@@ -554,7 +1096,8 @@
       ],
       "test_names": [
         "NWS-05.a created node project immediately shows its file list and detects external helper changes",
-        "NWS-03.a explicit resource and adjacent data file are frozen and change real Python audio"
+        "NWS-03.a explicit resource and adjacent data file are frozen and change real Python audio",
+        "NWS-04.a Apply waits for a new disk scan and rejects Ready after external source changes"
       ],
       "test_results": [
         {
@@ -570,11 +1113,74 @@
           "evidence": "build/reports/loops/NWS0006-assets/direct.xml",
           "command_record": "build/reports/loops/NWS0006-assets/direct.json",
           "snapshot_scope": "NWS0006 Debug; source hashes in command; independent byte/audio evidence in summary.json; no desktop claim"
+        },
+        {
+          "test_name": "NWS-05.a created node project immediately shows its file list and detects external helper changes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-03.a explicit resource and adjacent data file are frozen and change real Python audio",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-04.a Apply waits for a new disk scan and rejects Ready after external source changes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-03.a explicit resource and adjacent data file are frozen and change real Python audio",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-04.a Apply waits for a new disk scan and rejects Ready after external source changes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-03.a explicit resource and adjacent data file are frozen and change real Python audio",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-04.a Apply waits for a new disk scan and rejects Ready after external source changes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-03.a explicit resource and adjacent data file are frozen and change real Python audio",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-04.a Apply waits for a new disk scan and rejects Ready after external source changes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
         }
       ],
       "status": "partial",
       "remaining_clauses": [
-        "Resource/environment changes and Apply preflight interleavings remain."
+        "Full resource/environment change and Apply preflight interleaving matrix remains; click-after-scan Ready invalidation is covered by NWS0009."
       ]
     },
     {
@@ -615,6 +1221,62 @@
           "evidence": "build/reports/loops/NWS0004-conversion-identity/direct-exit.xml",
           "command_record": "build/reports/loops/NWS0004-conversion-identity/direct-exit.json",
           "snapshot_scope": "NWS0004; original .aadraft and W0 runtime bytes preserved; see ADR0041"
+        },
+        {
+          "test_name": "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-01.b converting an applied draft preserves its managed package identity after directory reopen",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-01.b converting an applied draft preserves its managed package identity after directory reopen",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-01.b converting an applied draft preserves its managed package identity after directory reopen",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-01.b converting an applied draft preserves its managed package identity after directory reopen",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
         }
       ],
       "status": "partial",
@@ -643,7 +1305,10 @@
         "closed_panel_no_dangling_callback"
       ],
       "test_names": [
-        "NWS-04.c disk refresh revokes a late directory check and only the next generation becomes Ready"
+        "NWS-04.c disk refresh revokes a late directory check and only the next generation becomes Ready",
+        "NWS-04.c Check after an external edit waits for a scan started after the click",
+        "NWS-04.c cancellation while a project scan is pending never queues Check",
+        "NWS-06.a a late existing project open never replaces newer draft edits or launches its editor"
       ],
       "test_results": [
         {
@@ -652,6 +1317,76 @@
           "evidence": "build/reports/loops/NWS0003-python-tree/async-check.xml",
           "command_record": "build/reports/loops/NWS0003-python-tree/async-check.json",
           "snapshot_scope": "NWS0003 development subset only; command record binds exact source and raw JUnit"
+        },
+        {
+          "test_name": "NWS-04.c disk refresh revokes a late directory check and only the next generation becomes Ready",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-04.c Check after an external edit waits for a scan started after the click",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-04.c cancellation while a project scan is pending never queues Check",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-04.c Check after an external edit waits for a scan started after the click",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-04.c Check after an external edit waits for a scan started after the click",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-04.c cancellation while a project scan is pending never queues Check",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-06.a a late existing project open never replaces newer draft edits or launches its editor",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-04.c Check after an external edit waits for a scan started after the click",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-04.c cancellation while a project scan is pending never queues Check",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-06.a a late existing project open never replaces newer draft edits or launches its editor",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
         }
       ],
       "status": "partial",
@@ -680,7 +1415,9 @@
         "two_file_diagnostics"
       ],
       "test_names": [
-        "NWS-05.a created node project immediately shows its file list and detects external helper changes"
+        "NWS-05.a created node project immediately shows its file list and detects external helper changes",
+        "NWS-05.a fresh draft presents external editing and keeps raw definition collapsed",
+        "NWS-06.a external edit resumes an existing project without creating or replacing its files"
       ],
       "test_results": [
         {
@@ -696,6 +1433,48 @@
           "evidence": "build/reports/loops/NWS0004-conversion-identity/direct-exit.xml",
           "command_record": "build/reports/loops/NWS0004-conversion-identity/direct-exit.json",
           "snapshot_scope": "Includes disk-preview diagnostic jump to line/column and two real component PNGs; OS desktop not_verified"
+        },
+        {
+          "test_name": "NWS-05.a created node project immediately shows its file list and detects external helper changes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-05.a fresh draft presents external editing and keeps raw definition collapsed",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-05.a fresh draft presents external editing and keeps raw definition collapsed",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-06.a external edit resumes an existing project without creating or replacing its files",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-05.a fresh draft presents external editing and keeps raw definition collapsed",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-06.a external edit resumes an existing project without creating or replacing its files",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
         }
       ],
       "status": "partial",
@@ -782,14 +1561,201 @@
         "no_shell_interpolation",
         "failure_keeps_directory"
       ],
-      "test_names": [],
-      "test_results": [],
-      "status": "not_run",
+      "test_names": [
+        "NWS-06.a external edit from a draft selects an editor creates its project then opens the directory",
+        "NWS-06.a production external editor launcher preserves Unicode paths and optional Code diagnostic arguments",
+        "NWS-06.a cancelling external editor or project selection and creation failure preserve the draft",
+        "NWS-06.a external edit resumes an existing project without creating or replacing its files",
+        "NWS-06.a external edit refuses an unrelated folder and invalid project without writing",
+        "NWS-06.a a late existing project open never replaces newer draft edits or launches its editor",
+        "NWS-06.a production external edit launches the selected generic editor with an existing project directory",
+        "NWS-06.a external editor can write both log streams after its launch owner is destroyed",
+        "NWS-06.a missing remembered projects are never recreated and save failures show session only",
+        "NWS-06.a editor preferences round trip paths and preserve corrupt settings",
+        "NWS-06.a host shutdown flushes staged preferences before reporting drained",
+        "NWS-06.a reopening the host restores editor and last project and resumes without another picker"
+      ],
+      "test_results": [
+        {
+          "test_name": "NWS-06.a external edit from a draft selects an editor creates its project then opens the directory",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-06.a production external editor launcher preserves Unicode paths and optional Code diagnostic arguments",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-06.a cancelling external editor or project selection and creation failure preserve the draft",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-06.a external edit from a draft selects an editor creates its project then opens the directory",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-06.a production external editor launcher preserves Unicode paths and optional Code diagnostic arguments",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-06.a cancelling external editor or project selection and creation failure preserve the draft",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-06.a external edit from a draft selects an editor creates its project then opens the directory",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-06.a production external editor launcher preserves Unicode paths and optional Code diagnostic arguments",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-06.a cancelling external editor or project selection and creation failure preserve the draft",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-06.a external edit resumes an existing project without creating or replacing its files",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-06.a external edit refuses an unrelated folder and invalid project without writing",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-06.a a late existing project open never replaces newer draft edits or launches its editor",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-06.a production external edit launches the selected generic editor with an existing project directory",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-06.a external edit from a draft selects an editor creates its project then opens the directory",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-06.a production external editor launcher preserves Unicode paths and optional Code diagnostic arguments",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-06.a cancelling external editor or project selection and creation failure preserve the draft",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-06.a external edit resumes an existing project without creating or replacing its files",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-06.a external edit refuses an unrelated folder and invalid project without writing",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-06.a a late existing project open never replaces newer draft edits or launches its editor",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-06.a production external edit launches the selected generic editor with an existing project directory",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-06.a external editor can write both log streams after its launch owner is destroyed",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-06.a missing remembered projects are never recreated and save failures show session only",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0013-editor-memory/direct-current.xml",
+          "command_record": "build/reports/loops/NWS0013-editor-memory/direct-current.json",
+          "snapshot_scope": "NWS0013 current Debug source hashes in command: disk preferences, fresh host/store restore, continue last project and shutdown final flush. Independent ON/OFF disk and argv readers passed. Owned capture process only; OS restart/installed editors/desktop not_verified. Direct affected regression only; no formal stage promotion."
+        },
+        {
+          "test_name": "NWS-06.a editor preferences round trip paths and preserve corrupt settings",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0013-editor-memory/direct-current.xml",
+          "command_record": "build/reports/loops/NWS0013-editor-memory/direct-current.json",
+          "snapshot_scope": "NWS0013 current Debug source hashes in command: disk preferences, fresh host/store restore, continue last project and shutdown final flush. Independent ON/OFF disk and argv readers passed. Owned capture process only; OS restart/installed editors/desktop not_verified. Direct affected regression only; no formal stage promotion."
+        },
+        {
+          "test_name": "NWS-06.a host shutdown flushes staged preferences before reporting drained",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0013-editor-memory/direct-current.xml",
+          "command_record": "build/reports/loops/NWS0013-editor-memory/direct-current.json",
+          "snapshot_scope": "NWS0013 current Debug source hashes in command: disk preferences, fresh host/store restore, continue last project and shutdown final flush. Independent ON/OFF disk and argv readers passed. Owned capture process only; OS restart/installed editors/desktop not_verified. Direct affected regression only; no formal stage promotion."
+        },
+        {
+          "test_name": "NWS-06.a reopening the host restores editor and last project and resumes without another picker",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0013-editor-memory/direct-current.xml",
+          "command_record": "build/reports/loops/NWS0013-editor-memory/direct-current.json",
+          "snapshot_scope": "NWS0013 current Debug source hashes in command: disk preferences, fresh host/store restore, continue last project and shutdown final flush. Independent ON/OFF disk and argv readers passed. Owned capture process only; OS restart/installed editors/desktop not_verified. Direct affected regression only; no formal stage promotion."
+        }
+      ],
+      "status": "partial",
       "remaining_clauses": [
-        "One generic editor plus at least one real professional editor configured, with an open-folder fallback",
-        "Opening the real directory works and diagnostics can target the real file/line when supported",
-        "Chinese, space, &, quote, backtick and $() paths are arguments only, never extra commands",
-        "Missing editor, launch failure or cancel changes no directory, package or graph"
+        "Actual installed generic/professional editor opening, external writes/exit and native picker/folder fallback remain not_verified while desktop acceptance is paused.",
+        "Additional quoting/invalid executable and full launch failure/lifecycle matrix remain; current argv proof covers Unicode, spaces, &, backtick and $() to the owned hidden helper only."
       ]
     },
     {
@@ -812,7 +1778,9 @@
         "no_auto_apply"
       ],
       "test_names": [
-        "NWS-05.a created node project immediately shows its file list and detects external helper changes"
+        "NWS-05.a created node project immediately shows its file list and detects external helper changes",
+        "NWS-04.c Check after an external edit waits for a scan started after the click",
+        "NWS-04.a Apply waits for a new disk scan and rejects Ready after external source changes"
       ],
       "test_results": [
         {
@@ -828,6 +1796,69 @@
           "evidence": "build/reports/loops/NWS0004-conversion-identity/direct-exit.xml",
           "command_record": "build/reports/loops/NWS0004-conversion-identity/direct-exit.json",
           "snapshot_scope": "Includes disk-preview diagnostic jump to line/column and two real component PNGs; OS desktop not_verified"
+        },
+        {
+          "test_name": "NWS-05.a created node project immediately shows its file list and detects external helper changes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-04.c Check after an external edit waits for a scan started after the click",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-04.a Apply waits for a new disk scan and rejects Ready after external source changes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-04.c Check after an external edit waits for a scan started after the click",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-04.a Apply waits for a new disk scan and rejects Ready after external source changes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
+        },
+        {
+          "test_name": "NWS-04.c Check after an external edit waits for a scan started after the click",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-04.a Apply waits for a new disk scan and rejects Ready after external source changes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0011-resume-project/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0011-resume-project/direct-final.json",
+          "snapshot_scope": "NWS0011 Debug base c3da4c8 + local changes; exact source hashes in command. Resume is a read/open branch, explicit create remains non-empty-safe. Owned capture executable only; real professional editor/desktop not_verified."
+        },
+        {
+          "test_name": "NWS-04.c Check after an external edit waits for a scan started after the click",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-04.a Apply waits for a new disk scan and rejects Ready after external source changes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
+          "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
+          "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
         }
       ],
       "status": "partial",
@@ -1097,6 +2128,34 @@
           "evidence": "build/reports/loops/NWS0006-assets/direct.xml",
           "command_record": "build/reports/loops/NWS0006-assets/direct.json",
           "snapshot_scope": "NWS0006 Debug; source hashes in command; independent byte/audio evidence in summary.json; no desktop claim"
+        },
+        {
+          "test_name": "NWS-09.a maximum Python workspace file inventory checks and applies without generated file overhead",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-09.a exact frozen Python source byte budget checks and one extra byte is refused",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-09.a workspace resources pass exactly at frozen count and byte limits and reject one over",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0009-project-entry/direct-green.xml",
+          "command_record": "build/reports/loops/NWS0009-project-entry/direct-green.json",
+          "snapshot_scope": "NWS0009 Debug, base HEAD c3da4c8 + local changes, exact source hashes in command; requirement remains partial. Owned launcher helper is not a real professional editor or OS desktop."
+        },
+        {
+          "test_name": "NWS-09.a maximum Python workspace file inventory checks and applies without generated file overhead",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0010-create-swap/component-green.xml",
+          "command_record": "build/reports/loops/NWS0010-create-swap/component-green.json",
+          "snapshot_scope": "NWS0010 final Debug source identity in command record; only directly affected subset, no cumulative W1/W2/W3 exit or desktop claim."
         }
       ],
       "status": "partial",

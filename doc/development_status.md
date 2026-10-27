@@ -1,14 +1,50 @@
 # Development status
 
+**2026-10-28 用户明确授权按模块提交（NWS0014）**：创建事务换链保护 `92ef968`，工程界面/已有目录继续编辑 `81edcf2`，**Trae CN EPIPE 管道寿命修复单独提交 `0958815`**，编辑器及最近工程路径记忆 `2ef79ad`；验收映射、使用说明、既有接续方案和源码守卫随后单独归档。本次只拆分提交既有已验证改动，不推送或发布，也不提升阶段状态。共享文件按功能暂存，最终产品与行为测试字节保持 NWS0013 已执行快照；未重编相同产品源码。原始证据不改写，提交映射、逐文件 hash 与提交后契约检查保存在 `build/reports/loops/NWS0014-module-commits/`。下文“未提交”和方案中的 HEAD 是各片实施时的历史记录，以本段为当前提交入口。
+
+**2026-10-28 NWS0013 用户反馈修复：记住外部编辑器与最近节点工程**（基线 HEAD `c3da4c8e0030f98947b48dd63ad02bc815aeb2d9`，本轮及 NWS0009～12 未提交）：原路径仅在 EditorComponent 内存中，重启丢失。生产入口现注入独立设置存储，将编辑器 EXE 与最近成功创建/打开的工程目录保存至 `%APPDATA%/AudioAlgo/node-workspace-preferences.json`；重启恢复编辑器，单文件面板显示 **Continue last project** 和目录，点击直接重开原工程，再点 Edit externally 使用已配置编辑器。目录选择器从记住的位置开始。只记路径，不存源码，不改 `.aadraft`；首次运行新版需重新选择一次旧会话中未曾保存的路径。未自动启动/重启用户应用，也未读取或改写用户该设置文件。
+
+先保留 Red：3 用例 26 断言、2 失败（没有记住选择、没有继续入口）；增加正常关闭前的待保存设置用例，又得 1 用例 4 断言、1 失败。修复后台原子写入与恢复、最新请求投递、只读继续工程，并在工作池退出线程最后保存已暂存选择，避免普通排队保存任务在关闭时被移除。损坏/不支持设置保留原字节，写入失败明确 Session only；目录失效不会重建，失败和取消不替换上次成功工程。重建宿主与全新存储实例后恢复中文/空格/元字符路径，并且无需第二次选择；组件 PNG 已查看。
+
+当前源码 Debug 直接回归 **36/36（8205 断言）**、Python OFF 相关 **27/27（623 断言）**，均 0 失败/错误/跳过，包含关闭生命周期及原创建/打开/启动协议。独立新进程分别解码 ON/OFF 设置文件和真实捕获进程 argv，确认工程目录一致且设置只有路径；5 份新组件/CLI WAV 独立 oracle 最大误差 `1.862645149230957e-9`，保存 v1 保持原 hash、v2 不同。新版 Debug 编辑器已链接，原始命令、失败、源码/二进制 hash、契约检查与独立产物见 `build/reports/loops/NWS0013-editor-memory/summary.json`。上述数字仅本片直接回归，不拼接历史结果作为当前全量通过。
+
+NWS/W0 与受影响 R2 基础设施最终 **6/6 通过**。额外检查暴露两个既存源码守卫仍假定 `open_project()` 自己加载文件；HEAD 已通过 `open_project_file(path)` 共享异步服务，并以 OpenResult 同时返回文档与目录解析。保留原始失败，守卫补查入口转发，在实际加载函数继续检查注入服务、文档类型、worker 提交和 complete_open，未改变产品打开逻辑、未删除异步/服务约束；首次只修转发仍因旧返回类型断言失败的记录也保留。无需因这两个测试文件更新重编相同产品源码。
+
+真实 OS 重启、原生选择器、已安装编辑器和 DPI 仍按暂停要求 **not_verified**。NWS 清单仍 17 partial / 11 not_run / 2 not_verified；W1/W2/W3 正式出口未通过，C++ W4/W5 仍 not_run。本次关闭了设置记忆缺陷，声明保存/冲突、细粒度文件事务与完整故障矩阵仍须接续，随后 C++ 独立 SDK 多文件构建/probe/待重启及 W5。旧条目“选择仅本次会话有效”描述 NWS0009 历史快照，已由本片覆盖。
 
 
 
 
-## 唯一当前摘要（2026-10-27：多文件 Python 生产闭环已有自动化证据；W1/W2/W3 正式出口未通过）
+
+## 唯一当前摘要（2026-10-28：多文件 Python 生产闭环已有自动化证据；W1/W2/W3 正式出口未通过）
+
+**NWS0012 外部编辑器断管修复**：用户Trae CN截图EPIPE发生在console.error/process warning写输出。原生产启动器用局部juce::ChildProcess默认捕获stdout/stderr，函数返回析构关闭管道。先以真实子进程＋事件屏障复现：启动器及EditorComponent销毁后再写两流，均FILE_TYPE_PIPE/失败/Windows232，产生6个Red断言。改为私有Windows CreateProcessW启动，显式可执行文件、完整Windows参数编码、专用可继承NUL输入/输出及句柄白名单，父侧句柄及时释放，子进程日志不依赖面板寿命；没有改runner/构建工具的受管输出逻辑，也没有新增纯算法库GUI依赖。首次将windows.h放入UI头文件导致JUCE宏冲突的编译失败已保留，随后隔离到EditorExternalProcess.cpp并恢复构建。
+
+同用例Green：两流为FILE_TYPE_CHAR、写成功、错误0；独立标准库工具读取Red/Green原始24字节记录及真实argv，确认参数完整、进程为自有捕获程序。当前Debug直接22/22（7917断言）、Python OFF相关13/13（335断言），均0失败/跳过；通用目录与Code --goto参数独立复核通过，5份新组件/CLI WAV独立oracle最大误差1.862645149230957e-9，保存v1原hash保持/v2不同。新版Debug编辑器已链接。证据build/reports/loops/NWS0012-editor-stdio/summary.json。D盘两个用户EXE只读文件信息可访问（Code1.106.2、Trae CN2.3.87416）；没有运行/关闭真实用户编辑器，受控捕获程序不冒充Trae实测。真实桌面/已安装Trae修复后新进程仍not_verified，W1/W2/W3正式出口仍未通过、C++W4/W5仍not_run。既有报错Trae进程需用户保存后正常退出再启动，旧进程标准流不会被编译热修复。
+
+
+**NWS0011 用户反馈修复：已有工程继续编辑**：截图中的 Edit externally 在单文件模式总是调用 create，导致上次创建的合法目录因非空被拒绝。现在选择目录后先在worker校验已有工程，成功则只读绑定原身份/声明/源码树并启动所选编辑器；只有空目录或不存在目录进入新建。普通非空文件夹和损坏工程保留原文件并提示具体错误。Create project folder 保持专门新建语义；选择器标题和页面提示区分已有工程与空目录。切换撤销旧Ready，读取晚到遇到新草稿编辑时不接纳、不启动编辑器。真实桌面仍按暂停要求not_verified；没有操作或改写截图中的F卷目录、用户编辑器或运行窗口。
+
+先写区分用例后修复：初始2用例8个失败，其中1个是测试notes文本模式写入CRLF的夹具错误（改为binary写入固定LF，不改期望），其余为误走创建/未打开或提示不清。最小修复后原用例通过，再补真实生产组件→所选通用EXE自有隐藏捕获进程、中文/空格/元字符目录、保持文件字节、显式Create仍拒绝已有目录、晚到不覆盖新编辑。首轮直接回归中的旧Code捕获测试在读流时失败，之后独立读取该582字节产物完整且argv正确；按既有5秒预算等待可读句柄，全部原参数/长度断言保留，原始失败及调查文件保留。不把该读流失败当产品行为Green，最终执行以build/reports/loops/NWS0011-resume-project/summary.json为准。 最终Debug直接21/21（7896断言）、Python OFF相关12/12（314断言），0失败/跳过；独立工具对ON/OFF产物逐字节核验原夹具的所有文件、notes及实际通用编辑器argv均通过。五份新GUI组件/CLI双版本音频独立oracle最大误差1.862645149230957e-9，保存v1重开hash保持、v2不同。生产组件预览已查看；W1/W2/W3仍partial、正式出口未通过，C++ W4/W5及真实桌面缺项不提升。
+
+
+2026-10-27进展分析与接续安排见[下一步开发方案](plan_next_development_2026_10_27.md)：先补文件访问事务缺口，再交付声明保存/冲突与表单，随后C++多文件构建/probe/待重启及W5。本次仅分析和规划，4项既有NWS/W0契约检查通过（2项纯作者库合同、2项清单基础设施）；未重编或重跑音频/GUI累计回归，不改变以下实现或验收状态。
+
+**NWS0010 创建中换链保护（接续 NWS0009，均未提交）**：真实 Win32 junction 在第二次 write/verify/replace 时替换目标；Red 7 条失败证明回滚沿新联接删除了外部 node.json（replace 还误报 workspace_io_failed）。最小修复在目录段创建、write、replace 前再次拒绝联接，回滚及临时清理只经过未链接的原路径。Green：Debug纯作者库25/25（374断言）、runtime/Python/editor OFF纯库25/25（374断言）、直接生产创建/转换/Python Check/Apply/文件预算/资源/外部启动器/画布与CLI音频15/15（7712断言），0失败/跳过，编辑器已重链接。独立工具逐字节确认三次外部树的3个标记文件、没有多余临时文件、干净目录重试成功；原始Red和源码身份见 build/reports/loops/NWS0010-create-swap/summary.json。
+
+边界：此片只关闭可复现的阶段换链写入/回滚缺陷，不能称已做到句柄绑定。外部已重命名的原树会保留部分本次创建物（verify/replace时包括原临时文件），不猜测其新位置回收；独立文件报告明确列出。普通未换链失败仍完整逆序清理。细粒度检查到物理打开竞态、移走原树的恢复/回收、真实权限/满盘、声明冲突及正式W1/W2/W3出口仍缺，C++ W4/W5仍not_run，桌面仍not_verified；没有外部阻塞。NWS0009的45/45属于其前一Workspace源码快照，只复用不受本片影响的UI布局/交互证据，不拼为当前45项累计通过。
+
+
+**NWS0009 当前界面增量（基线 HEAD c3da4c8e0030f98947b48dd63ad02bc815aeb2d9，未提交）**：响应用户单文件截图，大块端口/参数 JSON 改为默认折叠，常驻摘要保留输入/输出/参数名称；标题明确 single-file draft。顶部提供 Create project folder、蓝色 Edit externally、Choose editor；首次外部编辑先选择可执行文件，再选空工程目录，创建成功立即进入带目录/文件列表的工程界面并打开编辑器。工程模式有 Open folder、Refresh disk，双击文件及点击诊断走相同启动协议。VS Code 可选，配置路径可见、仅本宿主会话生效；磁盘仍是唯一源码来源。1100/1440 两种宽度组件 PNG 已查看。已有运行窗口不会热更新，请保存后正常重开 build/windows-debug/bin/AudioAlgo Editor.exe；本轮未操作或重启用户窗口。
+
+**本片 Red→Green**：初始两条 UI 行为用例 7 个失败保留；修复默认布局和选择→创建→打开流程。新增自有隐藏捕获进程验证真实生产启动器，不启动用户编辑器；中文/空格/&/反引号/$() 路径保持完整参数，通用 .EXE 打开目录，Code.exe 接收 --goto 与文件:行:列，缺失编辑器失败及重新选择恢复。选择取消、创建失败、创建期间修改和取消扫描不得改写当前草稿/打开旧工程。启动器用例进一步暴露 Check 复用点击前扫描的问题，独立屏障 Red 证明只扫描一次且误报 source_changed_during_snapshot；Check/Apply 现在要求点击后启动的新扫描，Apply 发现改动撤销 Ready，取消清除待投递请求。保留分隔条最小尺寸断言。首轮直接回归 44 用例发现慢创建会越过自动保存防抖，留下第二份草稿；屏障用例在普通保存/恢复备份两种宿主上产生 4 个失败，最小修复在转换进行中暂停自动保存，失败或过时后恢复原策略；已有用户草稿不删除。slow-green 同用例通过（1用例/20断言）。初始定向 9 用例/246 断言通过，修复后直接回归 45/45（13,052断言）、Python OFF 子集 8/8（225断言），均0失败/跳过。五份新GUI组件/CLI音频独立 oracle 最大误差1.862645149230957e-9，保存的 v1 重开保持原输出hash、v2不同；独立二进制 argv 读取在 ON/OFF 均通过。最终结果见本片 summary.json。所有原始失败、命令和源码身份保存在 build/reports/loops/NWS0009-project-entry/；正式结果以该目录最终记录为准。
+
+本片不把自有捕获程序称为专业编辑器验收：真实原生选择器、专业编辑器修改/退出、OS 桌面/DPI 仍按暂停要求 not_verified；声明表单保存与冲突比较、极限/竞态和完整故障矩阵尚缺。W1/W2/W3 仍 partial、正式出口未通过，C++ W4 与 W5 仍 not_run。当前无外部阻塞；创建阶段换链已由顶部 NWS0010 接续；下一可验收行为为声明变更/冲突或更细路径事务缺口，随后 C++ 独立 SDK 构建/probe/待重启，不能以组件 Green 作为全项目完成。
+
 
 当前用户主线是 **NWS 多文件 Python → C++ 多文件独立构建/probe/待重启 → W5**。以下历史条目的“下一主线 PC0701”不覆盖本次用户顺序。起始 HEAD `3fa394a2cf7eb8ee615f28cfd5da6b9303b1136a`、工作区干净；没有自动提交/推送/发布。历史 Green 不代表当前累计通过。
 
-**本次用户明确要求按模块提交**：工作区服务/事务/身份 `ee52b81`，Python runner/资源后端 `361518c`，Python Check/Apply 与编辑器/CLI/独立数值验证 `7ebe779`；清单校验、验收映射与本文另作最后一组提交。未推送或发布。提交前按 .gitattributes 规范 LF，刷新验收文档与ADR0041字节hash绑定，NWS契约4/4通过；原始CRLF到LF的逐文件hash保存在 `build/reports/loops/NWS0008-module-commits/normalization.json`。Python产品源码字节未变，C++仅换行规范化，复用NWS0006/7注明范围的执行证据；本次没有重编产品或运行最终Release累计矩阵，不能将提交动作视作阶段验收。
+**本次用户明确要求按模块提交**：工作区服务/事务/身份 `ee52b81`，Python runner/资源后端 `361518c`，Python Check/Apply 与编辑器/CLI/独立数值验证 `7ebe779`；清单校验、验收映射与本文最后一组提交为 `c3da4c8`。未推送或发布。提交前按 .gitattributes 规范 LF，刷新验收文档与ADR0041字节hash绑定，NWS契约4/4通过；原始CRLF到LF的逐文件hash保存在 `build/reports/loops/NWS0008-module-commits/normalization.json`。Python产品源码字节未变，C++仅换行规范化，复用NWS0006/7注明范围的执行证据；本次没有重编产品或运行最终Release累计矩阵，不能将提交动作视作阶段验收。
 
 **本轮交付结论与后续顺序**：多文件Python已经有“创建/转换→工程文件列表→磁盘刷新→整树Check/诊断→不可变Apply/库刷新→生产组件画布Run与CLI数值→保存旧版本重开”的自动化闭环，源码不塞回.aadraft。当前仍为局部交付：①先补路径校验到物理打开间竞态、创建中换链、真实权限/满盘与极限声明/路径/文件数/字节组合、包保留路径冲突；②补声明表单保存/外部冲突比较、依赖/入口/环境/取消与生命周期完整矩阵、实际编辑器启动证据，收口W1/W2/W3；③再交付C++发布SDK独立多文件构建、独立probe、具体编译/链接/ABI诊断及PendingRestart；④补精确包迁移/SaveAs携带、Release与累计回归，完成W5。真实桌面/原生选择器/DPI仍按用户暂停要求not_verified，不阻止独立后端工作。没有新的外部资源阻塞。
 
@@ -84,7 +120,7 @@ PC0303已验证活动Check显式取消，PC0304补活动Check面板关闭/销毁
 | --- | --- | --- |
 
 
-| 自定义节点多文件工作区（NWS-01.a～10.c，W0 冻结/W1 首两片） | W0：ADR0040 冻结 schema 1、规范化 JSON、运行内容白名单/排除集、`AudioAlgoNodeWorkspace/1` 清单与整树 hash、路径/预算、创建/转换事务；`tests/fixtures/node_workspace/` 4 工作区 + legacy 草稿 + 6 负例；独立 Python 工具与 `workspace_lock.json`；`tests/node_workspace_manifest.json` 30 条绑定并由 `NWS-00.contract` fail-closed 校验。W1：生产面板“Node project folder…”与节点库“Open node project”真实创建/重开目录，原 `.aadraft` 不变；真实行为 Red→Green（服务 11/136、组件 1/54、锁/转换 3/182）；`create/write/verify/replace` 失败注入只回收本次创建物、既有空目录/用户文件不变（去掉回收即 3 条断言 Red），另覆盖 >260 字符路径与重复/ADS/`..` 拒绝；直接回归 `[draft_files]`/`[NA-01.a..c]`/`[authoring_locations]`/`[NI0015]`/`[NED-02]` 全通过，作者目标 19/249，编辑器 Debug 链接成功；独立 Python 读取创建目录 `content_sha256=e963d8d1…` 且声明/源码匹配。证据 `build/reports/loops/NWS0001-workspace-create/`。 | NWS-01.a/b/c、02.a/02.b 仅 `partial`（C++ 生产入口、reparse/junction 与循环负例、真实磁盘满/权限与面板未保存重试、枚举顺序稳定性未闭合）；NWS-02.c 及 W2～W5 全部 `not_run`；无 workspace Check/Ready/Apply、无多文件真实音频、无 C++ 多源构建；真实桌面/原生选择器/DPI 仍 `not_verified`，用户窗口未重启；NWS 整体与正式出口均未通过。 |
+| 自定义节点多文件工作区（NWS-01.a～10.c） | 当前以顶部 NWS0002～0009 和 tests/node_workspace_manifest.json 为准：已实现目录创建/转换/重开、磁盘文件列表/预览、外部编辑入口、全树 Python Check/Ready/不可变 Apply、库刷新、画布/CLI 两版本音频与旧包锁；原始 Red/Green、独立文件/音频及组件 PNG 均位于 build/reports/loops/NWS000*/。 | W1/W2/W3 仍 partial；声明表单/冲突、极限/竞态/完整状态故障矩阵、实际专业编辑器及暂停的真实桌面未闭合；C++ 多源独立 SDK 构建/probe/待重启与 W5 not_run。历史 Green 不代表当前累计出口。 |
 
 
 | 应用内自定义节点工作台（S0/S1自动化子集） | NA0001～07历史草稿/独立检查/检查前冻结/schema2精确锁/首次迁移备份及故障恢复保留。2026-10-24审查LNK2001已通过真实PythonAuthoring::apply修复，当前Debug编辑器/测试构建成功。NA0008不可变包、原子索引、幂等Apply、生产按钮/即时库刷新/插入/Inspector调参/端口连线/保存/真实Run，排队Run提交时拥有catalog副本。NA0009两个确定性时序Red已纳入生产面板正式测试，取消撤销晚到Ready、失败保存后检查中放弃能关闭且保存仍1次。NA0010共同宿主恢复已接入编辑器worker启动/新CLI，缺精确锁拒绝；NA0011已创建处理器执行前验证原版本并从同hash副本运行，改源码前置拒绝、原字节修复后恢复。NA0012后台准备包/索引→UI预备条目→后台原子提交→稳定catalog交换，目录准备失败不发布且可重试，提交校验并发索引。NA0013名称/type字段维护同一JSON，中文名称实际Apply、新建独立默认type通过24/24及独立草稿/manifest字节核验。NA0014可选择状态模板，initialize/process/reset跨块和重跑归零，实际Apply/插入/Inspector step=1e-5显示与2e-5提交已验证；模板元数据补1e-6步长。NA0015命名双输入/双输出生成/试跑及两个真实WAV源分别选main/side运行通过，独立读取两路NPY/所选WAV/资源快照和精确源码。历史 `NA0015-named-template/direct-green.json/xml` 58/59（全部27个NA及画布/端口/所选输出通过），唯一UPN文档换行/哈希写入差异已修复并1/1复验；Runtime OFF/Python OFF/Editor OFF纯库重建3/3。此前NA0014工作台25项+参数5项30/30。独立安装索引/包/工程锁/实际执行源码/513帧WAV核验，组件误差1.42e-8，新CLI误差3.72e-9。 | 68项逐项映射 `tests/node_authoring_manifest.json`，NA0030出口49个真实测试均已发现并绑定，当前版本切片结果见上文；每条执行通过只属于所记快照，不能作为完整NA项/阶段passed。完整故障/中断恢复、同包多类型锁/升级、迟到预览与慢运行归属、完整不兼容迁移、携带/重放、完整定义表单/队列预算、C++构建/probe/激活尚待闭合。首次schema升级GUI提示未做，NA0007备份IO已完成部分。NA0008直接61/63，UPN旧文档哈希/外部TEMP两项已定位并各1/1复验；重链接的Python消费者24/24；NA0011 Python OFF18/18仅诊断/组件子集，不代表Python执行通过。NA0012事务后重建消费者直接67/67；NA0013另有28/28（编译交叠绑定限制见报告）。NA0014首轮两条5秒内未完成检查的失败仍保留，复验通过但原等待原因未完全定位；完整预算/稳定性仍缺项，未放宽阈值。S0～S5均未正式通过，真实桌面/DPI仍not_verified。 |
