@@ -4750,6 +4750,116 @@ TEST_CASE("NWS-06.a external editor can write both log streams after its launch 
 #endif
 }
 
+TEST_CASE("NWS-06.a host shutdown flushes staged preferences before reporting drained",
+          "[NWS0013][editor_preferences][editor_shutdown][NWS-06.a][component][node_workspace]") {
+    using namespace audioalgo::editor;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/NWS0013-editor-memory/shutdown"/juce::Uuid().toString().toStdString();
+    const auto file=root/"preferences.json";
+    auto store=std::make_shared<EditorPreferencesStore>(file);
+    auto registry=std::make_shared<audioalgo::NodeRegistry>();REQUIRE(audioalgo::register_builtin_nodes(*registry));
+    EditorComponent editor(registry,std::make_shared<Documents>(),std::make_shared<audioalgo::ProjectResourceService>(),std::make_shared<Preview>(),
+        std::make_shared<audioalgo::authoring::FileDraftStorage>(root/"drafts"),false,{}, {},true,{},{},{},{},{},{},store);
+    // Model the latest staged choice while its ordinary worker flush is still pending.
+    const EditorPreferences pending{root/"Trae CN.exe",root/"last-project"};
+    store->stage(pending);
+    CHECK_FALSE(std::filesystem::exists(file));
+    bool drained=false;editor.begin_shutdown([&]{drained=true;});
+    REQUIRE(pump([&]{return drained;}));
+    CHECK(std::get<EditorPreferences>(EditorPreferencesStore(file).load())==pending);
+}
+
+TEST_CASE("NWS-06.a editor preferences round trip paths and preserve corrupt settings",
+          "[NWS0013][editor_preferences][NWS-06.a][component][node_workspace]") {
+    using namespace audioalgo::editor;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/NWS0013-editor-memory/store"/juce::Uuid().toString().toStdString();
+    const auto file=root/"preferences.json";
+    EditorPreferencesStore store(file);
+    const EditorPreferences value{root/std::filesystem::u8path("编辑器 & $() `")/"Trae CN.exe",root/std::filesystem::u8path("上次的工程")};
+    store.stage(value);REQUIRE_FALSE(store.flush());
+    CHECK(std::get<EditorPreferences>(EditorPreferencesStore(file).load())==value);
+    auto forward=juce::JSON::parse(juce::String::fromUTF8(file_bytes(file).c_str()));
+    forward.getDynamicObject()->setProperty("future_setting","keep");
+    std::ofstream(file,std::ios::binary|std::ios::trunc)<<juce::JSON::toString(forward).toStdString();
+    store.stage(value);REQUIRE_FALSE(store.flush());
+    CHECK(juce::JSON::parse(juce::String::fromUTF8(file_bytes(file).c_str()))["future_setting"].toString()=="keep");
+    std::ofstream(file,std::ios::binary|std::ios::trunc)<<"{invalid";
+    CHECK(std::holds_alternative<audioalgo::Diagnostic>(store.load()));
+    store.stage({root/"other.exe",root/"other-project"});CHECK(store.flush().has_value());
+    CHECK(file_bytes(file)=="{invalid");
+}
+
+TEST_CASE("NWS-06.a reopening the host restores editor and last project and resumes without another picker",
+          "[NWS0013][editor_preferences][NWS-06.a][NWS-01.b][component][node_workspace]") {
+    using namespace audioalgo::authoring;
+    using namespace audioalgo::editor;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/NWS0013-editor-memory/restart"/juce::Uuid().toString().toStdString();
+    const auto target=root/std::filesystem::u8path("last 工程 & $() `");
+    REQUIRE(std::holds_alternative<Workspace>(WorkspaceStore{}.create(target,python_draft("remember-me"))));
+    const auto before=std::get<Workspace>(WorkspaceStore{}.open(target));
+    const auto executable=root/"editor.EXE";
+#ifdef AUDIOALGO_EDITOR_CAPTURE_EXECUTABLE
+    std::filesystem::copy_file(AUDIOALGO_EDITOR_CAPTURE_EXECUTABLE,executable);
+#else
+    std::ofstream(executable)<<"unused test editor";
+#endif
+    const auto file=root/"config/preferences.json";
+    auto store=std::make_shared<EditorPreferencesStore>(file);
+    auto registry=std::make_shared<audioalgo::NodeRegistry>();REQUIRE(audioalgo::register_builtin_nodes(*registry));
+    int editor_picks=0,directory_picks=0;
+    const auto make=[&]{return std::unique_ptr<EditorComponent>(new EditorComponent(registry,std::make_shared<Documents>(),std::make_shared<audioalgo::ProjectResourceService>(),std::make_shared<Preview>(),
+        std::make_shared<FileDraftStorage>(root/"drafts"),false,std::make_shared<PythonAuthoring>(root/"library"),{},true,{},{},{},{},
+        [&](const std::string&,const auto&,auto done){++directory_picks;done(target);},[&](auto done){++editor_picks;done(executable);},store));};
+    {
+        auto editor=make();click(*editor,"authoring.new");
+        auto* panel=control<NodeAuthoringPanel>(*editor,"authoring.panel");REQUIRE(panel);
+        click(*panel,"authoring.workspace_editor");click(*panel,"authoring.workspace_open");
+        REQUIRE(pump([&]{return panel->workspace_mode();}));
+        REQUIRE(pump([&]{auto saved=store->load();return std::holds_alternative<EditorPreferences>(saved)&&std::get<EditorPreferences>(saved)==EditorPreferences{executable,target};}));
+    }
+    store=std::make_shared<EditorPreferencesStore>(file); // New store, no memory shared with the old host.
+    auto editor=make();click(*editor,"authoring.new");
+    auto* panel=control<NodeAuthoringPanel>(*editor,"authoring.panel");REQUIRE(panel);
+    editor->setSize(1100,700);
+    CHECK(control<juce::Label>(*panel,"authoring.editor_status")->getText().contains("editor.EXE"));
+    auto* recent=control<juce::TextButton>(*panel,"authoring.workspace_resume");REQUIRE(recent);CHECK(recent->isVisible());
+    CHECK(control<juce::Label>(*panel,"authoring.preferences_status")->getText().contains("last"));
+    save_component_image(*panel,root/"restored-draft-1100.png");
+    click(*panel,"authoring.workspace_resume");REQUIRE(pump([&]{return panel->workspace_mode();}));
+    CHECK(panel->workspace_directory()==target);CHECK(std::get<Workspace>(WorkspaceStore{}.open(target))==before);
+    CHECK(editor_picks==1);CHECK(directory_picks==1);
+    save_component_image(*panel,root/"restored-project-1100.png");
+    std::ofstream(root/"memory-receipt.json")<<"{\"settings\":\"config/preferences.json\"}";
+}
+
+TEST_CASE("NWS-06.a missing remembered projects are never recreated and save failures show session only",
+          "[NWS0013][editor_preferences][NWS-06.a][NWS-02.b][component][node_workspace]") {
+    using namespace audioalgo::authoring;using namespace audioalgo::editor;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root=std::filesystem::path(AUDIOALGO_SOURCE_DIR)/"build/reports/loops/NWS0013-editor-memory/failure"/juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root);
+    auto registry=std::make_shared<audioalgo::NodeRegistry>();REQUIRE(audioalgo::register_builtin_nodes(*registry));
+    const auto file=root/"preferences.json";auto store=std::make_shared<EditorPreferencesStore>(file);
+    const auto missing=root/"deleted-project";store->stage({root/"missing-editor.exe",missing});REQUIRE_FALSE(store->flush());
+    const auto make=[&]{return std::unique_ptr<EditorComponent>(new EditorComponent(registry,std::make_shared<Documents>(),std::make_shared<audioalgo::ProjectResourceService>(),std::make_shared<Preview>(),
+        std::make_shared<FileDraftStorage>(root/"drafts"),false,{}, {},true,{},{},{},{},{},[&](auto done){done(root/"chosen.exe");},store));};
+    {
+        auto editor=make();click(*editor,"authoring.new");auto* panel=control<NodeAuthoringPanel>(*editor,"authoring.panel");REQUIRE(panel);
+        const auto original=panel->session().document();
+        click(*panel,"authoring.workspace_resume");REQUIRE(pump([&]{return !panel->workspace_creating();}));
+        CHECK_FALSE(panel->workspace_mode());CHECK_FALSE(std::filesystem::exists(missing));CHECK(panel->session().document()==original);
+        CHECK(control<juce::Label>(*panel,"authoring.editor_status")->getText().contains("missing-editor.exe"));
+    }
+    const auto blocked=root/"blocked";std::ofstream(blocked)<<"keep";
+    store=std::make_shared<EditorPreferencesStore>(blocked/"preferences.json");
+    auto editor=make();click(*editor,"authoring.new");auto* panel=control<NodeAuthoringPanel>(*editor,"authoring.panel");REQUIRE(panel);
+    click(*panel,"authoring.workspace_editor");
+    REQUIRE(pump([&]{auto* message=control<juce::Label>(*panel,"authoring.preferences_status");return message&&message->getText().contains("Session only");}));
+    CHECK(control<juce::Label>(*panel,"authoring.editor_status")->getText().contains("chosen.exe"));
+    CHECK(file_bytes(blocked)=="keep");
+}
+
 TEST_CASE("NWS-06.a external edit refuses an unrelated folder and invalid project without writing",
           "[NWS0011][workspace_resume][NWS-06.a][NWS-02.b][component][node_workspace]") {
     using namespace audioalgo::authoring;

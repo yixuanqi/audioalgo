@@ -43,7 +43,8 @@ public:
             std::make_shared<audioalgo::authoring::PythonAuthoring>(authoring_root, std::filesystem::path{}, std::filesystem::path{}, std::function<bool(audioalgo::authoring::ApplyPhase)>{}, work_directory), std::function<bool()>{}, true,
             std::function<void(bool, const std::filesystem::path&, DraftFileActions::Completion)>{},
             [](bool recovery, const std::filesystem::path& path) { return audioalgo::authoring::save_authoring_location(recovery, path); },
-            [](const std::filesystem::path& path) { return audioalgo::authoring::save_authoring_library_location(path); }), true);
+            [](const std::filesystem::path& path) { return audioalgo::authoring::save_authoring_library_location(path); }, {}, {}, {},
+            std::make_shared<EditorPreferencesStore>(editor_preferences_file())), true);
         const auto* primary_display = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay();
         const auto initial_size = primary_display == nullptr
             ? audioalgo::editor::default_editor_window_size

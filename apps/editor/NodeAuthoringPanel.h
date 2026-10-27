@@ -42,6 +42,9 @@ struct DraftFileActions {
     std::optional<WorkspaceBinding> workspace;
     std::function<void(std::function<void(std::filesystem::path)>)> choose_workspace_directory;
     std::function<void(Completion)> choose_workspace_for_edit;
+    std::function<std::filesystem::path()> last_project_directory;
+    std::function<std::string()> preferences_status;
+    std::function<void(const std::filesystem::path&)> workspace_opened;
     std::function<authoring::WorkspaceOutcome(const std::filesystem::path&, const authoring::Draft&)> create_workspace;
     std::function<authoring::WorkspaceOutcome(const std::filesystem::path&)> scan_workspace;
     std::function<void(std::function<void(bool)>)> choose_editor;
@@ -166,6 +169,12 @@ public:
         addChildComponent(workspace_files_);
         open_project_.onClick = [this] { edit_externally(); };
         choose_editor_.onClick = [this] { choose_editor(false); };
+        resume_project_.setComponentID("authoring.workspace_resume");
+        preferences_status_.setComponentID("authoring.preferences_status");
+        addChildComponent(resume_project_); style_button(resume_project_);
+        addChildComponent(preferences_status_); preferences_status_.setColour(juce::Label::textColourId, muted);
+        preferences_status_.setMinimumHorizontalScale(1.f);
+        resume_project_.onClick = [this] { if (files_.last_project_directory) select_workspace(files_.last_project_directory(),false,true); };
         open_folder_.onClick = [this] {
             if (workspace_mode() && !to_juce_file(workspace_directory_).startAsProcess())
                 diagnostic_.setButtonText("Could not open the project folder; use the displayed path");
@@ -232,6 +241,19 @@ public:
         toggle_definition_.setButtonText(workspace_definition_expanded_ ? "Hide advanced JSON" : "Ports & parameters...");
         toggle_workspace_logs_.setButtonText(workspace_logs_expanded_ ? "Hide logs" : "Logs");
         editor_status_.setBounds(area.removeFromTop(18));
+        const auto recent = files_.last_project_directory ? files_.last_project_directory() : std::filesystem::path{};
+        const auto message = files_.preferences_status ? files_.preferences_status() : std::string{};
+        const bool show_recent = !folder && !recent.empty();
+        resume_project_.setVisible(show_recent);
+        preferences_status_.setVisible(show_recent || !message.empty());
+        if (show_recent || !message.empty()) {
+            auto row = area.removeFromTop(26);
+            if (show_recent) resume_project_.setBounds(row.removeFromLeft(182).reduced(2));
+            preferences_status_.setBounds(row);
+            preferences_status_.setText(utf8_string((show_recent ? "Last project: " + path_to_utf8(recent) : "") +
+                (show_recent && !message.empty() ? " | " : "") + message),juce::dontSendNotification);
+            preferences_status_.setTooltip(preferences_status_.getText());
+        }
         for (auto* c : std::initializer_list<juce::Component*>{&work_folder_, &recovery_folder_, &library_folder_, &locations_, &templates_, &type_id_, &display_name_}) c->setVisible(!folder);
         auto locations = folder ? juce::Rectangle<int>{} : area.removeFromTop(26);
         work_folder_.setBounds(locations.removeFromLeft(130).reduced(2)); recovery_folder_.setBounds(locations.removeFromLeft(145).reduced(2)); library_folder_.setBounds(locations.removeFromLeft(135).reduced(2)); locations_.setBounds(locations);
@@ -273,6 +295,7 @@ public:
     const std::optional<authoring::ReadyPackage>& ready() const { return ready_; }
     const std::filesystem::path& file_path() const { return files_.path; }
     bool workspace_mode() const { return files_.workspace.has_value(); }
+    void refresh_preferences() { update_status(); resized(); }
     bool workspace_creating() const { return workspace_creating_.valid(); }
     bool workspace_created() const { return !workspace_directory_.empty(); }
     const std::filesystem::path& workspace_directory() const { return workspace_directory_; }
@@ -349,6 +372,7 @@ private:
         editor_status_.setText(!editor.empty() ? "Editor: " + utf8_string(editor) : editor_chosen_ ? "Editor selected for this session" : "No editor selected. Choose your editor; VS Code is optional.", juce::dontSendNotification);
         editor_status_.setTooltip(editor_status_.getText());
         choose_editor_.setEnabled(files_.choose_editor && !choosing_editor_);
+        resume_project_.setEnabled(!workspace_creating_.valid());
         open_project_.setEnabled(!choosing_editor_ && !workspace_creating_.valid() && (workspace_mode() || (files_.choose_workspace_directory && files_.create_workspace)));
         if (files_.workspace) {
             const auto hash = workspace_content_sha256_.substr(0, std::min<std::size_t>(12, workspace_content_sha256_.size()));
@@ -626,6 +650,7 @@ private:
                 locations_.setTooltip(locations_.getText());
                 check_state_.setText(selection.second ? utf8_literal("Node project opened · edit files externally, then Check") : utf8_literal("Node project created · edit files externally, then Check"),
                     juce::dontSendNotification);
+                if (files_.workspace_opened) files_.workspace_opened(workspace_directory_);
                 if (open_after) open_project({},0,0);
             }
             update_status();
@@ -888,6 +913,8 @@ private:
     std::size_t workspace_file_count_ = 0;
     juce::ListBox workspace_files_;
     juce::TextButton open_project_{"Edit externally..."}, refresh_project_{"Refresh disk"}, choose_editor_{"Choose editor..."}, open_folder_{"Open folder"};
+    juce::TextButton resume_project_{"Continue last project"};
+    juce::Label preferences_status_;
     juce::TextButton toggle_definition_{"Definition"}, toggle_workspace_logs_{"Logs"};
     bool workspace_definition_expanded_ = false, workspace_logs_expanded_ = false;
     std::future<authoring::WorkspaceOutcome> workspace_refresh_;

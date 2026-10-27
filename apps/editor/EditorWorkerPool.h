@@ -26,19 +26,26 @@ public:
         return true;
     }
 
-    [[nodiscard]] bool shutdown_async(int first_wait_timeout_ms, ShutdownCompletion completion) {
+    [[nodiscard]] bool shutdown_async(int first_wait_timeout_ms, ShutdownCompletion completion,
+                                      std::function<void()> final_work = {}) {
         jassert(juce::MessageManager::getInstance()->isThisTheMessageThread());
         if (shutdown_started_)
             return false;
 
         shutdown_started_ = true;
         shutdown_thread_ = std::thread(
-            [this, first_wait_timeout_ms, completion = std::move(completion)]() mutable {
+            [this, first_wait_timeout_ms, completion = std::move(completion),
+             final_work = std::move(final_work)]() mutable {
                 const bool first_wait_timed_out = !pool_.removeAllJobs(true, first_wait_timeout_ms);
                 if (first_wait_timed_out) {
                     const bool drained = pool_.removeAllJobs(true, -1);
                     jassert(drained);
                 }
+
+                // Queued pool jobs may have been removed without running. Finish
+                // essential persisted state off the message thread before closing.
+                if (final_work)
+                    final_work();
 
                 const bool callback_posted = juce::MessageManager::callAsync(
                     [completion = std::move(completion), first_wait_timed_out]() mutable {

@@ -6,6 +6,7 @@
 #include "EditorPanelSplitter.h"
 #include "EditorText.h"
 #include "EditorExternalProcess.h"
+#include "EditorPreferences.h"
 #include "EditorNodeCreation.h"
 #include "EditorNodeDragDrop.h"
 #include "EditorTopologyHistory.h"
@@ -71,7 +72,8 @@ public:
                     std::function<authoring::SaveResult(const std::filesystem::path&)> library_location_persistence = {},
                     RunConfiguration run_configuration = {},
                     std::function<void(const std::string&, const std::filesystem::path&, DraftFileActions::Completion)> directory_picker = {},
-                    std::function<void(DraftFileActions::Completion)> editor_picker = {})
+                    std::function<void(DraftFileActions::Completion)> editor_picker = {},
+                    std::shared_ptr<const EditorPreferencesStore> preferences = {})
         : document_service_(std::move(document_service)), project_resources_(std::move(project_resources)),
           preview_service_(std::move(preview_service)), descriptors_owner_(std::move(descriptors)),
           available_catalog_(std::make_shared<const NodeRegistry>(descriptors_)), controller_(descriptors_), project_(controller_.project()),
@@ -99,6 +101,13 @@ public:
               path_from_juce_file(juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
                   .getChildFile("AudioAlgo").getChildFile("authoring").getChildFile("drafts")))), checks_(std::move(checks)), allow_catalog_prepare_(std::move(allow_catalog_prepare)), user_draft_files_(user_draft_files), draft_picker_(std::move(draft_picker)), directory_picker_(std::move(directory_picker)), editor_picker_(std::move(editor_picker)), location_persistence_(std::move(location_persistence)), library_location_persistence_(std::move(library_location_persistence)) {
         run_configuration_=run_configuration;
+        preferences_store_ = std::move(preferences);
+        if (preferences_store_) {
+            auto restored = preferences_store_->load();
+            if (auto* value = std::get_if<EditorPreferences>(&restored)) {
+                code_editor_ = value->editor_executable; last_node_project_ = value->last_project_directory;
+            } else preferences_message_ = "Could not load settings: " + std::get<Diagnostic>(restored).message;
+        }
         setLookAndFeel(&look_and_feel_);
         library_splitter_.configure("workspace.splitter.library", "Resize node library", true,
             [this](int delta) { panel_sizes_.library += delta; resized(); repaint(); },
@@ -255,6 +264,10 @@ public:
                     juce::Logger::writeToLog("Editor worker shutdown exceeded the initial five-second wait; joined active work safely.");
                 if (on_drained)
                     on_drained();
+            }, [store = preferences_store_] {
+                if (store)
+                    if (const auto error = store->flush())
+                        juce::Logger::writeToLog("Editor preferences were not saved before closing: " + utf8_string(error->message));
             });
         jassert(started);
     }
@@ -460,9 +473,30 @@ private:
             std::move(completion), true);
     }
     std::filesystem::path code_editor_;
+    std::filesystem::path last_node_project_;
+    std::shared_ptr<const EditorPreferencesStore> preferences_store_;
+    std::string preferences_message_;
+    std::uint64_t preferences_request_ = 0;
+    void remember_editor_preferences() {
+        if (!preferences_store_) return;
+        preferences_store_->stage({code_editor_,last_node_project_});
+        const auto request = ++preferences_request_;
+        const auto store = preferences_store_;
+        preferences_message_ = "Saving editor settings...";
+        if (!submit_work<authoring::SaveResult>([store] { return store->flush(); },
+            [request](EditorComponent& target, authoring::SaveResult result) {
+                if (request != target.preferences_request_) return;
+                target.preferences_message_ = result ? "Session only; settings not saved: " + result->message : "";
+                if (target.authoring_panel_) target.authoring_panel_->refresh_preferences();
+            })) preferences_message_ = "Session only; settings not saved because the editor is closing";
+        if (authoring_panel_) authoring_panel_->refresh_preferences();
+    }
+    void remember_node_project(const std::filesystem::path& directory) {
+        last_node_project_ = directory; remember_editor_preferences();
+    }
     void open_node_workspace() {
         if (authoring_panel_) { authoring_panel_->toFront(true); return; }
-        choose_directory("Open node project folder", {}, [this](std::filesystem::path directory) {
+        choose_directory("Open node project folder", last_node_project_, [this](std::filesystem::path directory) {
             if (directory.empty()) return;
             const auto epoch = project_epoch_;
             submit_work<authoring::WorkspaceOutcome>(
@@ -474,6 +508,7 @@ private:
                         return;
                     }
                     auto workspace = std::get<authoring::Workspace>(std::move(outcome));
+                    target.remember_node_project(workspace.directory);
                     auto draft = authoring::workspace_identity(workspace);
                     std::uint64_t bytes = 0;
                     for (const auto& file : workspace.files) bytes += file.bytes;
@@ -511,10 +546,10 @@ private:
             files.library_change_queued = [this] { library_restart_pending_ = true; };
             if (library_restart_pending_) files.initial_location_message += (files.initial_location_message.empty() ? "" : " | ") + std::string("Library change queued; save and restart before applying new versions");
             files.choose_workspace_directory = [this](DraftFileActions::Completion completion) {
-                choose_directory("Create node project folder", {}, std::move(completion));
+                choose_directory("Create node project folder", last_node_project_.parent_path(), std::move(completion));
             };
             files.choose_workspace_for_edit = [this](DraftFileActions::Completion completion) {
-                choose_directory("Open an existing node project or choose an empty folder to create one", {}, std::move(completion));
+                choose_directory("Open an existing node project or choose an empty folder to create one", last_node_project_, std::move(completion));
             };
             if (!files.create_workspace)
                 files.create_workspace = [](const std::filesystem::path& target, const authoring::Draft& source) {
@@ -522,12 +557,15 @@ private:
                 };
         }
         files.editor_description = [this] { return path_to_utf8(code_editor_); };
+        files.last_project_directory = [this] { return last_node_project_; };
+        files.preferences_status = [this] { return preferences_message_; };
+        files.workspace_opened = [this](const std::filesystem::path& directory) { remember_node_project(directory); };
         files.choose_editor = [this](std::function<void(bool)> done) {
             juce::Component::SafePointer<EditorComponent> safe(this);
             auto selected = [safe,done=std::move(done)](std::filesystem::path executable) {
                 if (!safe) return;
                 const bool chosen = !executable.empty();
-                if (chosen) safe->code_editor_ = std::move(executable);
+                if (chosen) { safe->code_editor_ = std::move(executable); safe->remember_editor_preferences(); }
                 done(chosen);
             };
             if (editor_picker_) { editor_picker_(std::move(selected)); return; }
