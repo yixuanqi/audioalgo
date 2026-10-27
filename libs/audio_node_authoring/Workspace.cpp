@@ -157,6 +157,15 @@ void require_unlinked(const std::filesystem::path& path) {
         if (is_linked(current)) fail("workspace_path_invalid", "Linked or reparse path rejected");
     }
 }
+void remove_unlinked(const std::filesystem::path& path) noexcept {
+    try {
+        // A failed transaction owns the original paths, not a replacement link
+        // and whatever files that link now exposes.
+        require_unlinked(path);
+        std::error_code ignored;
+        std::filesystem::remove(io_path(path), ignored);
+    } catch (...) {}
+}
 std::string path_to_utf8_generic(const std::filesystem::path& path) {
     const auto bytes = path.generic_u8string();
     return std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
@@ -180,6 +189,7 @@ void write_atomic(const std::filesystem::path& path, std::string_view bytes,
         if (allow && !allow(phase))
             fail("workspace_write_failed", "Injected workspace failure at phase '" + name + "'");
     };
+    require_unlinked(path);
     const auto io = io_path(path);
     const auto parent = io.parent_path();
     std::error_code error;
@@ -190,6 +200,7 @@ void write_atomic(const std::filesystem::path& path, std::string_view bytes,
     temporary += L".tmp-" + std::to_wstring(++serial);
     try {
         hook(WorkspacePhase::write, "write");
+        require_unlinked(path);
         {
             std::ofstream stream(temporary, std::ios::binary | std::ios::trunc);
             stream.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
@@ -200,6 +211,7 @@ void write_atomic(const std::filesystem::path& path, std::string_view bytes,
         if (read_bytes(temporary, bytes.size() + 1, "workspace_io_failed") != bytes)
             fail("workspace_io_failed", "Verification failed for " + path_to_utf8_generic(path));
         hook(WorkspacePhase::replace, "replace");
+        require_unlinked(path);
 #ifdef _WIN32
         if (!MoveFileExW(temporary.c_str(), io.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
             fail("workspace_io_failed", "Could not replace " + path_to_utf8_generic(path) + ", Windows error " +
@@ -210,9 +222,9 @@ void write_atomic(const std::filesystem::path& path, std::string_view bytes,
         if (error_code) fail("workspace_io_failed", "Could not replace " + path_to_utf8_generic(path));
 #endif
     } catch (...) {
-        // A failed phase never leaves its own temporary file behind.
-        std::error_code ignored;
-        std::filesystem::remove(temporary, ignored);
+        // Clean only the original unlinked path. A renamed or replaced tree
+        // belongs to the external actor; do not follow it to reclaim files.
+        remove_unlinked(temporary);
         throw;
     }
 }
@@ -795,6 +807,7 @@ Workspace create_workspace(const std::filesystem::path& target, const Draft& dra
     } else {
         if (allow && !allow(WorkspacePhase::create))
             fail("workspace_write_failed", "Injected workspace failure at phase 'create'");
+        require_unlinked(target);
         // Reuse every existing ancestor (volume and share roots included) and only
         // create the missing segments, mirroring the pinned draft-save fix.
         std::filesystem::create_directories(io_target, error);
@@ -810,6 +823,7 @@ Workspace create_workspace(const std::filesystem::path& target, const Draft& dra
                 auto current = target;
                 for (const auto& segment : parent) {
                     current /= segment;
+                    require_unlinked(current);
                     if (std::filesystem::create_directory(io_path(current), error))
                         created_directories.push_back(current);
                     if (error) fail("workspace_io_failed", "Could not create a source directory: " + error.message());
@@ -824,16 +838,13 @@ Workspace create_workspace(const std::filesystem::path& target, const Draft& dra
         // Only remove files and directories this call created; pre-existing target
         // bytes and pre-existing empty directories are never disturbed.
         for (auto iterator = written.rbegin(); iterator != written.rend(); ++iterator) {
-            std::error_code ignored;
-            std::filesystem::remove(*iterator, ignored);
+            remove_unlinked(*iterator);
         }
         for (auto iterator = created_directories.rbegin(); iterator != created_directories.rend(); ++iterator) {
-            std::error_code ignored;
-            std::filesystem::remove(io_path(*iterator), ignored);
+            remove_unlinked(*iterator);
         }
         if (created_target) {
-            std::error_code ignored;
-            std::filesystem::remove(io_target, ignored);
+            remove_unlinked(target);
         }
         throw;
     }

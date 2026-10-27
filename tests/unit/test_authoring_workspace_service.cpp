@@ -7,6 +7,7 @@
 #include <atomic>
 #include <chrono>
 #include <fstream>
+#include <iostream>
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -289,6 +290,34 @@ TEST_CASE("NWS-01.c unknown declaration fields are preserved in the canonical de
     CHECK(workspace.entrypoint == "preserve.process:process");
     CHECK(workspace.files.size() == 2);
     CHECK(workspace.files[1].path == "src/preserve/process.py");
+}
+
+TEST_CASE("NWS-02.b a target replaced by a junction during creation never overwrites or rolls back foreign files",
+          "[NWS0010][workspace_create_swap][NWS-02.a][NWS-02.b][node_workspace][pure]") {
+#ifdef _WIN32
+    for(const auto phase:{WorkspacePhase::write,WorkspacePhase::verify,WorkspacePhase::replace}) {
+        INFO(static_cast<int>(phase));
+        const auto base=root(), target=base/"author", parked=base/"parked", foreign=base/"foreign";
+        write(foreign/"node.json","foreign declaration");
+        write(foreign/"src/swap/__init__.py","foreign init");
+        write(foreign/"src/swap/process.py","foreign source");
+        int occurrences=0;bool swapped=false;
+        const auto result=WorkspaceStore([&](WorkspacePhase observed) {
+            if(observed==phase && ++occurrences==2) {fs::rename(target,parked);junction(target,foreign);swapped=true;}
+            return true;
+        }).create(target,python_draft_for("swap"));
+        struct Cleanup {fs::path link;~Cleanup(){std::error_code error;fs::remove(link,error);}} cleanup{target};
+        REQUIRE(swapped);REQUIRE(std::holds_alternative<Diagnostic>(result));
+        CHECK(std::get<Diagnostic>(result).code=="workspace_path_invalid");
+        CHECK(bytes(foreign/"node.json")=="foreign declaration");
+        CHECK(bytes(foreign/"src/swap/__init__.py")=="foreign init");
+        CHECK(bytes(foreign/"src/swap/process.py")=="foreign source");
+        std::size_t files=0;for(const auto& item:fs::recursive_directory_iterator(foreign))if(item.is_regular_file())++files;
+        CHECK(files==3);
+        require_workspace(WorkspaceStore{}.create(base/"retry",python_draft_for("swap")));
+        std::cout<<"NWS0010_ROOT="<<base.generic_string()<<'\n';
+    }
+#endif
 }
 
 TEST_CASE("NWS-01.b conversion from the frozen legacy draft keeps its bytes and reopens",
