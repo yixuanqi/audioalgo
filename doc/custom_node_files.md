@@ -12,6 +12,20 @@
 
 2026-10-26 修复：已存在的卷根（例如 `D:\`）在保存时直接复用，不再请求“创建卷根目录”。这只修复了误报的 `create_directories` 拒绝访问；若目标卷本身没有文件写入权限，仍会明确失败，可选择有写权限的子目录。当前构建已通过自动化，真实桌面选择器及该卷实际写入仍待验收。多文件节点工程/外部 IDE 的选择见[开发方式评估提案](plan_node_development_workspace.md)，不属于当前 `.aadraft` 能力。
 
+## Python 多文件节点工程（2026-10-27 开发子集）
+
+1. 在 **New custom node** 填写 Python 声明和入口源码，然后点击 **Node project folder...** 选择空目录。也可先用 **Open draft** 打开旧 .aadraft，再复制转换；原文件不改写。目录内可选 `.audioalgo-authoring.json` 只记录原作者 ID，以便转换已应用节点后仍沿用原受管包；它不是源码或第二份节点声明，请保留。
+2. 成功后直接显示 **Python node project**、工程路径和文件列表。**Choose editor...** 可选择编辑器 .exe，随后 **Open code project** 打开目录；没有选择时使用系统打开文件夹。VS Code 可选，设置当前仅在本次宿主会话内保留。
+3. 在编辑器中修改 `src/` 的入口和辅助模块。模块内用相对导入，例如 `from .filter import mix`。AudioAlgo 的预览只读，磁盘是唯一源码来源；每 750ms 后台核对，也可点 **Refresh disk**。运行内容变化显示 **Disk changed** 并撤销旧 Ready。
+4. 点击 **Check / trial run**，稳定冻结整个源码树后静态检查全部 .py，再在独立 runner 契约试跑。语法错误显示相对文件、1-based 行/列（Unicode 字符），点击诊断可在预览定位，并交给选定编辑器；VS Code 支持行列，通用编辑器至少收到文件路径。**Definition** 和 **Logs** 可按需展开。
+5. Ready 后 **Apply** 安装本机不可变版本并刷新节点库。关闭工程面板，从库拖入画布、连接输入和 Output、Run。Apply 新版本不会升级已有图；保存过的图继续锁定原精确包，升级走原 **Upgrade project** 流程。
+
+终端可调用同一检查服务：`audio_cli check-node <node-project-folder> <work-directory>`。输出 Ready 的 workspace/content/package 身份，失败返回结构化 code/file/line/column，失败退出非零；不自动 Apply。
+
+Python 目录也冻结 src/ 下的数据文件与 node.json 的 resources 显式资源列表。源码旁文件可由 Path(__file__).parent 定位，根资源可由入口文件所在位置向上定位工程根；资源随不可变版本安装，运行不依赖作者目录。资源路径与内部 manifest.json/snapshot.json 或映射后的 workspace_src 路径冲突会拒绝。
+
+当前限制：极长清单/大声明与极限源码组合、完整冲突/状态/故障矩阵及编辑器真实启动仍待验收。声明表单当前只读，可从外部编辑 node.json。C++ 目录可只读重开，但工作台多文件独立构建/probe/待重启尚未交付。W1/W2/W3 正式出口未通过；组件预览和 CLI 数值不替代暂停中的真实桌面/DPI。
+
 ## 恢复备份
 
 恢复备份继续自动防抖写入，状态 **Recovery backed up; file unsaved** 表示有恢复副本、用户文件仍未保存。自动恢复不会覆盖用户文件，也不会清除未保存标记。恢复时显示副本、原文件路径和更新时间；原文件被外部改动时仍按冲突规则保护。

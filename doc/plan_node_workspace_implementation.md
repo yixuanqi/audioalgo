@@ -1,20 +1,22 @@
 ---
 title: 自定义节点多文件工作区详细开发方案
-status: w0-frozen-w1-first-behaviour
-updated: 2026-10-26
+status: w2-python-loop-partial
+updated: 2026-10-27
 ---
 
 # 自定义节点多文件工作区：详细开发方案
 
 配套[选型概览](plan_node_development_workspace.md)、[逐项验收](testing_node_workspace_authoring.md)、[既有工作台方案](plan_node_authoring_workbench.md)和[唯一当前摘要](development_status.md)。
 
-## 0. 实施现状（2026-10-26，勿把本文当已实现能力）
+## 0. 实施现状（2026-10-27，正式出口未通过）
 
 - **W0 已冻结**：`doc/decisions/0040-node-workspace-schema-v1.md` 固定作者工作区 schema 1、规范化 JSON、运行内容白名单/排除集、`AudioAlgoNodeWorkspace/1` 清单与整树 hash、路径与预算、创建/转换事务；`tests/fixtures/node_workspace/` 提供 4 个作者目录夹具、legacy `.aadraft`、6 类非法负例、只用标准库实现的独立期望工具与冻结 `workspace_lock.json`；`tests/node_workspace_manifest.json` 登记 NWS-01.a～10.c 并绑定文档/ADR/夹具/工具 hash，CTest `NWS-00.contract` 做 fail-closed 校验。
-- **W1 首个可验收行为已实现**：生产面板“Node project folder…”与节点库“Open node project”用真实目录创建节点工程；关闭后重开声明与源码一致；原 `.aadraft` 字节不变。服务层是纯 `audio_node_authoring/Workspace.*`（无 JUCE），面板的目录模式为只读（不写第二份源码缓冲）。NWS-01.a/b/c 记 `partial`，W1 剩余（失败注入、C++ 生产入口）与 W2 起全部行为仍未实现。
-- 证据与命令：`build/reports/loops/NWS0001-workspace-create/`。真实桌面/原生选择器/DPI 仍 `not_verified`；用户窗口未重启。
+- **W1 创建/转换与回收已有实现**：生产入口创建、转换和重开目录；原 .aadraft 字节保持。NWS0002 修复 passed 清单状态矛盾与嵌套 src 失败残留，均有真实 Red/Green。W1 正式出口仍未通过，剩余 C++ 生产入口/完整拒绝矩阵、reparse/事务和外部文件系统证据。
+- **W2 Python 最小生产闭环已有自动化证据**：稳定整树快照、并发修改拒绝、全 Python 文件静态检查、独立 runner 调用辅助模块、Ready/Apply 不可变版本、库刷新、生产库 drop/端口连线/Inspector/画布 Run 和独立 CLI 已执行；五份 WAV 的独立 oracle、实际 helper SHA 与树身份已核验，v2 发布后保存的 v1 工程仍运行原包。`audio_cli check-node <directory> <work-directory>` 调用同一检查服务。NWS0005 修复内部 wrapper 挤占128文件配额；NWS0006 补源码旁数据和显式资源冻结/试跑。极长清单/大声明与极限源码组合、完整故障/状态矩阵仍未收口，不能写 W2 passed。
+- **W3 必需可见基础已随闭环交付**：创建成功直接进入工程界面，目录/文件列表优先、只读磁盘预览、后台/主动刷新、通用 .exe 编辑器选择与系统打开文件夹后备、诊断相对文件/行/列和预览跳转；高级定义与日志可折叠。目录会话 source 为空，不写第二份 .aadraft/恢复源码。声明表单仍只读、冲突比较及编辑器真实启动尚未验收。
+- 原始证据：`build/reports/loops/NWS0001-workspace-create/`、`NWS0002-review-fixes/`、`NWS0003-python-tree/`。精确状态以 manifest 和 development_status 为准；W1/W2/W3 正式出口均未通过。真实桌面/原生选择器/DPI 继续 `not_verified`，未启动或重启用户窗口。
 
-本文其余部分保留目标设计，不因 W0/W1 首片而提升任何 NWS 子项为 `passed`。旧 `.aadraft` 仍是单文件编辑/恢复/应用路径；目录模式在 W1 只做创建、转换与只读重开，Check/Apply/多文件执行属 W2。
+本文其余部分仍是完整目标设计；W4/C++ 多文件独立工作台构建、probe、待重启与 W5 尚未交付。旧 .aadraft 单文件编辑/恢复/应用路径保留。
 
 ## 1. 目标、决策与边界
 

@@ -1,7 +1,7 @@
 ---
 title: 自定义节点多文件工作区逐项验收方案
-status: w0-frozen-w1-partial
-updated: 2026-10-26
+status: w2-python-loop-partial
+updated: 2026-10-27
 ---
 
 # 自定义节点多文件工作区：测试与通过准则
@@ -20,7 +20,7 @@ updated: 2026-10-26
 | 逐项映射 | `tests/node_workspace_manifest.json` | NWS-01.a～10.c 共 30 条：阶段、层次、旧 NA/PC 映射、计划/已绑定测试、状态与剩余条款 |
 | fail-closed 校验 | `tests/infrastructure/test_node_workspace_manifest.py`（CTest `NWS-00.contract`） | 校验 30 条 ID 与本文一致、阶段冻结、绑定的文档/ADR/夹具/工具 hash、夹具 `--check`、预算一致；`passed` 必须有已执行且证据存在的测试，`partial` 必须列剩余条款 |
 
-W0 只交付**契约与独立期望**：它本身不产生任何产品 `passed`。当前 W1 首个行为已实现并留下 Red→Green 与独立读取证据，逐项状态仍以 `tests/node_workspace_manifest.json` 为准（NWS-01.a/b/c 为 `partial`，其余 `not_run`，桌面项 `not_verified`）。
+W0 只交付**契约与独立期望**：它本身不产生任何产品 `passed`。当前 W1 创建事务、W2 Python 最小生产闭环与 W3 文件列表/磁盘状态/诊断跳转已有分片 Red→Green 和独立音频证据，逐项状态仍以 `tests/node_workspace_manifest.json` 为准；未覆盖完整条款的项保持 `partial`，W4/W5 未实现项保持 `not_run`，桌面项 `not_verified`。正式 W1/W2/W3 出口均未通过，具体已执行范围见 development_status 顶部。
 
 ## 1. 判定与证据规则
 

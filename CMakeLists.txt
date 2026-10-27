@@ -464,6 +464,9 @@ if(AUDIO_BUILD_TESTS)
   add_test(NAME NWS-00.contract
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/infrastructure/test_node_workspace_manifest.py")
   set_tests_properties(NWS-00.contract PROPERTIES LABELS "NWS;W0;infrastructure;contract" TIMEOUT 60)
+  add_test(NAME NWS-00.status
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/infrastructure/test_node_workspace_manifest_status.py")
+  set_tests_properties(NWS-00.status PROPERTIES LABELS "NWS;infrastructure;contract" TIMEOUT 60)
 
   foreach(case IN ITEMS b c)
     add_test(

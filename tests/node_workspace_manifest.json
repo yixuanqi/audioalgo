@@ -2,7 +2,7 @@
   "schema_version": 1,
   "scope": "node_workspace",
   "acceptance_source": "doc/testing_node_workspace_authoring.md",
-  "acceptance_source_sha256": "dedbf5b26e3fb479c57a4bd87d3ed4cc6e191f9f45880d8c1be06dc69dfc67a7",
+  "acceptance_source_sha256": "a5fe48803287b79debbcf85496f7a05471ff24785a097d3b5bce42d4ec51d211",
   "contract_adr": "doc/decisions/0040-node-workspace-schema-v1.md",
   "contract_adr_sha256": "2fb2500e424e930b106f4bcac3fdf21599c49722203123af4d46fa43f8cd4be3",
   "fixture_tool": "tests/fixtures/node_workspace/tools/workspace_expectation.py",
@@ -132,7 +132,9 @@
       ],
       "test_names": [
         "NWS-01.b conversion from the frozen legacy draft keeps its bytes and reopens",
-        "NWS-01.a production panel creates a node project folder and reopens identical declaration and source"
+        "NWS-01.a production panel creates a node project folder and reopens identical declaration and source",
+        "NWS-01.b converting an applied draft preserves its managed package identity after directory reopen",
+        "NWS-01.b author identity survives snapshot and changes revoke an otherwise identical runtime tree"
       ],
       "test_results": [
         {
@@ -148,6 +150,20 @@
           "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
           "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
           "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        },
+        {
+          "test_name": "NWS-01.b converting an applied draft preserves its managed package identity after directory reopen",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0004-conversion-identity/direct-exit.xml",
+          "command_record": "build/reports/loops/NWS0004-conversion-identity/direct-exit.json",
+          "snapshot_scope": "NWS0004; original .aadraft and W0 runtime bytes preserved; see ADR0041"
+        },
+        {
+          "test_name": "NWS-01.b author identity survives snapshot and changes revoke an otherwise identical runtime tree",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0004-conversion-identity/pure-exit.xml",
+          "command_record": "build/reports/loops/NWS0004-conversion-identity/pure-exit.json",
+          "snapshot_scope": "NWS0004; original .aadraft and W0 runtime bytes preserved; see ADR0041"
         }
       ],
       "status": "partial",
@@ -234,7 +250,8 @@
       "test_names": [
         "NWS-02.a long workspace paths and hostile declared paths are rejected before writing",
         "NWS-01.a frozen invalid workspaces report the documented codes",
-        "NWS-01.a workspace create writes the declaration and the entry source then reopens them"
+        "NWS-01.a workspace create writes the declaration and the entry source then reopens them",
+        "NWS-02.a create refuses a Windows junction target or ancestor before writing any file"
       ],
       "test_results": [
         {
@@ -257,6 +274,13 @@
           "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
           "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
           "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        },
+        {
+          "test_name": "NWS-02.a create refuses a Windows junction target or ancestor before writing any file",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0007-create-path/pure.xml",
+          "command_record": "build/reports/loops/NWS0007-create-path/pure.json",
+          "snapshot_scope": "NWS0007 pure Debug; real Windows FSCTL junction, no desktop evidence"
         }
       ],
       "status": "partial",
@@ -287,7 +311,8 @@
       ],
       "test_names": [
         "NWS-02.b injected create write verify and replace failures leave no partial workspace",
-        "NWS-01.a workspace create refuses a non-empty target and keeps its bytes"
+        "NWS-01.a workspace create refuses a non-empty target and keeps its bytes",
+        "NWS-02.b late source failure removes every newly created ancestor and permits retry"
       ],
       "test_results": [
         {
@@ -303,6 +328,13 @@
           "evidence": "build/reports/loops/NWS0001-workspace-create/summary.json",
           "command_record": "build/reports/loops/NWS0001-workspace-create/summary.json",
           "snapshot_scope": "NWS0001 Debug execution on git 50445cbd + local changes; see summary.json for source and binary hashes"
+        },
+        {
+          "test_name": "NWS-02.b late source failure removes every newly created ancestor and permits retry",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0002-review-fixes/green-rollback.xml",
+          "command_record": "build/reports/loops/NWS0002-review-fixes/green-rollback.json",
+          "snapshot_scope": "NWS0002; exact source hashes in command record"
         }
       ],
       "status": "partial",
@@ -331,14 +363,37 @@
         "no_ready_after_change",
         "stable_retry_manifest"
       ],
-      "test_names": [],
-      "test_results": [],
-      "status": "not_run",
+      "test_names": [
+        "NWS-02.c snapshot rejects concurrent helper edits and stable retry freezes exact runtime bytes",
+        "NWS-01.b author identity survives snapshot and changes revoke an otherwise identical runtime tree",
+        "NWS-02.c swapping a source folder to a junction during capture rejects all outside bytes and permits retry"
+      ],
+      "test_results": [
+        {
+          "test_name": "NWS-02.c snapshot rejects concurrent helper edits and stable retry freezes exact runtime bytes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0003-python-tree/green-snapshot.xml",
+          "command_record": "build/reports/loops/NWS0003-python-tree/green-snapshot.json",
+          "snapshot_scope": "NWS0003 development subset only; command record binds exact source and raw JUnit"
+        },
+        {
+          "test_name": "NWS-01.b author identity survives snapshot and changes revoke an otherwise identical runtime tree",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0004-conversion-identity/pure-exit.xml",
+          "command_record": "build/reports/loops/NWS0004-conversion-identity/pure-exit.json",
+          "snapshot_scope": "NWS0004; original .aadraft and W0 runtime bytes preserved; see ADR0041"
+        },
+        {
+          "test_name": "NWS-02.c swapping a source folder to a junction during capture rejects all outside bytes and permits retry",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0007-create-path/pure-final.xml",
+          "command_record": "build/reports/loops/NWS0007-create-path/pure-final.json",
+          "snapshot_scope": "NWS0007 pure Debug; real controlled source junction replacement; existing read guard verified, not a new fix; independent-files.json checks byte postconditions"
+        }
+      ],
+      "status": "partial",
       "remaining_clauses": [
-        "Concurrent modification between enumerate/copy/verify returns the structured diagnostic",
-        "No Ready or Apply produced from a changed tree",
-        "A stable retry produces a staging tree matching the manifest byte for byte",
-        "Link replacement during the snapshot is detected"
+        "Link replacement during enumerate/copy/verify still needs a controlled reparse-point fixture."
       ]
     },
     {
@@ -362,13 +417,29 @@
         "gui_and_cli_products",
         "helper_change_changes_result"
       ],
-      "test_names": [],
-      "test_results": [],
-      "status": "not_run",
+      "test_names": [
+        "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
+        "NWS-03.a explicit resource and adjacent data file are frozen and change real Python audio"
+      ],
+      "test_results": [
+        {
+          "test_name": "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0003-python-tree/audio-green.xml",
+          "command_record": "build/reports/loops/NWS0003-python-tree/audio-green.json",
+          "snapshot_scope": "NWS0003 development subset only; command record binds exact source and raw JUnit"
+        },
+        {
+          "test_name": "NWS-03.a explicit resource and adjacent data file are frozen and change real Python audio",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0006-assets/direct.xml",
+          "command_record": "build/reports/loops/NWS0006-assets/direct.json",
+          "snapshot_scope": "NWS0006 Debug; source hashes in command; independent byte/audio evidence in summary.json; no desktop claim"
+        }
+      ],
+      "status": "partial",
       "remaining_clauses": [
-        "process.py really calls filter.py through Check/Apply/library drop/connect/Run",
-        "GUI and CLI products each match the independent oracle, not each other",
-        "Deleting or changing filter.py yields a missing-module or new-coefficient result with no stale-cache success"
+        "Deleted helper / missing module and full stable audio matrix remain. Real OS interaction stays in NWS-10.a not_verified."
       ]
     },
     {
@@ -391,14 +462,29 @@
         "multi_instance_state",
         "old_version_after_source_move"
       ],
-      "test_names": [],
-      "test_results": [],
-      "status": "not_run",
+      "test_names": [
+        "NWS-03.a directory check executes helper modules and immutable Apply keeps both versions",
+        "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions"
+      ],
+      "test_results": [
+        {
+          "test_name": "NWS-03.a directory check executes helper modules and immutable Apply keeps both versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0003-python-tree/green-check-2.xml",
+          "command_record": "build/reports/loops/NWS0003-python-tree/green-check-2.json",
+          "snapshot_scope": "NWS0003 development subset only; command record binds exact source and raw JUnit"
+        },
+        {
+          "test_name": "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0003-python-tree/audio-green.xml",
+          "command_record": "build/reports/loops/NWS0003-python-tree/audio-green.json",
+          "snapshot_scope": "NWS0003 development subset only; command record binds exact source and raw JUnit"
+        }
+      ],
+      "status": "partial",
       "remaining_clauses": [
-        "Same module names in two packages never cross-import",
-        "Multi-instance state isolated, continuous across host partitions, reset on rerun/cancel",
-        "Applied old version keeps running old bytes after the source directory changes or moves",
-        "A new Check produces the new version"
+        "Per-instance state, host-block matrix and cancelled-run reset for directory variants remain. The separate Check/Apply test is bound below to its own execution."
       ]
     },
     {
@@ -421,14 +507,29 @@
         "no_host_side_effects",
         "python_off_contract"
       ],
-      "test_names": [],
-      "test_results": [],
-      "status": "not_run",
+      "test_names": [
+        "NWS-03.c all Python files are checked statically with relative Unicode locations before import",
+        "NWS-03.c directory import failures locate helper files and subsequent valid check recovers"
+      ],
+      "test_results": [
+        {
+          "test_name": "NWS-03.c all Python files are checked statically with relative Unicode locations before import",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0003-python-tree/diagnostics-first-2.xml",
+          "command_record": "build/reports/loops/NWS0003-python-tree/diagnostics-first-2.json",
+          "snapshot_scope": "NWS0003 development subset only; command record binds exact source and raw JUnit"
+        },
+        {
+          "test_name": "NWS-03.c directory import failures locate helper files and subsequent valid check recovers",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0004-conversion-identity/direct-exit.xml",
+          "command_record": "build/reports/loops/NWS0004-conversion-identity/direct-exit.json",
+          "snapshot_scope": "NWS0004 cumulative direct regression, current Python-enabled product"
+        }
+      ],
+      "status": "partial",
       "remaining_clauses": [
-        "Static syntax diagnostics use workspace-relative file/line/column in the frozen Unicode unit",
-        "Static phase executes no top-level side effect",
-        "Missing dependency, wrong entrypoint and import exceptions stay inside the controlled subprocess",
-        "Host keeps running; Python OFF executes no new python package while C++/builtin nodes keep working; no network or auto-install"
+        "Additional dependency/entrypoint/Unicode column boundary matrix; Python OFF rejection was separately executed, not normal Python processing."
       ]
     },
     {
@@ -451,13 +552,29 @@
         "invalidation_matrix",
         "excluded_change_no_invalidation"
       ],
-      "test_names": [],
-      "test_results": [],
-      "status": "not_run",
+      "test_names": [
+        "NWS-05.a created node project immediately shows its file list and detects external helper changes",
+        "NWS-03.a explicit resource and adjacent data file are frozen and change real Python audio"
+      ],
+      "test_results": [
+        {
+          "test_name": "NWS-05.a created node project immediately shows its file list and detects external helper changes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0003-python-tree/green-ui.xml",
+          "command_record": "build/reports/loops/NWS0003-python-tree/green-ui.json",
+          "snapshot_scope": "NWS0003 development subset only; command record binds exact source and raw JUnit"
+        },
+        {
+          "test_name": "NWS-03.a explicit resource and adjacent data file are frozen and change real Python audio",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0006-assets/direct.xml",
+          "command_record": "build/reports/loops/NWS0006-assets/direct.json",
+          "snapshot_scope": "NWS0006 Debug; source hashes in command; independent byte/audio evidence in summary.json; no desktop claim"
+        }
+      ],
+      "status": "partial",
       "remaining_clauses": [
-        "Ready binds workspace id/generation, whole runtime tree, declaration, interpreter/runner/wrapper or SDK/toolchain and request",
-        "Changing an auxiliary file, resource, declaration or environment invalidates the old Ready and Apply refuses",
-        "Changing only excluded author tests or editor cache does not invalidate"
+        "Resource/environment changes and Apply preflight interleavings remain."
       ]
     },
     {
@@ -480,14 +597,29 @@
         "idempotent_single_entry",
         "staged_failure_recovery"
       ],
-      "test_names": [],
-      "test_results": [],
-      "status": "not_run",
+      "test_names": [
+        "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
+        "NWS-01.b converting an applied draft preserves its managed package identity after directory reopen"
+      ],
+      "test_results": [
+        {
+          "test_name": "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0003-python-tree/audio-green.xml",
+          "command_record": "build/reports/loops/NWS0003-python-tree/audio-green.json",
+          "snapshot_scope": "NWS0003 development subset only; command record binds exact source and raw JUnit"
+        },
+        {
+          "test_name": "NWS-01.b converting an applied draft preserves its managed package identity after directory reopen",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0004-conversion-identity/direct-exit.xml",
+          "command_record": "build/reports/loops/NWS0004-conversion-identity/direct-exit.json",
+          "snapshot_scope": "NWS0004; original .aadraft and W0 runtime bytes preserved; see ADR0041"
+        }
+      ],
+      "status": "partial",
       "remaining_clauses": [
-        "Apply never re-reads the development directory",
-        "Repeated identical content is idempotent and yields one package/directory entry",
-        "Same display version with different content never overwrites the old package",
-        "Injected failure at package write, candidate registration, index and in-memory refresh leaves old or new complete version only"
+        "Directory-specific package/registration/index/refresh fault injection matrix remains."
       ]
     },
     {
@@ -510,14 +642,21 @@
         "cross_project_revision_isolation",
         "closed_panel_no_dangling_callback"
       ],
-      "test_names": [],
-      "test_results": [],
-      "status": "not_run",
+      "test_names": [
+        "NWS-04.c disk refresh revokes a late directory check and only the next generation becomes Ready"
+      ],
+      "test_results": [
+        {
+          "test_name": "NWS-04.c disk refresh revokes a late directory check and only the next generation becomes Ready",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0003-python-tree/async-check.xml",
+          "command_record": "build/reports/loops/NWS0003-python-tree/async-check.json",
+          "snapshot_scope": "NWS0003 development subset only; command record binds exact source and raw JUnit"
+        }
+      ],
+      "status": "partial",
       "remaining_clauses": [
-        "A is checked, the workspace changes, B starts; any late A success/failure/cancel/log ordering cannot update B's Ready or buttons",
-        "Only matching workspace/generation/request/project-session-revision results update state",
-        "Different project with the same revision and different directory with the same generation never cross",
-        "Closing the panel leaves no dangling callback"
+        "Project/session replacement, close and all log/failure interleavings remain."
       ]
     },
     {
@@ -540,14 +679,28 @@
         "desktop_not_verified",
         "two_file_diagnostics"
       ],
-      "test_names": [],
-      "test_results": [],
-      "status": "not_run",
+      "test_names": [
+        "NWS-05.a created node project immediately shows its file list and detects external helper changes"
+      ],
+      "test_results": [
+        {
+          "test_name": "NWS-05.a created node project immediately shows its file list and detects external helper changes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0003-python-tree/green-ui.xml",
+          "command_record": "build/reports/loops/NWS0003-python-tree/green-ui.json",
+          "snapshot_scope": "NWS0003 development subset only; command record binds exact source and raw JUnit"
+        },
+        {
+          "test_name": "NWS-05.a created node project immediately shows its file list and detects external helper changes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0004-conversion-identity/direct-exit.xml",
+          "command_record": "build/reports/loops/NWS0004-conversion-identity/direct-exit.json",
+          "snapshot_scope": "Includes disk-preview diagnostic jump to line/column and two real component PNGs; OS desktop not_verified"
+        }
+      ],
+      "status": "partial",
       "remaining_clauses": [
-        "Production entry opens a directory and shows the real path plus file state",
-        "Ports and six parameter kinds are edited through one node.json",
-        "Advanced JSON and empty logs collapse; no log area when there are no logs",
-        "Two separate files can be diagnostics targets; layout/splitter/state need component and desktop evidence"
+        "Editable descriptor forms and conflict comparison; actual OS desktop/DPI review remains not_verified. Advanced JSON/log foldouts and component preview/jump are implemented."
       ]
     },
     {
@@ -658,14 +811,28 @@
         "full_rescan_on_check",
         "no_auto_apply"
       ],
-      "test_names": [],
-      "test_results": [],
-      "status": "not_run",
+      "test_names": [
+        "NWS-05.a created node project immediately shows its file list and detects external helper changes"
+      ],
+      "test_results": [
+        {
+          "test_name": "NWS-05.a created node project immediately shows its file list and detects external helper changes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0003-python-tree/green-ui.xml",
+          "command_record": "build/reports/loops/NWS0003-python-tree/green-ui.json",
+          "snapshot_scope": "NWS0003 development subset only; command record binds exact source and raw JUnit"
+        },
+        {
+          "test_name": "NWS-05.a created node project immediately shows its file list and detects external helper changes",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0004-conversion-identity/direct-exit.xml",
+          "command_record": "build/reports/loops/NWS0004-conversion-identity/direct-exit.json",
+          "snapshot_scope": "Includes disk-preview diagnostic jump to line/column and two real component PNGs; OS desktop not_verified"
+        }
+      ],
+      "status": "partial",
       "remaining_clauses": [
-        "An external auxiliary file write makes the panel show disk-changed by notification or explicit refresh",
-        "The next Check rescans the complete tree",
-        "Exiting the external process triggers no Check or Apply",
-        "The workflow works without VS Code installed; editor settings never enter the runtime package"
+        "Actual user-selected editor launch/write and editor exit observation remain not_verified."
       ]
     },
     {
@@ -687,14 +854,21 @@
         "structured_diagnostics",
         "template_optional"
       ],
-      "test_names": [],
-      "test_results": [],
-      "status": "not_run",
+      "test_names": [
+        "audio_cli check-node frozen Python fixture"
+      ],
+      "test_results": [
+        {
+          "test_name": "audio_cli check-node frozen Python fixture",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0003-python-tree/cli-check-green.log",
+          "command_record": "build/reports/loops/NWS0003-python-tree/cli-check-green.json",
+          "snapshot_scope": "Exact content_sha256 and package_sha256 match GUI checked fixture, with actual relative input paths"
+        }
+      ],
+      "status": "partial",
       "remaining_clauses": [
-        "A Check command/request usable inside the app and from a terminal returns the same snapshot identity",
-        "Optional IDE task templates really call that interface and never overwrite user configuration",
-        "Deleting a template changes no Check/Apply behaviour; templates are never required",
-        "Open Folder alone does not substitute for the core check"
+        "Additional invalid-directory command diagnostics and supported editor task adapter remain. No IDE task templates are generated."
       ]
     },
     {
@@ -897,14 +1071,39 @@
         "no_silent_truncation",
         "frozen_budget_values"
       ],
-      "test_names": [],
-      "test_results": [],
-      "status": "not_run",
+      "test_names": [
+        "NWS-09.a maximum Python workspace file inventory checks and applies without generated file overhead",
+        "NWS-09.a exact frozen Python source byte budget checks and one extra byte is refused",
+        "NWS-09.a workspace resources pass exactly at frozen count and byte limits and reject one over"
+      ],
+      "test_results": [
+        {
+          "test_name": "NWS-09.a maximum Python workspace file inventory checks and applies without generated file overhead",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0005-file-budget/direct.xml",
+          "command_record": "build/reports/loops/NWS0005-file-budget/direct.json",
+          "snapshot_scope": "NWS0005 Debug; source hashes in command record; independent file/byte/audio results in summary.json; no desktop claim"
+        },
+        {
+          "test_name": "NWS-09.a exact frozen Python source byte budget checks and one extra byte is refused",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0005-file-budget/direct.xml",
+          "command_record": "build/reports/loops/NWS0005-file-budget/direct.json",
+          "snapshot_scope": "NWS0005 Debug; source hashes in command record; independent file/byte/audio results in summary.json; no desktop claim"
+        },
+        {
+          "test_name": "NWS-09.a workspace resources pass exactly at frozen count and byte limits and reject one over",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0006-assets/direct.xml",
+          "command_record": "build/reports/loops/NWS0006-assets/direct.json",
+          "snapshot_scope": "NWS0006 Debug; source hashes in command; independent byte/audio evidence in summary.json; no desktop claim"
+        }
+      ],
+      "status": "partial",
       "remaining_clauses": [
-        "Exactly 128 source files / 8 MiB passes; one over fails",
-        "Protocol 1 MiB, payload 64 MiB, UI log tail 256 KiB and full log 16 MiB keep the old boundaries",
-        "Caches/links are never silently truncated and never run over budget",
-        "Resource/C++ limits from W0 are tested on both sides"
+        "Combined source byte/count/long-path/declaration packaging overhead limits remain unclosed",
+        "Protocol/payload/log full inherited matrix on final source still requires a formal cumulative exit",
+        "Cache/link scan and resource/C++ limits require the remaining cancellation/path/native matrices"
       ]
     },
     {
@@ -1057,5 +1256,11 @@
         "This still does not mean R6/G6 or the whole NA/PC/UPN platform is complete"
       ]
     }
-  ]
+  ],
+  "identity_adr": "doc/decisions/0041-workspace-authoring-identity.md",
+  "identity_adr_sha256": "a6575d6e5cb8fb6fbd84c2be473d96f0b16d8ce484d1b767114d1378fbceea0a",
+  "profile_adr": "doc/decisions/0042-workspace-function-runner-profile.md",
+  "profile_adr_sha256": "a1f3ad129f63154aa41d5ef2bdb7e520c930714b8d8efebc27e72a167ae14695",
+  "assets_adr": "doc/decisions/0043-workspace-runtime-assets.md",
+  "assets_adr_sha256": "fb604944845d6cad1950df678dfa79e3a773a6ca68b128dece33bc84f2b9dfdb"
 }

@@ -39,6 +39,9 @@ ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "tests" / "node_workspace_manifest.json"
 ACCEPTANCE = ROOT / "doc" / "testing_node_workspace_authoring.md"
 ADR = ROOT / "doc" / "decisions" / "0040-node-workspace-schema-v1.md"
+IDENTITY_ADR = ROOT / "doc" / "decisions" / "0041-workspace-authoring-identity.md"
+PROFILE_ADR = ROOT / "doc" / "decisions" / "0042-workspace-function-runner-profile.md"
+ASSETS_ADR = ROOT / "doc" / "decisions" / "0043-workspace-runtime-assets.md"
 TOOL = ROOT / "tests" / "fixtures" / "node_workspace" / "tools" / "workspace_expectation.py"
 LOCK = ROOT / "tests" / "fixtures" / "node_workspace" / "expected" / "workspace_lock.json"
 EVIDENCE_ROOT = ROOT / "build" / "reports"
@@ -78,7 +81,7 @@ def main() -> int:
         if not condition:
             problems.append(message)
 
-    for path in (MANIFEST, ACCEPTANCE, ADR, TOOL, LOCK):
+    for path in (MANIFEST, ACCEPTANCE, ADR, IDENTITY_ADR, PROFILE_ADR, ASSETS_ADR, TOOL, LOCK):
         require(path.is_file(), f"missing required W0 artifact {path.relative_to(ROOT)}")
     if problems:
         return report(problems)
@@ -96,6 +99,9 @@ def main() -> int:
     bindings = {
         "acceptance_source": (ACCEPTANCE, "acceptance_source_sha256"),
         "contract_adr": (ADR, "contract_adr_sha256"),
+        "identity_adr": (IDENTITY_ADR, "identity_adr_sha256"),
+        "profile_adr": (PROFILE_ADR, "profile_adr_sha256"),
+        "assets_adr": (ASSETS_ADR, "assets_adr_sha256"),
         "fixture_tool": (TOOL, "fixture_tool_sha256"),
         "fixture_lock": (LOCK, "fixture_lock_sha256"),
     }
@@ -131,7 +137,9 @@ def main() -> int:
         status = item.get("status")
         require(status in STATUSES, f"{clause}: unknown status {status!r}")
         remaining = item.get("remaining_clauses")
-        require(isinstance(remaining, list) and remaining, f"{clause}: remaining_clauses must list the uncovered clauses")
+        require(isinstance(remaining, list), f"{clause}: remaining_clauses must be a list")
+        if status != "passed":
+            require(bool(remaining), f"{clause}: remaining_clauses must list the uncovered clauses")
         results = item.get("test_results", [])
         names = item.get("test_names", [])
         require(isinstance(results, list), f"{clause}: test_results must be a list")
