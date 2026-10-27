@@ -7,6 +7,13 @@
 #include <atomic>
 #include <chrono>
 #include <fstream>
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <winioctl.h>
+#endif
 
 namespace {
 namespace fs = std::filesystem;
@@ -51,6 +58,30 @@ Draft python_draft_for(std::string id) {
     draft.source = "def process(inputs, params, state):\n    return {'main': inputs['primary'] * 0.5}\n";
     return draft;
 }
+#ifdef _WIN32
+void junction(const fs::path& link, const fs::path& destination) {
+    fs::create_directory(link);
+    const auto target = fs::absolute(destination).wstring(), substitute = L"\\??\\" + target;
+    struct Data {
+        DWORD tag = IO_REPARSE_TAG_MOUNT_POINT;
+        WORD length = 0, reserved = 0, substitute_offset = 0, substitute_length = 0, print_offset = 0, print_length = 0;
+        wchar_t path[8192]{};
+    } data;
+    data.substitute_length = static_cast<WORD>(substitute.size() * sizeof(wchar_t));
+    data.print_offset = data.substitute_length + sizeof(wchar_t);
+    data.print_length = static_cast<WORD>(target.size() * sizeof(wchar_t));
+    data.length = 8 + data.print_offset + data.print_length + sizeof(wchar_t);
+    std::copy(substitute.begin(), substitute.end(), data.path);
+    std::copy(target.begin(), target.end(), data.path + data.print_offset / sizeof(wchar_t));
+    const auto handle = CreateFileW(link.c_str(), GENERIC_WRITE, 0, nullptr, OPEN_EXISTING,
+        FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+    REQUIRE(handle != INVALID_HANDLE_VALUE);
+    DWORD returned = 0;
+    const auto success = DeviceIoControl(handle, FSCTL_SET_REPARSE_POINT, &data, 8 + data.length, nullptr, 0, &returned, nullptr);
+    const auto error = GetLastError(); CloseHandle(handle);
+    INFO(error); REQUIRE(success != 0);
+}
+#endif
 }
 
 TEST_CASE("NWS-00.a workspace sha256 and module names follow the frozen contract", "[NWS-00.a][NWS-01.a][node_workspace][pure]") {
@@ -61,6 +92,58 @@ TEST_CASE("NWS-00.a workspace sha256 and module names follow the frozen contract
     CHECK(workspace_module_name("print-a") == "print_a");
     CHECK(workspace_module_name("PrintA") == "printa");
     CHECK(workspace_module_name("7lives") == "node_7lives");
+}
+
+TEST_CASE("NWS-02.a create refuses a Windows junction target or ancestor before writing any file",
+          "[NWS-02.a][workspace_create_junction][node_workspace][pure]") {
+#ifdef _WIN32
+    const auto directory = root(), destination = directory / "foreign", link = directory / "junction";
+    fs::create_directory(destination);
+    junction(link, destination);
+    struct Cleanup { fs::path link; ~Cleanup() { std::error_code error; fs::remove(link,error); } } cleanup{link};
+    for (const auto& target : {link, link / "project"}) {
+        INFO(target.string());
+        int writes = 0;
+        const auto outcome = WorkspaceStore([&](WorkspacePhase phase) { if (phase == WorkspacePhase::write) ++writes; return true; })
+            .create(target, python_draft_for("junction-target"));
+        REQUIRE(std::holds_alternative<Diagnostic>(outcome));
+        CHECK(std::get<Diagnostic>(outcome).code == "workspace_path_invalid");
+        CHECK(writes == 0);
+        CHECK(fs::is_empty(destination));
+    }
+#endif
+}
+
+TEST_CASE("NWS-02.c swapping a source folder to a junction during capture rejects all outside bytes and permits retry",
+          "[NWS-02.c][workspace_copy_junction][node_workspace][pure]") {
+#ifdef _WIN32
+    const auto directory = root(), author = directory / "author", target = directory / "frozen";
+    require_workspace(WorkspaceStore{}.create(author, python_draft_for("swap-source")));
+    const auto original = std::get<Workspace>(WorkspaceStore{}.open(author));
+    const auto module = author / "src/swap_source", parked = directory / "parked", foreign = directory / "foreign";
+    write(foreign / "__init__.py", "# outside marker\n");
+    write(foreign / "process.py", "raise RuntimeError('outside source must never be read')\n");
+    bool swapped = false;
+    struct Restore {
+        fs::path module, parked; bool& swapped;
+        void restore() { if (swapped) { fs::remove(module); fs::rename(parked,module); swapped=false; } }
+        ~Restore() { if(swapped) { std::error_code error; fs::remove(module,error); fs::rename(parked,module,error); } }
+    } restore{module,parked,swapped};
+    const auto failed = WorkspaceStore{}.snapshot(author,target,{},[&](const std::string& path) {
+        if(path != "node.json")return;
+        fs::rename(module,parked); swapped=true; junction(module,foreign);
+    });
+    REQUIRE(std::holds_alternative<Diagnostic>(failed));
+    CHECK(std::get<Diagnostic>(failed).code == "workspace_path_invalid");
+    CHECK_FALSE(fs::exists(target));
+    CHECK(bytes(foreign / "__init__.py") == "# outside marker\n");
+    CHECK(bytes(foreign / "process.py") == "raise RuntimeError('outside source must never be read')\n");
+    restore.restore();
+    const auto retry = WorkspaceStore{}.snapshot(author,target);
+    require_workspace(retry);
+    CHECK(std::get<Workspace>(retry).files == original.files);
+    CHECK(std::get<Workspace>(retry).content_sha256 == original.content_sha256);
+#endif
 }
 
 TEST_CASE("NWS-00.a canonical JSON preserves number tokens key order and escapes", "[NWS-00.a][node_workspace][pure]") {
@@ -310,4 +393,86 @@ TEST_CASE("NWS-02.a long workspace paths and hostile declared paths are rejected
     const auto traversal = WorkspaceStore{}.open(directory);
     REQUIRE(std::holds_alternative<Diagnostic>(traversal));
     CHECK(std::get<Diagnostic>(traversal).code == "workspace_path_invalid");
+}
+
+TEST_CASE("NWS-02.c snapshot rejects concurrent helper edits and stable retry freezes exact runtime bytes",
+          "[NWS-02.c][node_workspace][pure]") {
+    const auto base = root();
+    const auto directory = base / "author";
+    fs::copy(fixtures() / "python_two_files", directory, fs::copy_options::recursive);
+    const auto helper = directory / "src/print_a/filter.py";
+    const auto changed_helper = bytes(fixtures() / "python_two_files_v2/src/print_a/filter.py");
+    const auto target = base / "snapshot";
+    const auto failed = WorkspaceStore{}.snapshot(directory, target, {}, [&](const std::string& path) {
+        if (path == "node.json") write(helper, changed_helper);
+    });
+    REQUIRE(std::holds_alternative<Diagnostic>(failed));
+    CHECK(std::get<Diagnostic>(failed).code == "source_changed_during_snapshot");
+    CHECK_FALSE(fs::exists(target));
+    CHECK(bytes(helper) == changed_helper);
+    const auto stable = WorkspaceStore{}.snapshot(directory, target);
+    require_workspace(stable);
+    const auto& frozen = std::get<Workspace>(stable);
+    CHECK(frozen.content_sha256 == std::get<Workspace>(WorkspaceStore{}.open(directory)).content_sha256);
+    for (const auto& file : frozen.files) CHECK(bytes(target / file.path) == bytes(directory / file.path));
+    CHECK_FALSE(fs::exists(target / "tests"));
+    CHECK_FALSE(fs::exists(target / ".vscode"));
+    write(helper, "external later edit");
+    CHECK(bytes(target / "src/print_a/filter.py") == changed_helper);
+    const auto refused = WorkspaceStore{}.snapshot(directory, target);
+    REQUIRE(std::holds_alternative<Diagnostic>(refused));
+    CHECK(std::get<Diagnostic>(refused).code == "workspace_target_not_empty");
+    CHECK(bytes(target / "src/print_a/filter.py") == changed_helper);
+    const auto cancelled = WorkspaceStore{}.snapshot(directory, base / "cancelled", [] { return true; });
+    REQUIRE(std::holds_alternative<Diagnostic>(cancelled));
+    CHECK(std::get<Diagnostic>(cancelled).code == "run_cancelled");
+    CHECK_FALSE(fs::exists(base / "cancelled"));
+}
+
+TEST_CASE("NWS-02.b late source failure removes every newly created ancestor and permits retry",
+          "[NWS-02.b][node_workspace][pure]") {
+    for (const bool existing : {false, true}) {
+        for (const auto phase : {WorkspacePhase::write, WorkspacePhase::verify, WorkspacePhase::replace}) {
+            const auto directory = root() / "late-source-failure";
+            if (existing) fs::create_directory(directory);
+            int occurrences = 0;
+            const auto failed = WorkspaceStore([&](WorkspacePhase observed) {
+                return observed != phase || ++occurrences != 2;
+            }).create(directory, python_draft_for("nested-source"));
+            REQUIRE(std::holds_alternative<Diagnostic>(failed));
+            CHECK(std::get<Diagnostic>(failed).code == "workspace_write_failed");
+            CHECK_FALSE(fs::exists(directory / "src"));
+            CHECK_FALSE(fs::exists(directory / "node.json"));
+            CHECK(fs::exists(directory) == existing);
+            if (existing) CHECK(fs::is_empty(directory));
+            require_workspace(WorkspaceStore{}.create(directory, python_draft_for("nested-source")));
+        }
+    }
+}
+
+TEST_CASE("NWS-01.b author identity survives snapshot and changes revoke an otherwise identical runtime tree",
+          "[NWS-01.b][NWS-02.c][node_workspace][pure]") {
+    const auto base = root(); const auto directory = base / "author";
+    const auto draft = python_draft_for("original-author-id");
+    const auto created = WorkspaceStore{}.create(directory,draft); require_workspace(created);
+    const auto disk = std::get<Workspace>(created);
+    CHECK(workspace_identity(disk).id == draft.id);
+    CHECK(workspace_identity(disk).source.empty());
+    CHECK(disk.files.size() == 3); // Identity is not runtime source/definition.
+    const auto copied = WorkspaceStore{}.snapshot(directory,base/"frozen"); require_workspace(copied);
+    CHECK(std::get<Workspace>(copied).content_sha256 == disk.content_sha256);
+    CHECK(std::get<Workspace>(copied).authoring_metadata == disk.authoring_metadata);
+    CHECK(workspace_identity(std::get<Workspace>(copied)).id == draft.id);
+    const auto failed = WorkspaceStore{}.snapshot(directory,base/"changed",{},[&](const std::string& file){
+        if(file=="node.json") write(directory/".audioalgo-authoring.json",R"({"schema_version":1,"draft_id":"another-author"})");
+    });
+    REQUIRE(std::holds_alternative<Diagnostic>(failed));
+    CHECK(std::get<Diagnostic>(failed).code == "source_changed_during_snapshot");
+    CHECK_FALSE(fs::exists(base/"changed"));
+    const auto changed = WorkspaceStore{}.open(directory); require_workspace(changed);
+    CHECK(std::get<Workspace>(changed).content_sha256 == disk.content_sha256);
+    CHECK(workspace_identity(std::get<Workspace>(changed)).id != draft.id);
+    write(directory/".audioalgo-authoring.json",R"({"schema_version":1,"draft_id":"../escape"})");
+    const auto invalid = WorkspaceStore{}.open(directory);
+    REQUIRE(std::holds_alternative<Diagnostic>(invalid)); CHECK(std::get<Diagnostic>(invalid).code == "workspace_identity_invalid");
 }

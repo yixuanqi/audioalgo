@@ -27,9 +27,14 @@ struct Workspace {
     std::string node_json;      // exact node.json bytes read from disk
     std::vector<WorkspaceFile> files;
     std::filesystem::path directory;
+    std::string author_id; // Optional creation/conversion identity, separate from runtime content.
+    std::string authoring_metadata; // Exact small identity record; never buffered source/definition.
     bool operator==(const Workspace&) const = default;
 };
 using WorkspaceOutcome = std::variant<Workspace, Diagnostic>;
+using WorkspaceReadOutcome = std::variant<std::string, Diagnostic>;
+// A directory session carries identity/definition only, never buffered source.
+Draft workspace_identity(const Workspace&, std::uint64_t generation = 1);
 // Failure injection seam for tests: returning false aborts the phase with a
 // workspace_write_failed diagnostic and leaves every pre-existing byte intact.
 enum class WorkspacePhase { create, write, verify, replace };
@@ -41,6 +46,12 @@ public:
     WorkspaceOutcome create(const std::filesystem::path& target, const Draft& draft) const;
     // Read-only validation of an authoring directory. Writes nothing.
     WorkspaceOutcome open(const std::filesystem::path& directory) const;
+    WorkspaceReadOutcome read_file(const Workspace&, const std::string& relative) const;
+    // Worker-only stable copy. Never mutates the author directory. The optional
+    // observation hook makes concurrent edits reproducible in transaction tests.
+    WorkspaceOutcome snapshot(const std::filesystem::path& directory, const std::filesystem::path& target,
+        const std::function<bool()>& cancelled = {},
+        const std::function<void(const std::string&)>& copied = {}) const;
     // Reads a legacy .aadraft, creates the directory and re-verifies that the
     // original draft bytes are unchanged. The draft file is never written.
     WorkspaceOutcome convert(const std::filesystem::path& draft_file, const std::filesystem::path& target) const;

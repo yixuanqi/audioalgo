@@ -149,11 +149,20 @@ bool is_linked(const std::filesystem::path& path) {
 #endif
     return false;
 }
+void require_unlinked(const std::filesystem::path& path) {
+    const auto absolute = std::filesystem::absolute(logical_path(path)).lexically_normal();
+    auto current = absolute.root_path();
+    for (const auto& part : absolute.relative_path()) {
+        current /= part;
+        if (is_linked(current)) fail("workspace_path_invalid", "Linked or reparse path rejected");
+    }
+}
 std::string path_to_utf8_generic(const std::filesystem::path& path) {
     const auto bytes = path.generic_u8string();
     return std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
 }
 std::string read_bytes(const std::filesystem::path& path, std::uint64_t limit, const char* missing_code) {
+    require_unlinked(path);
     std::ifstream stream(io_path(path), std::ios::binary);
     if (!stream) fail(missing_code, "Could not read " + path_to_utf8_generic(path));
     std::string bytes;
@@ -650,6 +659,7 @@ Workspace open_workspace(const std::filesystem::path& directory) {
     if (parsed.language == "python") python_entry = python_entry_path(parsed.entrypoint);
     std::vector<std::string> collected;
     for (const auto* subdirectory : {"src", "include"}) {
+        require_unlinked(directory / subdirectory);
         if (std::filesystem::is_directory(io_path(directory / subdirectory), error))
             collect_directory(directory, subdirectory, collected);
     }
@@ -658,6 +668,7 @@ Workspace open_workspace(const std::filesystem::path& directory) {
     std::uint64_t source_bytes = node_json.size();
     std::size_t source_files = 1;
     for (const auto& relative : collected) {
+        normalize_relative(relative, "workspace_path_invalid");
         const auto bytes = read_bytes(directory / relative, kMaximumSourceBytes, "workspace_source_missing");
         files.push_back({relative, bytes.size(), sha256_of(bytes)});
         source_bytes += bytes.size();
@@ -711,6 +722,16 @@ Workspace open_workspace(const std::filesystem::path& directory) {
     workspace.content_sha256 = sha256_of(manifest_text(workspace.files));
     workspace.directory = std::filesystem::absolute(logical_path(directory)).lexically_normal();
     workspace.entry_source = std::move(entry_source);
+    const auto identity_file = directory / ".audioalgo-authoring.json";
+    if (std::filesystem::exists(io_path(identity_file))) {
+        workspace.authoring_metadata = read_bytes(identity_file, 16 * 1024, "workspace_identity_invalid");
+        const auto identity = JsonParser(workspace.authoring_metadata).parse();
+        const auto* schema = identity.find("schema_version"); const auto* id = identity.find("draft_id");
+        if (identity.kind != JsonValue::Kind::object || !schema || schema->kind != JsonValue::Kind::number || schema->text != "1" ||
+            !id || id->kind != JsonValue::Kind::string || !valid_draft_id(id->text))
+            fail("workspace_identity_invalid", "Invalid author identity record; preserve it and restore the original");
+        workspace.author_id = id->text;
+    }
     return workspace;
 }
 std::string build_node_json(const Draft& draft, const std::string& language, const std::string& entrypoint) {
@@ -761,6 +782,8 @@ Workspace create_workspace(const std::filesystem::path& target, const Draft& dra
     } else {
         planned.push_back({"src/node.cpp", draft.source});
     }
+    planned.push_back({".audioalgo-authoring.json", "{\"schema_version\":1,\"draft_id\":\"" + draft.id + "\"}"});
+    require_unlinked(target);
     const auto io_target = io_path(target);
     std::error_code error;
     bool created_target = false;
@@ -784,9 +807,12 @@ Workspace create_workspace(const std::filesystem::path& target, const Draft& dra
         for (const auto& file : planned) {
             if (file.relative.find('/') != std::string::npos) {
                 const auto parent = std::filesystem::path(file.relative).parent_path();
-                if (!std::filesystem::is_directory(io_path(target / parent), error)) {
-                    std::filesystem::create_directories(io_path(target / parent), error);
-                    created_directories.push_back(target / parent);
+                auto current = target;
+                for (const auto& segment : parent) {
+                    current /= segment;
+                    if (std::filesystem::create_directory(io_path(current), error))
+                        created_directories.push_back(current);
+                    if (error) fail("workspace_io_failed", "Could not create a source directory: " + error.message());
                 }
                 if (error) fail("workspace_io_failed", "Could not create a source directory: " + error.message());
             }
@@ -825,6 +851,28 @@ std::string workspace_module_name(const std::string& draft_id) {
     return module;
 }
 std::string WorkspaceStore::sha256_hex(const std::string& bytes) { return sha256_of(bytes); }
+Draft workspace_identity(const Workspace& workspace, std::uint64_t generation) {
+    const auto node = JsonParser(workspace.declaration).parse();
+    Draft identity;
+    identity.id = workspace.author_id.empty() ? "workspace-" + sha256_of(node.find("type_id")->text).substr(0, 24) : workspace.author_id;
+    identity.generation = generation;
+    identity.language = workspace.language;
+    identity.declaration = workspace.declaration;
+    return identity;
+}
+WorkspaceReadOutcome WorkspaceStore::read_file(const Workspace& workspace, const std::string& relative) const {
+    try {
+        normalize_relative(relative, "workspace_path_invalid");
+        const auto found = std::find_if(workspace.files.begin(), workspace.files.end(), [&](const auto& file) { return file.path == relative; });
+        if (found == workspace.files.end()) fail("workspace_path_invalid", "File is not in the current node project manifest");
+        const auto bytes = read_bytes(workspace.directory / std::filesystem::u8path(relative),
+            kMaximumResourceBytes, "workspace_source_missing");
+        if (bytes.size() != found->bytes || sha256_of(bytes) != found->sha256)
+            fail("source_changed_during_snapshot", "File changed; refresh the node project");
+        return bytes;
+    } catch (const WorkspaceFailure& failure) { return diagnostic_of(failure); }
+      catch (const std::exception& error) { return Diagnostic{"workspace_io_failed", error.what()}; }
+}
 std::string WorkspaceStore::canonical_json(const std::string& document, std::string& error) {
     try {
         std::string text;
@@ -851,6 +899,46 @@ WorkspaceOutcome WorkspaceStore::open(const std::filesystem::path& directory) co
     } catch (const WorkspaceFailure& failure) {
         return diagnostic_of(failure);
     } catch (const std::exception& error) {
+        return Diagnostic{"workspace_io_failed", error.what()};
+    }
+}
+WorkspaceOutcome WorkspaceStore::snapshot(const std::filesystem::path& directory, const std::filesystem::path& target,
+    const std::function<bool()>& cancelled, const std::function<void(const std::string&)>& copied) const {
+    bool owned = false;
+    try {
+        const auto check_cancel = [&] {
+            if (cancelled && cancelled()) fail("run_cancelled", "Workspace snapshot cancelled");
+        };
+        check_cancel();
+        require_unlinked(target);
+        if (std::filesystem::exists(io_path(target)))
+            fail("workspace_target_not_empty", "Snapshot target already exists");
+        const auto before = open_workspace(directory);
+        std::filesystem::create_directories(io_path(target));
+        owned = true;
+        for (const auto& file : before.files) {
+            check_cancel();
+            const auto bytes = read_bytes(directory / std::filesystem::u8path(file.path),
+                std::max(kMaximumResourceBytes, kMaximumSourceBytes), "source_changed_during_snapshot");
+            if (bytes.size() != file.bytes || sha256_of(bytes) != file.sha256)
+                fail("source_changed_during_snapshot", "Source changed while copying: " + file.path);
+            write_atomic(target / std::filesystem::u8path(file.path), bytes, {});
+            if (copied) copied(file.path);
+        }
+        check_cancel();
+        if (!before.authoring_metadata.empty()) write_atomic(target / ".audioalgo-authoring.json", before.authoring_metadata, {});
+        const auto after = open_workspace(directory);
+        if (after.content_sha256 != before.content_sha256 || after.authoring_metadata != before.authoring_metadata)
+            fail("source_changed_during_snapshot", "Source tree changed while taking the snapshot");
+        auto frozen = open_workspace(target);
+        if (frozen.files != before.files || frozen.content_sha256 != before.content_sha256)
+            fail("source_changed_during_snapshot", "Frozen bytes do not match the source manifest");
+        return frozen;
+    } catch (const WorkspaceFailure& failure) {
+        if (owned) { std::error_code ignored; std::filesystem::remove_all(io_path(target), ignored); }
+        return diagnostic_of(failure);
+    } catch (const std::exception& error) {
+        if (owned) { std::error_code ignored; std::filesystem::remove_all(io_path(target), ignored); }
         return Diagnostic{"workspace_io_failed", error.what()};
     }
 }
