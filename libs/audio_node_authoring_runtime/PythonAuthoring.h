@@ -15,6 +15,7 @@ public:
     std::filesystem::path library_directory() const override { return root_; }
     std::optional<SourceDiagnostic> copy_library_to(const std::filesystem::path&) const override;
     CheckOutcome check(Draft, const std::shared_ptr<std::atomic<bool>>& cancel) const override;
+    CheckOutcome check_workspace(Draft, const Workspace&, const std::shared_ptr<std::atomic<bool>>&) const override;
     PrepareOutcome prepare_apply(const ReadyPackage&, const Draft&, std::shared_ptr<const NodeRegistry>,
                                  const std::shared_ptr<std::atomic<bool>>&) const override;
     ApplyOutcome apply(const ReadyPackage&, const Draft&, std::shared_ptr<const NodeRegistry>,
@@ -25,6 +26,7 @@ public:
     std::optional<SourceDiagnostic> carry_packages(const std::vector<PackageSelection>&,
         const std::filesystem::path& source_directory, const std::filesystem::path& destination_directory) const override;
 private:
+    CheckOutcome check_inputs(Draft, std::optional<Workspace>, const std::shared_ptr<std::atomic<bool>>&) const;
     std::filesystem::path root_, interpreter_, runner_, work_;
     std::chrono::milliseconds execution_timeout_;
     std::shared_ptr<std::mutex> apply_mutex_ = std::make_shared<std::mutex>();

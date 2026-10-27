@@ -1,5 +1,6 @@
 #pragma once
 #include "Draft.h"
+#include "Workspace.h"
 #include "audio_node_sdk/NodeSDK.h"
 #include <atomic>
 
@@ -24,6 +25,7 @@ struct CatalogResolution {
 };
 struct ReadyPackage {
     Draft draft;
+    std::optional<Workspace> workspace;
     std::string request_id, source_sha256, declaration_sha256, package_sha256, interpreter_sha256, runner_sha256;
     std::string wrapper_version = "python-function-v1";
     NodeDescriptor descriptor;
@@ -54,6 +56,9 @@ public:
     virtual ~AuthoringChecks() = default;
     // Worker-only; value inputs, complete cancellation ownership, no GUI dependencies.
     virtual CheckOutcome check(Draft, const std::shared_ptr<std::atomic<bool>>& cancel) const = 0;
+    virtual CheckOutcome check_workspace(Draft, const Workspace&, const std::shared_ptr<std::atomic<bool>>&) const {
+        return SourceDiagnostic{"workspace_check_unavailable", "This host cannot check node project folders"};
+    }
     virtual std::shared_ptr<const AuthoringChecks> with_work_directory(const std::filesystem::path&) const { return {}; }
     virtual std::filesystem::path work_directory() const { return {}; }
     virtual std::filesystem::path library_directory() const { return {}; }

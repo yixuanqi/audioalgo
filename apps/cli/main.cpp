@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include <future>
+#include <juce_core/juce_core.h>
 
 #include "audio_node_sdk/NodeSDK.h"
 #include "plugins/builtin/registration.h"
@@ -44,6 +45,39 @@ int run_cli(int argc, const char* const* argv) {
         return 0;
     }
 
+    if (argc == 4 && std::string_view(argv[1]) == "check-node") {
+        juce::ScopedJuceInitialiser_GUI message_environment;
+        auto worker = std::async(std::launch::async, [directory = std::filesystem::u8path(argv[2]), work = std::filesystem::u8path(argv[3])] {
+            audioalgo::authoring::CheckOutcome outcome;
+            const auto opened = audioalgo::authoring::WorkspaceStore{}.open(directory);
+            if (const auto* error = std::get_if<audioalgo::Diagnostic>(&opened))
+                outcome = audioalgo::authoring::SourceDiagnostic{error->code, error->message};
+            else {
+                const auto& workspace = std::get<audioalgo::authoring::Workspace>(opened);
+                outcome = audioalgo::authoring::PythonAuthoring(audioalgo::authoring::configured_authoring_root(), {}, {}, {}, work)
+                    .check_workspace(audioalgo::authoring::workspace_identity(workspace), workspace, std::make_shared<std::atomic<bool>>(false));
+            }
+            juce::MessageManager::callAsync([] { juce::MessageManager::getInstance()->stopDispatchLoop(); });
+            return outcome;
+        });
+        juce::MessageManager::getInstance()->runDispatchLoop();
+        const auto outcome = worker.get();
+        juce::DynamicObject::Ptr result = new juce::DynamicObject;
+        if (const auto* error = std::get_if<audioalgo::authoring::SourceDiagnostic>(&outcome)) {
+            result->setProperty("status", "failed"); result->setProperty("code", juce::String(error->code));
+            result->setProperty("message", juce::String::fromUTF8(error->message.c_str()));
+            result->setProperty("file", juce::String::fromUTF8(error->file.c_str()));
+            result->setProperty("line", error->line); result->setProperty("column", error->column);
+            std::cout << juce::JSON::toString(juce::var(result.get()), false).toStdString() << '\n'; return 1;
+        }
+        const auto& ready = std::get<audioalgo::authoring::ReadyPackage>(outcome);
+        result->setProperty("status", "ready"); result->setProperty("workspace_id", juce::String(ready.draft.id));
+        result->setProperty("content_sha256", juce::String(ready.source_sha256));
+        result->setProperty("package_sha256", juce::String(ready.package_sha256));
+        result->setProperty("request_id", juce::String(ready.request_id));
+        result->setProperty("package_root", juce::String::fromUTF8(path_to_utf8(ready.package_root).c_str()));
+        std::cout << juce::JSON::toString(juce::var(result.get()), false).toStdString() << '\n'; return 0;
+    }
     if (argc == 5 && std::string_view(argv[1]) == "run") {
         int block_size = 512;
         const std::string_view block_text(argv[4]);
@@ -102,6 +136,7 @@ int run_cli(int argc, const char* const* argv) {
     std::cout << "AudioAlgo command line runner " << AUDIOALGO_VERSION << "\n"
               << "Usage: audio_cli run <project.aaproj> <new-output-directory> <block-size>\n"
               << "       audio_cli --list-nodes [--plugin-dir <directory>]\n"
+              << "       audio_cli check-node <node-project-folder> <work-directory>\n"
               << "       audio_cli --version\n"
               << "Plugin roots: --plugin-dir (repeatable), or AUDIOALGO_PLUGIN_PATH.\n";
     return argc == 1 ? 0 : 2;

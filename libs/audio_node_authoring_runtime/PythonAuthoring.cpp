@@ -222,10 +222,11 @@ class Node:
     def describe(cls):
         return json.loads(Path(__file__).with_name('manifest.json').read_text(encoding='utf-8'))['nodes'][0]
     def prepare(self, context):
-        for path in sorted(Path(__file__).parent.glob('*.py')):
+        root = Path(__file__).parent
+        for path in sorted(root.rglob('*.py')):
             try: compile(path.read_bytes(), str(path), 'exec', dont_inherit=True)
             except SyntaxError as error:
-                raise DiagnosticError('python_syntax_error', f'{path.name}:{error.lineno or 0}:{error.offset or 0}: {error.msg}') from None
+                raise DiagnosticError('python_syntax_error', f'{path.relative_to(root).as_posix().replace("workspace_src/", "src/", 1)}:{error.lineno or 0}:{error.offset or 0}: {error.msg}') from None
     def process(self, inputs, context):
         reference = next(iter(inputs.values()))
         return {port['id']: AudioPort(reference.samples, reference.sample_rate_hz, reference.channel_ids, reference.valid_interval) for port in self.describe()['outputs']}
@@ -239,6 +240,10 @@ PythonAuthoring::PythonAuthoring(std::filesystem::path root, std::filesystem::pa
     if (interpreter_.empty()) interpreter_ = AUDIOALGO_AUTHORING_INTERPRETER;
     if (runner_.empty()) runner_ = AUDIOALGO_AUTHORING_RUNNER;
 #endif
+    root_ = std::filesystem::absolute(root_).lexically_normal();
+    work_ = std::filesystem::absolute(work_).lexically_normal();
+    if (!interpreter_.empty()) interpreter_ = std::filesystem::absolute(interpreter_).lexically_normal();
+    if (!runner_.empty()) runner_ = std::filesystem::absolute(runner_).lexically_normal();
 }
 std::shared_ptr<const AuthoringChecks> PythonAuthoring::with_work_directory(const std::filesystem::path& work) const {
     auto result = std::make_shared<PythonAuthoring>(root_, interpreter_, runner_, allow_, work, execution_timeout_);
@@ -261,7 +266,7 @@ PrepareOutcome PythonAuthoring::prepare_apply(const ReadyPackage& ready, const D
     try {
         const auto cancelled = [cancel] { return cancel && cancel->load(); };
         auto checkpoint = [&](ApplyPhase phase) { require(!cancelled(), "Apply cancelled"); require(!allow_ || allow_(phase), "Injected apply storage/registration failure"); };
-        require(base && draft == ready.draft && hash(draft.source) == ready.source_sha256 &&
+        require(base && draft == ready.draft && (ready.workspace ? (draft.source.empty() && ready.workspace->content_sha256 == ready.source_sha256) : hash(draft.source) == ready.source_sha256) &&
             hash(draft.declaration) == ready.declaration_sha256 && ready.wrapper_version == "python-function-v1", "Ready no longer matches draft");
         const auto id = "user.authoring." + hash(draft.id).substr(0, 24);
         require(content_hash(ready.package_sha256) && ready.package_root.filename().string() == ready.package_sha256, "Invalid Ready package identity");
@@ -269,7 +274,10 @@ PrepareOutcome PythonAuthoring::prepare_apply(const ReadyPackage& ready, const D
         const auto relative = std::filesystem::absolute(ready.package_root).lexically_normal().lexically_relative(std::filesystem::absolute(work_ / "staging").lexically_normal());
         require(!relative.empty() && *relative.begin() != "..", "Ready package is outside authoring staging");
         if (auto error = validate_python_snapshot(ready.package_root, cancelled)) throw std::runtime_error(error->code + ": " + error->message);
-        require(file_hash(ready.package_root / "user_source.py") == ready.source_sha256 && file_hash(interpreter_) == ready.interpreter_sha256, "Checked source or environment changed");
+        require((ready.workspace || file_hash(ready.package_root / "user_source.py") == ready.source_sha256) && file_hash(interpreter_) == ready.interpreter_sha256, "Checked source or environment changed");
+        if (ready.workspace)
+            require(juce::JSON::parse(js(read(ready.package_root / "manifest.json")))["workspace_content_sha256"].toString().toStdString() == ready.source_sha256,
+                "Ready workspace identity differs from the frozen package");
         const auto transaction = work_ / "staging" / ("apply-" + juce::Uuid().toString().toStdString());
         auto runner = freeze_python_package(runner_, transaction / "runner", "", cancelled);
         require(std::holds_alternative<std::filesystem::path>(runner) && std::get<std::filesystem::path>(runner).filename().string() == ready.runner_sha256, "Checked runner environment changed");
@@ -565,6 +573,13 @@ std::optional<SourceDiagnostic> PythonAuthoring::carry_packages(const std::vecto
     }
 }
 CheckOutcome PythonAuthoring::check(Draft draft, const std::shared_ptr<std::atomic<bool>>& cancel) const {
+    return check_inputs(std::move(draft), {}, cancel);
+}
+CheckOutcome PythonAuthoring::check_workspace(Draft identity, const Workspace& workspace, const std::shared_ptr<std::atomic<bool>>& cancel) const {
+    identity.source.clear();
+    return check_inputs(std::move(identity), workspace, cancel);
+}
+CheckOutcome PythonAuthoring::check_inputs(Draft draft, std::optional<Workspace> workspace, const std::shared_ptr<std::atomic<bool>>& cancel) const {
 #ifndef AUDIOALGO_AUTHORING_PYTHON
     return SourceDiagnostic{"python_disabled", "Python execution is disabled in this build", "", 0, 0};
 #else
@@ -583,16 +598,52 @@ CheckOutcome PythonAuthoring::check(Draft draft, const std::shared_ptr<std::atom
         if (auto error = probe_authoring_directory(work_)) return SourceDiagnostic{error->code, error->message + " | Choose another Work folder. Current: " + work_.generic_string()};
         const auto staging = work_ / "staging" / request_id;
         std::filesystem::create_directories(io_path(staging));
+        if (workspace) {
+            const auto frozen = WorkspaceStore{}.snapshot(workspace->directory, staging / "workspace", [cancel] { return cancel && cancel->load(); });
+            if (const auto* error = std::get_if<Diagnostic>(&frozen)) return SourceDiagnostic{error->code, error->message};
+            auto captured = std::get<Workspace>(frozen);
+            if (captured.content_sha256 != workspace->content_sha256 || captured.authoring_metadata != workspace->authoring_metadata || captured.declaration != draft.declaration)
+                return SourceDiagnostic{"source_changed_during_snapshot", "Disk changed; refresh the node project and check again"};
+            workspace = std::move(captured);
+        }
         const auto package_id = "user.authoring." + hash(draft.id).substr(0, 24);
         auto manifest = [&](const std::filesystem::path& path, const char* entrypoint) {
             std::filesystem::create_directories(path);
-            auto descriptor = node.clone(); descriptor.getDynamicObject()->setProperty("entrypoint", entrypoint);
+            auto descriptor = node.clone(); descriptor.getDynamicObject()->setProperty("entrypoint",
+                workspace ? js("workspace_src." + workspace->entrypoint) : juce::String(entrypoint));
             juce::DynamicObject::Ptr root = new juce::DynamicObject;
             root->setProperty("schema_version", 1); root->setProperty("runtime", "python");
             root->setProperty("plugin_id", js(package_id)); root->setProperty("plugin_version", node["version"]);
             root->setProperty("nodes", juce::Array<juce::var>{descriptor});
             write(path / "manifest.json", juce::JSON::toString(juce::var(root.get()), false).toStdString());
-            write(path / "user_source.py", draft.source); write(path / "authoring_wrapper.py", wrapper); write(path / "syntax_check.py", syntax_wrapper);
+            auto wrapper_source = std::string(wrapper);
+            if (workspace) {
+                juce::DynamicObject::Ptr files = new juce::DynamicObject;
+                for (const auto& file : workspace->files) if (file.path != "node.json") {
+                    const auto relative = file.path.starts_with("src/") ? "workspace_src/" + file.path.substr(4) : file.path;
+                    require(relative != "manifest.json" && relative != "snapshot.json" && !files->hasProperty(js(relative)), "Workspace runtime paths collide with package metadata");
+                    const auto destination = path / std::filesystem::u8path(relative);
+                    std::filesystem::create_directories(io_path(destination.parent_path()));
+                    std::filesystem::copy_file(io_path(workspace->directory / std::filesystem::u8path(file.path)), io_path(destination));
+                    juce::DynamicObject::Ptr entry = new juce::DynamicObject;
+                    entry->setProperty("bytes", static_cast<juce::int64>(file.bytes)); entry->setProperty("sha256", js(file.sha256));
+                    entry->setProperty("role", file.path.starts_with("src/") || file.path.starts_with("include/") ? "source" : "resource");
+                    files->setProperty(js(relative), juce::var(entry.get()));
+                }
+                auto value = juce::JSON::parse(js(read(path / "manifest.json")));
+                auto* metadata = value.getDynamicObject();
+                metadata->setProperty("workspace_content_sha256", js(workspace->content_sha256));
+                metadata->setProperty("workspace_node_json", js(workspace->node_json));
+                juce::DynamicObject::Ptr profile = new juce::DynamicObject;
+                profile->setProperty("kind", "workspace-function-v1");
+                profile->setProperty("syntax_only", std::string(entrypoint) == "syntax_check:Node");
+                metadata->setProperty("authoring_profile", juce::var(profile.get()));
+                metadata->setProperty("workspace_files", juce::var(files.get()));
+                write(path / "manifest.json", juce::JSON::toString(value, false).toStdString());
+            } else {
+                write(path / "user_source.py", draft.source);
+                write(path / "authoring_wrapper.py", wrapper_source); write(path / "syntax_check.py", syntax_wrapper);
+            }
         };
         manifest(staging / "candidate", "authoring_wrapper:Node");
         NodeRegistry catalog;
@@ -639,7 +690,7 @@ CheckOutcome PythonAuthoring::check(Draft draft, const std::shared_ptr<std::atom
             event.sequence = ++log_sequence; event.received_unix_ms = static_cast<std::uint64_t>(juce::Time::currentTimeMillis());
             event.source = log_phase + "." + stream; event.level = stream == "stdout" ? "info" : "error";
             event.text = message; event.total_bytes = total; event.discarded_bytes = discarded;
-            logs.push_back({draft.id, hash(draft.source), hash(draft.declaration), request_id, log_phase, draft.generation, std::move(event)});
+            logs.push_back({draft.id, workspace ? workspace->content_sha256 : hash(draft.source), hash(draft.declaration), request_id, log_phase, draft.generation, std::move(event)});
         };
         auto collect_logs = [&](const PythonTaskStatistics& stats, std::string phase) {
             log_phase = std::move(phase);
@@ -649,8 +700,19 @@ CheckOutcome PythonAuthoring::check(Draft draft, const std::shared_ptr<std::atom
         collect_logs(syntax_stats, "syntax");
         auto diagnostic = [&](const Diagnostic& d) {
             SourceDiagnostic result{d.code, d.message, "user_source.py", 0, 0};
-            const std::regex location(R"(user_source\.py:([0-9]+):([0-9]+):)"); std::smatch match;
-            if (std::regex_search(d.message, match, location)) { result.line = std::stoi(match[1]); result.column = std::stoi(match[2]); }
+            if (workspace) {
+                auto entry = workspace->entrypoint.substr(0, workspace->entrypoint.find(':'));
+                std::replace(entry.begin(), entry.end(), '.', '/'); result.file = "src/" + entry + ".py";
+            }
+            const std::regex location(R"(((?:src/[^:\r\n]+|user_source)\.py):([0-9]+):([0-9]+):)"); std::smatch match;
+            if (std::regex_search(d.message, match, location)) { result.file = match[1]; result.line = std::stoi(match[2]); result.column = std::stoi(match[3]); }
+            else if (workspace) {
+                const std::regex frame(R"re(workspace_src[/\\]([^"\r\n]+\.py)", line ([0-9]+))re");
+                for (auto it = std::sregex_iterator(d.message.begin(), d.message.end(), frame); it != std::sregex_iterator(); ++it) {
+                    auto relative = (*it)[1].str(); std::replace(relative.begin(), relative.end(), '\\', '/');
+                    result.file = "src/" + relative; result.line = std::stoi((*it)[2]);
+                }
+            }
             const auto message = d.code + ": " + d.message;
             add_log("diagnostic", message, message.size()); result.logs = logs;
             return result;
@@ -666,7 +728,8 @@ CheckOutcome PythonAuthoring::check(Draft draft, const std::shared_ptr<std::atom
         auto success = std::get<PythonTaskSuccess>(std::move(probe));
         ReadyPackage ready;
         ready.draft = std::move(draft); ready.request_id = request_id;
-        ready.source_sha256 = hash(ready.draft.source); ready.declaration_sha256 = hash(ready.draft.declaration);
+        ready.workspace = std::move(workspace);
+        ready.source_sha256 = ready.workspace ? ready.workspace->content_sha256 : hash(ready.draft.source); ready.declaration_sha256 = hash(ready.draft.declaration);
         ready.package_root = std::get<std::filesystem::path>(std::move(frozen)); ready.package_sha256 = ready.package_root.filename().string();
         ready.interpreter_sha256 = interpreter_hash;
         ready.runner_sha256 = request.runner_module_root.filename().string();

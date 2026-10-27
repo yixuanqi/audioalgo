@@ -457,6 +457,7 @@ private:
             juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectDirectories,
             std::move(completion), true);
     }
+    std::filesystem::path code_editor_;
     void open_node_workspace() {
         if (authoring_panel_) { authoring_panel_->toFront(true); return; }
         choose_directory("Open node project folder", {}, [this](std::filesystem::path directory) {
@@ -471,16 +472,12 @@ private:
                         return;
                     }
                     auto workspace = std::get<authoring::Workspace>(std::move(outcome));
-                    authoring::Draft draft;
-                    draft.id = "node-" + workspace.content_sha256.substr(0, 12);
-                    draft.language = workspace.language;
-                    draft.declaration = workspace.declaration;
-                    draft.source = workspace.entry_source;
+                    auto draft = authoring::workspace_identity(workspace);
                     std::uint64_t bytes = 0;
                     for (const auto& file : workspace.files) bytes += file.bytes;
                     DraftFileActions files;
                     files.workspace = DraftFileActions::WorkspaceBinding{workspace.directory, workspace.content_sha256,
-                                                                        workspace.files.size(), bytes};
+                                                                        workspace.files.size(), bytes, workspace};
                     files.initial_location_message = "Node project: " + path_to_utf8(workspace.directory) + " | " +
                                                      std::to_string(workspace.files.size()) + " files";
                     target.show_draft(std::move(draft), true, std::move(files));
@@ -519,6 +516,27 @@ private:
                     return authoring::WorkspaceStore{}.create(target, source);
                 };
         }
+        files.choose_editor = [this] {
+            launch_file_chooser("Choose code editor executable", juce::File::getSpecialLocation(juce::File::userHomeDirectory), "*.exe",
+                juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+                [this](std::filesystem::path executable) { if (!executable.empty()) code_editor_ = std::move(executable); }, true);
+        };
+        files.open_project = [this](const std::filesystem::path& directory, const std::string& file, int line, int column) -> std::optional<std::string> {
+            if (code_editor_.empty()) {
+                if (to_juce_file(directory).startAsProcess()) return {};
+                return "Could not open the node project folder; choose an editor executable";
+            }
+            if (code_editor_.extension() != ".exe") return "Choose an editor .exe; shell scripts are not executable editor configurations";
+            juce::StringArray arguments{to_juce_file(code_editor_).getFullPathName()};
+            if (!file.empty()) {
+                const auto path = to_juce_file(directory / std::filesystem::u8path(file)).getFullPathName();
+                if (code_editor_.filename() == "Code.exe") { arguments.add("--goto"); arguments.add(path + ":" + juce::String(std::max(1, line)) + ":" + juce::String(std::max(1, column))); }
+                else arguments.add(path);
+            } else arguments.add(to_juce_file(directory).getFullPathName());
+            juce::ChildProcess process;
+            if (!process.start(arguments)) return "Could not start the selected editor; the project remains on disk";
+            return {};
+        };
         authoring_panel_ = std::make_unique<NodeAuthoringPanel>(std::move(draft), saved, drafts_, [this] {
             auto after_close = std::move(after_draft_close_);
             authoring_panel_.reset();
