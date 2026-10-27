@@ -46,9 +46,12 @@ class FrozenFinder(importlib.abc.MetaPathFinder):
 
 _finder=FrozenFinder()
 
-def load_class(plugin_id:str,digest:str,root:Path,files:dict[str,str],entrypoint:str):
+def load_module(plugin_id:str,digest:str,root:Path,files:dict[str,str],module_name:str):
     namespace='_audioalgo_'+hashlib.sha256((plugin_id+digest).encode()).hexdigest()
     if _finder not in sys.meta_path:sys.meta_path.insert(0,_finder)
     _finder.roots[namespace]=(root,files)
+    return importlib.import_module(namespace+'.'+module_name)
+
+def load_class(plugin_id:str,digest:str,root:Path,files:dict[str,str],entrypoint:str):
     module_name,class_name=entrypoint.split(':')
-    return getattr(importlib.import_module(namespace+'.'+module_name),class_name)
+    return getattr(load_module(plugin_id,digest,root,files,module_name),class_name)

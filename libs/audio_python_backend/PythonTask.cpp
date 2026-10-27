@@ -45,6 +45,60 @@ juce::File file(const std::filesystem::path& path){const auto s=path.u8string();
 std::string hash(const std::filesystem::path& path){return juce::SHA256(file(io_path(path))).toHexString().toStdString();}
 std::string field(const juce::var& v,const char* key){require(v[key].isString(),"python_protocol_shape","Expected a string field");return v[key].toString().toStdString();}
 std::size_t number(const juce::var& v){require((v.isInt()||v.isInt64()) && static_cast<juce::int64>(v)>=0,"python_protocol_shape","Expected a nonnegative integer");return static_cast<std::size_t>(static_cast<juce::int64>(v));}
+struct PackageInventory {
+    std::map<std::string,std::filesystem::path> files;
+    std::set<std::string> resources;
+    std::map<std::string,std::pair<std::size_t,std::string>> expected;
+    bool operator==(const PackageInventory&) const = default;
+};
+PackageInventory package_inventory(const std::filesystem::path& root) {
+    PackageInventory result;
+    std::set<std::string> declared;
+    bool workspace = false;
+    if(std::filesystem::is_regular_file(io_path(root/"manifest.json"))) {
+        std::ifstream stream(io_path(root/"manifest.json"),std::ios::binary);
+        std::string bytes(1024*1024+1,'\0');stream.read(bytes.data(),bytes.size());bytes.resize(static_cast<std::size_t>(stream.gcount()));
+        require(bytes.size()<=1024*1024,"python_code_limit","Package manifest exceeds1 MiB");
+        const auto manifest=juce::JSON::parse(js(bytes));
+        if(manifest.hasProperty("workspace_files")) {
+            const auto profile=manifest["authoring_profile"];
+            require(field(profile,"kind")=="workspace-function-v1" && profile["syntax_only"].isBool(),"python_authoring_profile_invalid","Invalid workspace file profile");
+            const auto* entries=manifest["workspace_files"].getDynamicObject();
+            require(entries && entries->getProperties().size()<=191,"python_code_limit","Invalid workspace runtime file list");
+            workspace=true;declared.insert("manifest.json");
+            for(int i=0;i<entries->getProperties().size();++i) {
+                const auto name=entries->getProperties().getName(i).toString().toStdString();
+                const auto path=std::filesystem::u8path(name);
+                const auto entry=entries->getProperties().getValueAt(i);
+                require(!name.empty() && name.size()<=522 && name.find('\\')==std::string::npos && name.find(':')==std::string::npos &&
+                    !path.has_root_path() && path.lexically_normal()==path && *path.begin()!=".." && name!="manifest.json" && name!="snapshot.json",
+                    "python_code_path_invalid","Invalid workspace runtime path");
+                const auto role=field(entry,"role"),digest=field(entry,"sha256");
+                require((role=="source" || role=="resource") && std::regex_match(digest,std::regex("[0-9a-f]{64}")),"python_authoring_profile_invalid","Invalid workspace runtime identity");
+                if(role=="resource")result.resources.insert(name);
+                result.expected.emplace(name,std::pair{number(entry["bytes"]),digest});declared.insert(name);
+            }
+        }
+    }
+    for(const auto& item:std::filesystem::recursive_directory_iterator(io_path(root))) {
+        bool linked=item.is_symlink();
+#ifdef _WIN32
+        const auto attributes=GetFileAttributesW(item.path().c_str());
+        linked=linked || (attributes!=INVALID_FILE_ATTRIBUTES && (attributes&FILE_ATTRIBUTE_REPARSE_POINT));
+#endif
+        require(!linked,"python_code_path_invalid","Package snapshots cannot include linked files or directories");
+        if(!item.is_regular_file())continue;
+        const auto relative=item.path().lexically_relative(io_path(root)).generic_u8string();
+        const auto name=std::string(reinterpret_cast<const char*>(relative.data()),relative.size());
+        if(workspace) {
+            require(name=="snapshot.json" || declared.contains(name),"python_snapshot_modified","Workspace has an undeclared runtime file");
+            if(name!="snapshot.json")result.files.emplace(name,item.path());
+        } else if(item.path().extension()==".py" || name=="manifest.json")result.files.emplace(name,item.path());
+    }
+    require(result.files.size()-result.resources.size()<=128 && result.resources.size()<=64,"python_code_limit","Package exceeds source/resource file budget");
+    if(workspace)require(result.files.size()==declared.size(),"python_snapshot_modified","Declared workspace runtime file is missing");
+    return result;
+}
 juce::var array(std::initializer_list<juce::var> values){juce::Array<juce::var> a;for(auto& v:values)a.add(v);return a;}
 void set_identity(juce::DynamicObject& object,const PythonTaskRequest& r,const char* kind) {
     object.setProperty("version",1);object.setProperty("message_type",kind);object.setProperty("node_id",js(r.node_id));
@@ -312,28 +366,25 @@ private:Process& process;const PythonTaskRequest& r;Clock::time_point deadline;s
 std::variant<std::filesystem::path,Diagnostic> freeze_python_package(const std::filesystem::path& root,
     const std::filesystem::path& destination,const std::string& manifest_hash,const std::function<bool()>& cancelled) {
     try {
-        constexpr std::size_t maximum=8*1024*1024;std::size_t total=0;
+        constexpr std::size_t maximum=8*1024*1024,resource_maximum=64*1024*1024;std::size_t total=0,resource_total=0;
         const auto inventory=[&] {
-            std::map<std::string,std::filesystem::path> files;
-            for(const auto& item:std::filesystem::recursive_directory_iterator(io_path(root))) {
-                if(item.is_symlink())fail("python_code_path_invalid","Package snapshots cannot include symlinked code or directories");
-                if(item.is_regular_file() && (item.path().extension()==".py" || item.path()==io_path(root/"manifest.json"))) {
-                    const auto name=item.path().lexically_relative(io_path(root)).generic_u8string();files.emplace(std::string(reinterpret_cast<const char*>(name.data()),name.size()),item.path());
-                    require(files.size()<=128,"python_code_limit","Package exceeds128 code files");
-                }
-            }
-            require(!files.empty() && (manifest_hash.empty() || files.contains("manifest.json")),"python_manifest_missing","Snapshot has no required source/manifest");return files;
+            auto plan=package_inventory(root);
+            require(!plan.files.empty() && (manifest_hash.empty() || plan.files.contains("manifest.json")),"python_manifest_missing","Snapshot has no required source/manifest");return plan;
         };
-        const auto files=inventory();std::map<std::string,std::string> contents,digests;
+        const auto plan=inventory();const auto& files=plan.files;std::map<std::string,std::string> contents,digests;
         for(const auto& [name,path]:files) {
             if(cancelled && cancelled())fail("run_cancelled","Code snapshot cancelled");
             std::ifstream input(io_path(path),std::ios::binary);require(input.is_open(),"python_code_read_failed","Could not read package source");
-            std::string bytes(maximum-total+1,'\0');input.read(bytes.data(),static_cast<std::streamsize>(bytes.size()));const auto count=static_cast<std::size_t>(input.gcount());
-            require(!input.bad() && count<=maximum-total,"python_code_limit","Code snapshot exceeds8 MiB");bytes.resize(count);total+=count;
+            auto& used=plan.resources.contains(name)?resource_total:total;
+            const auto limit=plan.resources.contains(name)?resource_maximum:maximum;
+            const auto capacity=plan.expected.contains(name)?std::min(limit-used,plan.expected.at(name).first):limit-used;
+            std::string bytes(capacity+1,'\0');input.read(bytes.data(),static_cast<std::streamsize>(bytes.size()));const auto count=static_cast<std::size_t>(input.gcount());
+            require(!input.bad() && count<=limit-used,"python_code_limit","Snapshot exceeds source/resource byte budget");bytes.resize(count);used+=count;
             digests[name]=juce::SHA256(bytes.data(),bytes.size()).toHexString().toStdString();contents[name]=std::move(bytes);
+            if(plan.expected.contains(name))require(plan.expected.at(name)==std::pair{count,digests[name]},"python_snapshot_modified","Workspace runtime file differs from its declared identity");
         }
         if(!manifest_hash.empty())require(digests.at("manifest.json")==manifest_hash,"python_manifest_changed","Python metadata changed; refresh the host catalog");
-        require(inventory()==files,"python_code_changed_during_snapshot","Code file set changed during capture");
+        require(inventory()==plan,"python_code_changed_during_snapshot","Code file set changed during capture");
         std::string signature;
         for(const auto& [name,path]:files) {
             if(cancelled && cancelled())fail("run_cancelled","Code snapshot cancelled");
@@ -363,21 +414,22 @@ std::optional<Diagnostic> validate_python_snapshot(const std::filesystem::path& 
         std::ifstream stream(io_path(root/"snapshot.json"),std::ios::binary);require(stream.is_open(),"python_snapshot_modified","Fixed code snapshot metadata disappeared");
         std::string bytes(1024*1024+1,'\0');stream.read(bytes.data(),static_cast<std::streamsize>(bytes.size()));const auto count=static_cast<std::size_t>(stream.gcount());
         require(!stream.bad() && count<=1024*1024,"python_snapshot_modified","Invalid snapshot metadata size");bytes.resize(count);
-        const auto metadata=juce::JSON::parse(js(bytes));const auto* files=metadata["files"].getDynamicObject();require(files && files->getProperties().size()<=128,"python_snapshot_modified","Invalid fixed code file list");
+        const auto plan=package_inventory(root);
+        const auto metadata=juce::JSON::parse(js(bytes));const auto* files=metadata["files"].getDynamicObject();require(files && static_cast<std::size_t>(files->getProperties().size())==plan.files.size(),"python_snapshot_modified","Invalid fixed code file list");
         std::map<std::string,std::string> expected;
+        std::size_t source_bytes=0,resource_bytes=0;
         for(int i=0;i<files->getProperties().size();++i) {
             if(cancelled && cancelled())fail("run_cancelled","Fixed code validation cancelled");
             const auto name=files->getProperties().getName(i).toString().toStdString(),digest=files->getProperties().getValueAt(i).toString().toStdString();
             const auto relative=std::filesystem::u8path(name);require(!relative.is_absolute() && !relative.has_root_path() && relative.lexically_normal()==relative && !relative.empty() && *relative.begin()!="..","python_snapshot_modified","Invalid fixed code path");
             require(hash(root/relative)==digest,"python_snapshot_modified","Fixed source bytes changed");expected[name]=digest;
+            const auto size=std::filesystem::file_size(io_path(root/relative));
+            (plan.resources.contains(name)?resource_bytes:source_bytes)+=size;
+            if(plan.expected.contains(name))require(plan.expected.at(name)==std::pair{static_cast<std::size_t>(size),digest},"python_snapshot_modified","Fixed workspace runtime identity changed");
         }
+        require(source_bytes<=8*1024*1024 && resource_bytes<=64*1024*1024,"python_snapshot_modified","Fixed source/resource budget exceeded");
         std::set<std::string> actual;
-        for(const auto& item:std::filesystem::recursive_directory_iterator(io_path(root))) {
-            require(!item.is_symlink(),"python_snapshot_modified","Fixed source became a symlink");
-            if(item.is_regular_file() && (item.path().extension()==".py" || item.path().filename()=="manifest.json")) {
-                const auto name=item.path().lexically_relative(io_path(root)).generic_u8string();actual.insert(std::string(reinterpret_cast<const char*>(name.data()),name.size()));
-            }
-        }
+        for(const auto& [name,path]:plan.files)actual.insert(name);
         require(actual.size()==expected.size() && std::all_of(actual.begin(),actual.end(),[&](const auto& n){return expected.contains(n);}),"python_snapshot_modified","Fixed source inventory changed");
         std::string signature;for(const auto& [name,digest]:expected)signature+=name+'\0'+digest+'\n';
         const auto digest=juce::SHA256(signature.data(),signature.size()).toHexString().toStdString();
@@ -435,9 +487,12 @@ PythonTaskOutcome run_python_task(const PythonTaskRequest& r,PythonTaskStatistic
         require(!process.log_budget.exceeded.load(),"log_limit","Python stdout/stderr exceeded the complete 16 MiB log budget");
         require(!process.log_budget.write_failed.load(),"python_log_write_failed","Could not persist complete Python log bytes");
         for(auto& [path,digest]:validated)require(hash(path)==digest,"python_output_modified","Python output changed before worker collection completed");
-        const auto* code_files=result["code_files"].getDynamicObject();require(code_files && code_files->getProperties().size()<=128,"python_snapshot_modified","Missing executed code inventory");
+        const auto executed_root=confined(directory,field(result,"code_snapshot"));
+        const auto executed_plan=package_inventory(executed_root);
+        const auto* code_files=result["code_files"].getDynamicObject();require(code_files && static_cast<std::size_t>(code_files->getProperties().size())==executed_plan.files.size(),"python_snapshot_modified","Missing executed code inventory");
         for(int i=0;i<code_files->getProperties().size();++i) {
             const auto name=code_files->getProperties().getName(i).toString().toStdString();
+            require(executed_plan.files.contains(name),"python_snapshot_modified","Executed file was not in the runtime inventory");
             const auto source=confined(directory,field(result,"code_snapshot")+"/"+name);
             require(hash(source)==code_files->getProperties().getValueAt(i).toString().toStdString(),"python_snapshot_modified","Executed source snapshot changed during task execution");
         }

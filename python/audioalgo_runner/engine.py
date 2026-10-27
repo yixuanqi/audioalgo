@@ -75,7 +75,12 @@ class Engine:
         previous=self.loaded_hashes.get(info.plugin_id)
         checked(previous is None or previous==digest,'python_restart_required','Code changed; restart the runner instead of reloading modules')
         self.loaded_hashes[info.plugin_id]=digest
-        cls=load_class(info.plugin_id,digest,snapshot,files,info.descriptor['entrypoint'])
+        manifest=json.loads((snapshot/'manifest.json').read_bytes())
+        if 'authoring_profile' in manifest:
+            from .workspace_function import node_class
+            cls=node_class(info,snapshot,digest,files,manifest['authoring_profile'])
+        else:
+            cls=load_class(info.plugin_id,digest,snapshot,files,info.descriptor['entrypoint'])
         checked(callable(getattr(cls,'describe',None)) and cls.describe()==info.descriptor,
                 'python_descriptor_mismatch','Loaded class descriptor disagrees with the frozen manifest')
         return cls,snapshot,digest,files

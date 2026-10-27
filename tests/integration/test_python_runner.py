@@ -205,6 +205,36 @@ class PythonRunnerTests(unittest.TestCase):
         self.client=Client(self.root,self.plugins,8192)
         response=self.client.execute(self.request());self.assertEqual(response['code'],'python_payload_limit',response)
         self.assertFalse(marker.exists());self.assertFalse(list(self.root.glob('python-work-*')))
+    def test_workspace_profile_compiles_all_sources_before_any_import(self):
+        package=self.plugins/'first';m=json.loads((package/'manifest.json').read_text())
+        m['authoring_profile']={'kind':'workspace-function-v1','syntax_only':True}
+        m['nodes'][0]['entrypoint']='workspace_src.process:custom'
+        (package/'manifest.json').write_text(json.dumps(m))
+        source=package/'workspace_src';source.mkdir()
+        marker=self.root/'imported.txt'
+        (source/'process.py').write_text(f'from pathlib import Path\nPath({str(marker)!r}).write_text("imported")\n')
+        (source/'unused.py').write_text('value = (\n',encoding='utf-8')
+        self.start();response=self.client.execute(self.request())
+        self.assertEqual(response['code'],'python_syntax_error',response)
+        self.assertIn('src/unused.py:1:9:',response['message']);self.assertFalse(marker.exists())
+
+    def test_unknown_workspace_profile_refuses_user_import(self):
+        package=self.plugins/'first';m=json.loads((package/'manifest.json').read_text())
+        m['authoring_profile']={'kind':'unknown','syntax_only':False}
+        (package/'manifest.json').write_text(json.dumps(m))
+        marker=self.root/'imported.txt';source=package/'gain_node.py'
+        source.write_text(f'from pathlib import Path\nPath({str(marker)!r}).write_text("imported")\n'+source.read_text())
+        self.start();response=self.client.execute(self.request())
+        self.assertEqual(response['code'],'python_authoring_profile_invalid',response);self.assertFalse(marker.exists())
+
+    def test_ordinary_plugin_keeps_128_file_budget_and_recovers(self):
+        package=self.plugins/'first'
+        for i in range(126):(package/f'unused_{i}.py').write_text('value = True\n')
+        self.start();response=self.client.execute(self.request())
+        self.assertEqual(response['code'],'python_code_limit',response)
+        (package/'unused_125.py').unlink()
+        request=self.request();self.check_result(request,self.client.execute(request),2*self.samples.astype(np.float64))
+
     def test_protocol_length_version_and_unknown_message_are_diagnosable(self):
         self.start();self.client.send({'version':1,'message_type':'unknown'})
         self.assertEqual(self.client.receive()['code'],'protocol_message_unknown')
