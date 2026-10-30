@@ -49,9 +49,8 @@ jobs:
           "APP_VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "Resolved version: $ver"
 
-      # Tests are intentionally disabled for distribution builds; CI keeps the
-      # footprint to the two shipped targets. SPEEXDSP stays off to mirror the
-      # windows-release preset.
+      # Build only the shipped targets plus the isolated package regression
+      # executable. Other test targets are configured but not built or shipped.
       - name: Configure (Release)
         shell: pwsh
         run: >
@@ -61,13 +60,13 @@ jobs:
           -DAUDIO_BUILD_RUNTIME=ON
           -DAUDIO_ENABLE_PYTHON=ON
           -DAUDIO_ENABLE_SPEEXDSP=OFF
-          -DAUDIO_BUILD_TESTS=OFF
+          -DAUDIO_BUILD_TESTS=ON
           -DAUDIO_BUILD_INFRASTRUCTURE_TESTS=OFF
           -DPython3_EXECUTABLE="${{ steps.py.outputs.python-path }}"
 
       - name: Build editor and CLI
         shell: pwsh
-        run: cmake --build build --config Release --target AudioAlgoEditor audio_cli --parallel
+        run: cmake --build build --config Release --target AudioAlgoEditor audio_cli audio_packaged_authoring_tests --parallel
 
       - name: Editor smoke test
         shell: pwsh
@@ -92,9 +91,10 @@ jobs:
           if ($LASTEXITCODE -gt 7) { throw "robocopy failed with exit code $LASTEXITCODE" }
           $global:LASTEXITCODE = 0
 
-          # Runner modules expected at <exe-dir>/python/audioalgo_runner.
+          # Runner code has a separate import root from the complete interpreter.
+          New-Item -ItemType Directory -Force -Path (Join-Path $staging 'runner') | Out-Null
           Copy-Item 'python/audioalgo_runner' `
-            -Destination (Join-Path $staging 'python/audioalgo_runner') -Recurse -Force
+            -Destination (Join-Path $staging 'runner/audioalgo_runner') -Recurse -Force
 
           # VC++ runtime DLLs so the package runs without a redistributable.
           $vsRoot = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
@@ -107,6 +107,41 @@ jobs:
 
           "STAGING=$staging" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           Get-ChildItem $staging | Select-Object Name
+
+      - name: Check Apply and run with the staged Python and runner
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $probe = Join-Path $env:STAGING 'audio_packaged_authoring_tests.exe'
+          Copy-Item 'build/package-tests/audio_packaged_authoring_tests.exe' -Destination $probe
+          $env:AUDIOALGO_PACKAGE_PROBE_ROOT = Join-Path $env:RUNNER_TEMP 'AudioAlgo package probe'
+          $probeRoot = $env:AUDIOALGO_PACKAGE_PROBE_ROOT
+          Remove-Item Env:AUDIOALGO_PYTHON_EXECUTABLE -ErrorAction SilentlyContinue
+          Remove-Item Env:PYTHONHOME -ErrorAction SilentlyContinue
+          Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue
+          # Make the compiled source fallback unavailable during the probe.
+          $sourcePython = Join-Path $PWD 'python'
+          $parkedPython = Join-Path $PWD '.package-probe-source-python'
+          $workspaceRoot = (Resolve-Path .).Path
+          foreach ($target in @($sourcePython, $parkedPython)) {
+            if ((Split-Path ([IO.Path]::GetFullPath($target))) -ne $workspaceRoot) { throw 'Source move escaped the workspace' }
+          }
+          if (Test-Path -LiteralPath $parkedPython) { throw 'Parked source directory already exists' }
+          Move-Item -LiteralPath $sourcePython -Destination $parkedPython
+          try {
+            Push-Location $env:RUNNER_TEMP
+            try {
+              & $probe 'PKG-01 relocated host checks applies and runs a directory node using its bundled runner'
+              if ($LASTEXITCODE -ne 0) { throw "Packaged authoring regression failed: $LASTEXITCODE" }
+            } finally { Pop-Location }
+          } finally {
+            Move-Item -LiteralPath $parkedPython -Destination $sourcePython
+            Remove-Item -LiteralPath $probe
+            Remove-Item Env:AUDIOALGO_PACKAGE_PROBE_ROOT -ErrorAction SilentlyContinue
+          }
+          & (Join-Path $env:STAGING 'python/python.exe') 'tests/integration/verify_packaged_authoring.py' `
+            $probeRoot --output (Join-Path $env:RUNNER_TEMP 'audioalgo-package-oracle.json')
+          if ($LASTEXITCODE -ne 0) { throw 'Independent packaged audio/identity verification failed' }
 
       - name: Pack portable zip (绿色版)
         shell: pwsh

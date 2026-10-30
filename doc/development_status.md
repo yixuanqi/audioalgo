@@ -1,6 +1,7 @@
 # Development status
 
 <!-- CNL-CURRENT-START -->
+- **最新用户缺陷PKG0001（2026-10-31）：修复发布包Python节点Check失败**。工作台与普通节点运行共用解释器/runner定位；新包使用`python/python.exe`＋`runner/audioalgo_runner`，兼容旧合并目录。runner只冻结自身模块，避免完整Python环境触发128文件预算；缺文件明确诊断，Ready/Apply环境锁及原预算保持。真实Red同时捕获开发runner误用与旧包运行超限。Debug直接41/41、最终Unicode测试Debug/Release各3/3；Python OFF纯库32用例/452断言通过，原生插件消费者构建成功。独立自带Python/NumPy的Release测试523断言通过；10份迁移运行及1份自带解释器运行共5643样本独立oracle误差0。Debug/Release编辑器和CLI已链接，未启动用户窗口。发布流程已加入非源码cwd、临时移开源码后的Check→Apply→运行与独立文件验算，但CI/安装包/干净OS/真实桌面未执行，不能算正式发布验收。证据`build/reports/loops/PKG0001-python-runtime/summary.json`、ADR0044。此用户缺陷已闭合；原NWS-05.b Compare/Reload/另存下一行为及所有正式阶段缺项保持。
 - **最新NWS0016：修复目录Ctrl+Shift+S误走单文件另存**。真实Red5/18证明原路径创建缺源码aadraft并误清除dirty；共享单文件保存入口现拒绝目录调用并提示Save definition，保留本地编辑/目录身份，不调用草稿选择器。带/不带选择器两路径及随后Ctrl+S真实写node.json均通过，54断言；最新Debug直接35/35、0失败/跳过，4份新组件/CLI输出4104样本独立oracle最大误差0。源码/二进制精确归档及未变18项纯库复用依据见`build/reports/loops/NWS0016-directory-save-as/summary.json`。初次测试helper位置编译失败保留为夹具探针，不计产品Red。Debug编辑器已链接、未自动启动；该保护不等于目录Save As完成。下一条Red仍为生产Compare展示磁盘/本地双方原文、Cancel两边不变，再实现保留双方的Reload/另存。
 - **前片NWS0015：目录声明保存已实现，当前继续NWS-05.b冲突比较/重新载入/另存**。生产目录面板可编辑名称/type_id及高级JSON，显式Save definition/Ctrl+S后台校验并只写node.json；目录源码仍由磁盘持有、Session.source为空、不生成目录源码aadraft。编辑撤销Ready，保存后须重新Check；保存期间新增编辑保留，外部源码刷新也保留未保存声明。
 - 外部node.json或作者记录变化拒绝覆盖，Refresh/Save/Close失败保留面板编辑与磁盘字节；注入write/verify/replace失败保持原文件。采用预期字节复核，**未声称文件系统原子CAS或完整换链/故障矩阵通过**。Compare/Reload/Save As尚未交付，不能把本片当整个NWS-05.b完成。
