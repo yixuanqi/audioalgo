@@ -1,0 +1,147 @@
+name: windows-build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Release editor/CLI, portable zip and installer
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      APP_NAME: AudioAlgo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Bundled as <exe-dir>/python inside both distributions; numpy is the
+      # pinned runner dependency (python/requirements-runner.txt).
+      - name: Set up Python 3.13 (bundled runtime)
+        id: py
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          architecture: x64
+
+      - name: Install runner dependency (numpy)
+        run: python -m pip install --no-cache-dir numpy==2.4.3
+
+      - name: Resolve package version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $ver = $env:GITHUB_REF_NAME.TrimStart('v')
+          } else {
+            $m = Select-String -Path CMakeLists.txt -Pattern 'project\(AudioAlgo\s+VERSION\s+([0-9]+\.[0-9]+\.[0-9]+)'
+            if (-not $m) { throw 'Cannot read project version from CMakeLists.txt' }
+            $ver = $m.Matches[0].Groups[1].Value
+          }
+          "APP_VERSION=$ver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "Resolved version: $ver"
+
+      # Tests are intentionally disabled for distribution builds; CI keeps the
+      # footprint to the two shipped targets. SPEEXDSP stays off to mirror the
+      # windows-release preset.
+      - name: Configure (Release)
+        shell: pwsh
+        run: >
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          -DCMAKE_BUILD_TYPE=Release
+          -DAUDIO_BUILD_EDITOR=ON
+          -DAUDIO_BUILD_RUNTIME=ON
+          -DAUDIO_ENABLE_PYTHON=ON
+          -DAUDIO_ENABLE_SPEEXDSP=OFF
+          -DAUDIO_BUILD_TESTS=OFF
+          -DAUDIO_BUILD_INFRASTRUCTURE_TESTS=OFF
+          -DPython3_EXECUTABLE="${{ steps.py.outputs.python-path }}"
+
+      - name: Build editor and CLI
+        shell: pwsh
+        run: cmake --build build --config Release --target AudioAlgoEditor audio_cli --parallel
+
+      - name: Editor smoke test
+        shell: pwsh
+        run: '& "build\bin\AudioAlgoEditor.exe" --smoke-test'
+
+      - name: Stage portable layout
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $staging = Join-Path $PWD "dist/AudioAlgo-$env:APP_VERSION-windows-x64"
+          New-Item -ItemType Directory -Force -Path $staging | Out-Null
+
+          # build/bin is the single runtime output dir and already contains
+          # AudioAlgoEditor.exe, audio_cli.exe and examples/gain_demo.
+          Copy-Item 'build/bin/*' -Destination $staging -Recurse -Force
+
+          # Full hosted CPython (numpy preinstalled) relocates as-is; the
+          # runtime resolves <exe-dir>/python/python.exe before any compiled
+          # fallback path.
+          $pyHome = Split-Path (Get-Command python).Source
+          robocopy $pyHome (Join-Path $staging 'python') /E /NFL /NDL /NJH /NJS /XD __pycache__ | Out-Null
+          if ($LASTEXITCODE -gt 7) { throw "robocopy failed with exit code $LASTEXITCODE" }
+          $global:LASTEXITCODE = 0
+
+          # Runner modules expected at <exe-dir>/python/audioalgo_runner.
+          Copy-Item 'python/audioalgo_runner' `
+            -Destination (Join-Path $staging 'python/audioalgo_runner') -Recurse -Force
+
+          # VC++ runtime DLLs so the package runs without a redistributable.
+          $vsRoot = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -latest -products * -requires Microsoft.VisualStudio.Component.VC.Redist.14.Latest `
+            -property installationPath
+          $crt = Get-ChildItem "$vsRoot/VC/Redist/MSVC/*/x64/Microsoft.VC*.CRT" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $crt) { throw 'VC runtime redist directory not found' }
+          Copy-Item "$($crt.FullName)/*.dll" -Destination $staging -Force
+
+          "STAGING=$staging" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Get-ChildItem $staging | Select-Object Name
+
+      - name: Pack portable zip (绿色版)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Compress-Archive -Path $env:STAGING `
+            -DestinationPath "dist/AudioAlgo-$env:APP_VERSION-windows-x64-portable.zip" -Force
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Pack installer (安装版)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw 'ISCC.exe not found' }
+          & $iscc /DAppVersion=$env:APP_VERSION /DSourceDir="$env:STAGING" `
+            /DOutputDir="$PWD/dist" packaging/windows/AudioAlgo.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
+
+      - name: Upload distribution artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: AudioAlgo-${{ env.APP_VERSION }}-windows-x64
+          path: |
+            dist/*.zip
+            dist/*.exe
+          if-no-files-found: error
+
+      - name: Attach to GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.zip
+            dist/*.exe
+          fail_on_unmatched_files: true
