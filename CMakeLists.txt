@@ -268,9 +268,29 @@ if(AUDIO_BUILD_TESTS)
   catch_discover_tests(audio_node_authoring_tests PROPERTIES LABELS "node_authoring;pure" TIMEOUT 10)
 
   if(AUDIO_BUILD_RUNTIME)
+    add_library(audioalgo_test_native_browser SHARED
+      tests/fixtures/native_browser_v1/plugin.cpp)
+    target_link_libraries(audioalgo_test_native_browser PRIVATE audio_node_abi)
+    target_include_directories(audioalgo_test_native_browser PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+    target_compile_features(audioalgo_test_native_browser PRIVATE cxx_std_20)
+    if(MSVC)
+      target_compile_options(audioalgo_test_native_browser PRIVATE /utf-8)
+    endif()
+    set_target_properties(audioalgo_test_native_browser PROPERTIES
+      OUTPUT_NAME native_browser
+      RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test-native-browser"
+      RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_BINARY_DIR}/test-native-browser"
+      RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_BINARY_DIR}/test-native-browser"
+      ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/test-native-browser"
+      ARCHIVE_OUTPUT_DIRECTORY_DEBUG "${CMAKE_CURRENT_BINARY_DIR}/test-native-browser"
+      ARCHIVE_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_BINARY_DIR}/test-native-browser")
     add_executable(audioalgo_tests tests/unit/test_environment.cpp tests/unit/test_graph.cpp tests/unit/test_io.cpp tests/unit/test_project.cpp tests/unit/test_project_compatibility.cpp tests/unit/test_juce_graph.cpp tests/unit/test_run_service.cpp tests/unit/test_editor_run_job.cpp tests/unit/test_core.cpp tests/unit/test_editor_geometry.cpp tests/unit/test_editor_commands.cpp tests/unit/test_gain_node_adapter.cpp tests/unit/test_node_registry.cpp tests/unit/test_native_node_audio_processor.cpp tests/unit/test_native_node_contracts.cpp tests/unit/test_editor_parameter_panel.cpp tests/unit/test_editor_parameter_binding.cpp apps/editor/EditorParameterPanel.cpp apps/editor/EditorNodeParameterBinding.cpp)
     target_sources(audioalgo_tests PRIVATE tests/unit/test_fixed_frame_fifo.cpp)
     target_sources(audioalgo_tests PRIVATE tests/unit/test_node_authoring.cpp)
+    target_sources(audioalgo_tests PRIVATE tests/unit/test_node_browser_taxonomy.cpp)
+    target_sources(audioalgo_tests PRIVATE tests/unit/test_node_browser_registration.cpp)
+    target_sources(audioalgo_tests PRIVATE tests/unit/test_node_browser_python_routes.cpp)
+    target_sources(audioalgo_tests PRIVATE tests/unit/test_workspace_declaration_panel.cpp)
     target_sources(audioalgo_tests PRIVATE apps/editor/EditorExternalProcess.cpp)
     target_sources(audioalgo_tests PRIVATE apps/editor/EditorPreferences.cpp)
     if(WIN32)
@@ -297,10 +317,13 @@ if(AUDIO_BUILD_TESTS)
     target_compile_features(audioalgo_tests PRIVATE cxx_std_20)
     target_compile_definitions(audioalgo_tests PRIVATE
       AUDIOALGO_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+      AUDIOALGO_TEST_NATIVE_BROWSER_DLL="$<TARGET_FILE:audioalgo_test_native_browser>"
       AUDIOALGO_CLI_EXECUTABLE="$<TARGET_FILE:audio_cli>"
       AUDIOALGO_PYTHON_EXECUTABLE="${Python3_EXECUTABLE}"
       AUDIOALGO_TEST_PYTHON_ENABLED=$<BOOL:${AUDIO_ENABLE_PYTHON}>
     )
+    target_include_directories(audioalgo_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+    add_dependencies(audioalgo_tests audioalgo_test_native_browser)
     catch_discover_tests(audioalgo_tests TEST_PREFIX "")
     add_test(
       NAME AR-05.b
@@ -476,6 +499,9 @@ if(AUDIO_BUILD_TESTS)
   add_test(NAME NWS-00.status
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/infrastructure/test_node_workspace_manifest_status.py")
   set_tests_properties(NWS-00.status PROPERTIES LABELS "NWS;infrastructure;contract" TIMEOUT 60)
+  add_test(NAME CNL-00.contract
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/infrastructure/test_connection_library_verifier.py")
+  set_tests_properties(CNL-00.contract PROPERTIES LABELS "CNL;infrastructure;contract" TIMEOUT 60)
 
   foreach(case IN ITEMS b c)
     add_test(
@@ -562,11 +588,24 @@ if(AUDIO_BUILD_TESTS)
   target_include_directories(audio_native_plugin_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/apps/editor")
   target_link_libraries(audio_native_plugin_tests PRIVATE Catch2::Catch2WithMain audio_host_nodes
     audio_run_service audio_editor_application juce::juce_gui_basics)
+  if(MSVC)
+    target_compile_options(audio_native_plugin_tests PRIVATE /utf-8)
+  endif()
   if(AUDIO_BUILD_INFRASTRUCTURE_TESTS)
     add_test(NAME UPN_external_sdk_pipeline
       COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/integration/verify_native_plugin.py"
         --build-dir "${CMAKE_BINARY_DIR}" --config "$<CONFIG>" --cmake "${CMAKE_COMMAND}")
     set_tests_properties(UPN_external_sdk_pipeline PROPERTIES LABELS "UPN;build_consumer;native_integration" TIMEOUT 240)
+    add_test(NAME "NLC-07.a old ABI v1 DLL runs in current component and CLI without recompilation"
+      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/integration/verify_native_browser_compatibility.py"
+        --build-dir "${CMAKE_BINARY_DIR}" --config "$<CONFIG>")
+    set_tests_properties("NLC-07.a old ABI v1 DLL runs in current component and CLI without recompilation"
+      PROPERTIES LABELS "CNL;native_integration" TIMEOUT 120)
+    add_test(NAME "NLC-07.b browser native DLL retains complete manifest and compatibility rejection"
+      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/integration/verify_native_browser_manifest.py"
+        --cli "$<TARGET_FILE:audio_cli>" --browser-dll "$<TARGET_FILE:audioalgo_test_native_browser>")
+    set_tests_properties("NLC-07.b browser native DLL retains complete manifest and compatibility rejection"
+      PROPERTIES LABELS "CNL;native_integration" TIMEOUT 120)
   endif()
 endif()
 
