@@ -5,6 +5,14 @@
 #include <filesystem>
 
 namespace audioalgo {
+struct PythonRuntimePaths {
+    std::filesystem::path executable, runner_module_root;
+};
+// Explicit selections, then the interpreter environment override, then the
+// installed bundle. Development paths are used only outside a bundle.
+[[nodiscard]] PythonRuntimePaths resolve_python_runtime(std::filesystem::path executable = {},
+    std::filesystem::path runner_module_root = {}, std::filesystem::path host_directory = {});
+[[nodiscard]] std::optional<Diagnostic> validate_python_runtime(const PythonRuntimePaths&);
 struct PythonTaskRequest {
     std::filesystem::path python_executable,runner_module_root,plugin_root,output_parent;
     std::string type_id,node_id;
@@ -39,6 +47,11 @@ using PythonTaskOutcome=std::variant<PythonTaskSuccess,Diagnostic>;
 [[nodiscard]] std::variant<std::filesystem::path,Diagnostic> freeze_python_package(
     const std::filesystem::path& root,const std::filesystem::path& destination,
     const std::string& expected_manifest_sha256,const std::function<bool()>& is_cancelled={});
+// Capture only audioalgo_runner/**, retaining its module prefix. Never scan
+// the interpreter's Lib/site-packages even with the legacy combined layout.
+[[nodiscard]] std::variant<std::filesystem::path,Diagnostic> freeze_python_runner(
+    const std::filesystem::path& module_root, const std::filesystem::path& destination,
+    const std::function<bool()>& is_cancelled={});
 [[nodiscard]] std::optional<Diagnostic> validate_python_snapshot(const std::filesystem::path&,
     const std::function<bool()>& is_cancelled={});
 // Synchronous worker API. Owns a dedicated process/Job Object and borrowed request

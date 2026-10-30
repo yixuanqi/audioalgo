@@ -51,11 +51,11 @@ struct PackageInventory {
     std::map<std::string,std::pair<std::size_t,std::string>> expected;
     bool operator==(const PackageInventory&) const = default;
 };
-PackageInventory package_inventory(const std::filesystem::path& root) {
+PackageInventory package_inventory(const std::filesystem::path& root, bool runner_only = false) {
     PackageInventory result;
     std::set<std::string> declared;
     bool workspace = false;
-    if(std::filesystem::is_regular_file(io_path(root/"manifest.json"))) {
+    if(!runner_only && std::filesystem::is_regular_file(io_path(root/"manifest.json"))) {
         std::ifstream stream(io_path(root/"manifest.json"),std::ios::binary);
         std::string bytes(1024*1024+1,'\0');stream.read(bytes.data(),bytes.size());bytes.resize(static_cast<std::size_t>(stream.gcount()));
         require(bytes.size()<=1024*1024,"python_code_limit","Package manifest exceeds1 MiB");
@@ -80,7 +80,18 @@ PackageInventory package_inventory(const std::filesystem::path& root) {
             }
         }
     }
-    for(const auto& item:std::filesystem::recursive_directory_iterator(io_path(root))) {
+    const auto scan_root = runner_only ? root / "audioalgo_runner" : root;
+    if (runner_only) {
+        if (!std::filesystem::is_regular_file(io_path(scan_root / "__main__.py")))
+            fail("python_runner_missing", "Python runner is missing: " + file(scan_root / "__main__.py").getFullPathName().toStdString());
+        bool linked = std::filesystem::is_symlink(std::filesystem::symlink_status(io_path(scan_root)));
+#ifdef _WIN32
+        const auto attributes = GetFileAttributesW(io_path(scan_root).c_str());
+        linked = linked || (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_REPARSE_POINT));
+#endif
+        require(!linked, "python_code_path_invalid", "Runner snapshots cannot follow a linked package directory");
+    }
+    for(const auto& item:std::filesystem::recursive_directory_iterator(io_path(scan_root))) {
         bool linked=item.is_symlink();
 #ifdef _WIN32
         const auto attributes=GetFileAttributesW(item.path().c_str());
@@ -363,12 +374,39 @@ private:Process& process;const PythonTaskRequest& r;Clock::time_point deadline;s
 #endif
 }
 
-std::variant<std::filesystem::path,Diagnostic> freeze_python_package(const std::filesystem::path& root,
-    const std::filesystem::path& destination,const std::string& manifest_hash,const std::function<bool()>& cancelled) {
+PythonRuntimePaths resolve_python_runtime(std::filesystem::path executable, std::filesystem::path modules,
+                                         std::filesystem::path host) {
+    if (host.empty()) host = std::filesystem::u8path(juce::File::getSpecialLocation(juce::File::currentExecutableFile).getParentDirectory().getFullPathName().toStdString());
+    const bool bundled = std::filesystem::exists(io_path(host / "python")) || std::filesystem::exists(io_path(host / "runner"));
+    if (executable.empty()) {
+        const auto override = juce::SystemStats::getEnvironmentVariable("AUDIOALGO_PYTHON_EXECUTABLE", {});
+        executable = override.isNotEmpty() ? std::filesystem::u8path(override.toStdString()) :
+            bundled ? host / "python/python.exe" : std::filesystem::u8path(AUDIOALGO_PYTHON_EXE_SOURCE);
+    }
+    if (modules.empty()) {
+        // A damaged new bundle must report its missing runner, not silently
+        // consume a development tree or a different legacy installation.
+        if (std::filesystem::exists(io_path(host / "runner"))) modules = host / "runner";
+        else if (bundled) modules = host / "python";
+        else modules = std::filesystem::u8path(AUDIOALGO_PYTHON_MODULE_SOURCE);
+    }
+    return {std::filesystem::absolute(executable).lexically_normal(), std::filesystem::absolute(modules).lexically_normal()};
+}
+std::optional<Diagnostic> validate_python_runtime(const PythonRuntimePaths& runtime) {
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(io_path(runtime.executable), error))
+        return Diagnostic{"python_executable_missing", "Python executable is missing or unreadable: " + file(runtime.executable).getFullPathName().toStdString()};
+    if (!std::filesystem::is_regular_file(io_path(runtime.runner_module_root / "audioalgo_runner/__main__.py"), error))
+        return Diagnostic{"python_runner_missing", "Python runner is missing or unreadable: " + file(runtime.runner_module_root / "audioalgo_runner/__main__.py").getFullPathName().toStdString()};
+    return {};
+}
+
+static std::variant<std::filesystem::path,Diagnostic> freeze_python_code(const std::filesystem::path& root,
+    const std::filesystem::path& destination,const std::string& manifest_hash,const std::function<bool()>& cancelled, bool runner_only) {
     try {
         constexpr std::size_t maximum=8*1024*1024,resource_maximum=64*1024*1024;std::size_t total=0,resource_total=0;
         const auto inventory=[&] {
-            auto plan=package_inventory(root);
+            auto plan=package_inventory(root, runner_only);
             require(!plan.files.empty() && (manifest_hash.empty() || plan.files.contains("manifest.json")),"python_manifest_missing","Snapshot has no required source/manifest");return plan;
         };
         const auto plan=inventory();const auto& files=plan.files;std::map<std::string,std::string> contents,digests;
@@ -407,6 +445,15 @@ std::variant<std::filesystem::path,Diagnostic> freeze_python_package(const std::
         return target;
     } catch(const Failure& error){return error.diagnostic;}
       catch(const std::exception& error){return Diagnostic{"python_code_snapshot_failed",error.what()};}
+}
+
+std::variant<std::filesystem::path,Diagnostic> freeze_python_package(const std::filesystem::path& root,
+    const std::filesystem::path& destination,const std::string& manifest_hash,const std::function<bool()>& cancelled) {
+    return freeze_python_code(root, destination, manifest_hash, cancelled, false);
+}
+std::variant<std::filesystem::path,Diagnostic> freeze_python_runner(const std::filesystem::path& root,
+    const std::filesystem::path& destination,const std::function<bool()>& cancelled) {
+    return freeze_python_code(root, destination, {}, cancelled, true);
 }
 
 std::optional<Diagnostic> validate_python_snapshot(const std::filesystem::path& root,const std::function<bool()>& cancelled) {
