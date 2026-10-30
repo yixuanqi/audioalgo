@@ -122,6 +122,20 @@ public:
         completion_dispatch_state_ = std::make_shared<
             audioalgo::editor::ComponentDispatchState<EditorComponent>>(*this);
         inspector_.set_descriptor_registry(descriptors_);
+        canvas_.set_connection_context_menu_handler(
+            [this](std::string label, std::function<void()> disconnect) {
+                show_connection_context_menu(std::move(label), std::move(disconnect));
+            });
+        canvas_.set_port_connection_context_menu_handler(
+            [this](std::vector<GraphCanvas::PortConnectionMenuItem> items) {
+                show_port_connection_context_menu(std::move(items));
+            });
+        canvas_.set_node_connection_context_menu_handler(
+            [this](std::vector<std::string> node_ids, std::function<void()> disconnect) {
+                const auto label = node_ids.size() > 1
+                    ? "Disconnect selected nodes" : "Disconnect all connections";
+                show_connection_context_menu(label, std::move(disconnect));
+            });
 
         for (auto* button : {&new_button_, &open_button_, &save_button_, &undo_button_, &redo_button_,
                              &run_button_, &play_button_})
@@ -157,6 +171,7 @@ public:
         canvas_.setComponentID("project.canvas"); status_.setComponentID("project.status");
         play_button_.setComponentID("project.play");
         play_button_.onClick = [this] { toggle_playback(); };
+        play_button_.setEnabled(false);
         run_logs_.enable_history([this]{refresh_run_log_history();},[this](std::optional<RunLogArchiveReference> selected){select_run_log_history(std::move(selected));});
         delete_button_.onClick = [this] { canvas_.delete_selected(); };
 
@@ -347,12 +362,14 @@ public:
                     return;
                 }
                 const auto& result = std::get<audioalgo::RunSuccess>(outcome);
+                controller_.mark_result_current();
                 output_file_ = result.output_file;
                 waveform_.set_waveform(std::move(waveform));
                 set_status("Completed run " + utf8_string(result.run_id) + utf8_literal(" · ") +
                            juce::String(static_cast<juce::int64>(result.frames)) + utf8_literal(" frames · ") +
                            utf8_string(result.output_sha256.substr(0, 12)), false);
                 play_button_.setButtonText("Play output");
+                play_button_.setEnabled(true);
             });
         juce::ignoreUnused(completion_applied);
     }
@@ -377,6 +394,8 @@ public:
     }
 
 private:
+    friend struct EditorComponentTestAccess;
+
     void cancel_log_history_read() {
         if(log_history_cancel_)log_history_cancel_->store(true);
         ++log_history_generation_;viewing_archived_logs_=false;
@@ -750,6 +769,10 @@ private:
     }
 
     void mark_changed() {
+        if (controller_.results_stale()) {
+            run_reception_.invalidate();
+            clear_result_presentation();
+        }
         update_history_controls();
         canvas_.repaint();
         const auto star = project_path_.empty() ? utf8_literal(" · unsaved") :
@@ -758,6 +781,7 @@ private:
     }
 
     void advance_project_epoch() {
+        (void)juce::PopupMenu::dismissAllActiveMenus();
         cancel_log_history_read();
         cancel_catalog_resolution();
         upgrade_panel_.reset();
@@ -771,10 +795,7 @@ private:
         run_after_save_ = false;
         canvas_.set_project_epoch(project_epoch_);
         canvas_.select({});
-        waveform_.set_waveform({});
-        output_file_.clear();
-        stop_playback_resources();
-        play_button_.setButtonText("Play output");
+        clear_result_presentation();
     }
 
     void update_history_controls() {
@@ -866,6 +887,39 @@ private:
                 safe_this->commit_library_insertion(
                     type_id, node_id, target, position, source_epoch, expected_revision,
                     choices[static_cast<std::size_t>(selected_id - 1)]);
+            });
+    }
+
+    void show_connection_context_menu(std::string label, std::function<void()> disconnect) {
+        juce::PopupMenu menu;
+        menu.addItem(1, utf8_string(label));
+        juce::Component::SafePointer<EditorComponent> safe_this(this);
+        menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&canvas_),
+            [safe_this, disconnect = std::move(disconnect)](int selected_id) mutable {
+                if (safe_this != nullptr && selected_id == 1 && disconnect)
+                    disconnect();
+            });
+    }
+
+    void show_port_connection_context_menu(std::vector<GraphCanvas::PortConnectionMenuItem> items) {
+        if (items.empty())
+            return;
+        juce::PopupMenu menu;
+        std::vector<std::function<void()>> actions;
+        actions.reserve(items.size());
+        for (std::size_t index = 0; index < items.size(); ++index) {
+            menu.addItem(static_cast<int>(index + 1), utf8_string(items[index].label));
+            actions.push_back(std::move(items[index].action));
+        }
+        juce::Component::SafePointer<EditorComponent> safe_this(this);
+        menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&canvas_),
+            [safe_this, actions = std::move(actions)](int selected_id) mutable {
+                if (safe_this == nullptr || selected_id <= 0 ||
+                    static_cast<std::size_t>(selected_id) > actions.size())
+                    return;
+                auto& action = actions[static_cast<std::size_t>(selected_id - 1)];
+                if (action)
+                    action();
             });
     }
 
@@ -1276,9 +1330,7 @@ private:
                        utf8_string(diagnostics.front().message), true);
             return;
         }
-        stop_playback_resources();
-        output_file_.clear();
-        waveform_.set_waveform({});
+        clear_result_presentation();
         const auto revision = project_.revision;
         const audioalgo::RunIdentity identity{project_.project_id, project_epoch_, new_id(), revision};
         run_reception_.begin(identity);
@@ -1398,6 +1450,14 @@ private:
     }
 
     void stop_playback_resources() { preview_service_->stop(); }
+
+    void clear_result_presentation() {
+        stop_playback_resources();
+        output_file_.clear();
+        waveform_.set_waveform({});
+        play_button_.setButtonText("Play output");
+        play_button_.setEnabled(false);
+    }
 
     EditorLookAndFeel look_and_feel_;
     EditorPanelSizes panel_sizes_;

@@ -191,6 +191,151 @@ TEST_CASE("AR-08.a SwapProcessingNodes reports revision exhaustion without chang
     CHECK_FALSE(controller.results_stale());
 }
 
+TEST_CASE("NCE-07.c Edit guards reject revision overflow, active gestures, and missing old edges atomically",
+          "[NCE-07.c][CNL0001][controller]") {
+    const auto registry = probe_catalog();
+    const auto initial = probe_project();
+    const auto original = initial.connections.front();
+    const audioalgo::Connection replacement{"ghost", "audio", "gain", "audio_in"};
+    const auto same_complete_project = [](const audioalgo::ProjectModel& left,
+                                          const audioalgo::ProjectModel& right) {
+        if (left.schema_version != right.schema_version || left.project_id != right.project_id ||
+            left.name != right.name || left.revision != right.revision ||
+            left.selected_output_node_id != right.selected_output_node_id ||
+            left.selected_output_port_id != right.selected_output_port_id ||
+            left.serialized_extensions != right.serialized_extensions || left.nodes.size() != right.nodes.size() ||
+            left.connections.size() != right.connections.size())
+            return false;
+        for (std::size_t index = 0; index < left.nodes.size(); ++index) {
+            const auto& a = left.nodes[index];
+            const auto& b = right.nodes[index];
+            if (a.id != b.id || a.type_id != b.type_id || a.parameters != b.parameters || a.x != b.x || a.y != b.y ||
+                a.opaque_parameters != b.opaque_parameters || a.serialized_extensions != b.serialized_extensions ||
+                a.managed_version != b.managed_version)
+                return false;
+        }
+        for (std::size_t index = 0; index < left.connections.size(); ++index) {
+            const auto& a = left.connections[index];
+            const auto& b = right.connections[index];
+            if (a.from_node != b.from_node || a.from_port != b.from_port || a.to_node != b.to_node ||
+                a.to_port != b.to_port || a.serialized_extensions != b.serialized_extensions)
+                return false;
+        }
+        return true;
+    };
+    const auto establish_redo_branch = [&](audioalgo::editor::EditorController& controller) {
+        REQUIRE(controller.set_parameter("gain", "gain_db", -3.0).status ==
+                audioalgo::editor::ParameterEditStatus::applied);
+        REQUIRE(controller.undo());
+        REQUIRE(controller.history().can_redo());
+        CHECK(controller.dirty());
+        CHECK(controller.results_stale());
+    };
+
+    SECTION("model-level connection edit cannot wrap an exhausted revision") {
+        auto project = initial;
+        const auto edge_to_restore = project.connections.back();
+        project.connections.pop_back();
+        project.revision = std::numeric_limits<std::uint64_t>::max();
+        const auto before = project;
+
+        const auto diagnostics = audioalgo::try_add_connection(project, edge_to_restore, registry);
+
+        CHECK(diagnostics.size() == 1);
+        if (!diagnostics.empty()) {
+            CHECK(diagnostics.front().code == "revision_exhausted");
+            CHECK(diagnostics.front().node_id == edge_to_restore.to_node);
+            CHECK(diagnostics.front().port_id == edge_to_restore.to_port);
+        }
+        CHECK(same_complete_project(project, before));
+        CHECK(project.revision == std::numeric_limits<std::uint64_t>::max());
+    }
+
+    SECTION("controller rejects reconnect at the revision limit without consuming redo") {
+        audioalgo::editor::EditorController controller(registry);
+        auto at_limit_after_undo = initial;
+        at_limit_after_undo.revision = std::numeric_limits<std::uint64_t>::max() - 2;
+        controller.adopt_project(at_limit_after_undo);
+        controller.mark_result_current();
+        establish_redo_branch(controller);
+        REQUIRE(controller.revision() == std::numeric_limits<std::uint64_t>::max());
+
+        const auto before = controller.project();
+        const auto undo_size = controller.history().undo_size();
+        const auto redo_size = controller.history().redo_size();
+        const auto dirty_before = controller.dirty();
+        const auto stale_before = controller.results_stale();
+        const auto rejected = controller.reconnect_connection(original, replacement);
+
+        REQUIRE(rejected.status == audioalgo::editor::ProjectEditStatus::rejected);
+        REQUIRE_FALSE(rejected.diagnostics.empty());
+        CHECK(rejected.diagnostics.front().code == "revision_exhausted");
+        CHECK(rejected.diagnostics.front().node_id == replacement.to_node);
+        CHECK(rejected.diagnostics.front().port_id == replacement.to_port);
+        CHECK(same_complete_project(controller.project(), before));
+        CHECK(controller.history().undo_size() == undo_size);
+        CHECK(controller.history().redo_size() == redo_size);
+        CHECK(controller.history().can_redo());
+        CHECK(controller.dirty() == dirty_before);
+        CHECK(controller.results_stale() == stale_before);
+    }
+
+    SECTION("active parameter gesture blocks reconnect and preserves the redo branch") {
+        audioalgo::editor::EditorController controller(registry);
+        controller.adopt_project(initial);
+        controller.mark_result_current();
+        establish_redo_branch(controller);
+        REQUIRE(controller.begin_parameter_gesture("gain", "gain_db").status ==
+                audioalgo::editor::ParameterEditStatus::started);
+
+        const auto before = controller.project();
+        const auto undo_size = controller.history().undo_size();
+        const auto redo_size = controller.history().redo_size();
+        const auto dirty_before = controller.dirty();
+        const auto stale_before = controller.results_stale();
+        const auto rejected = controller.reconnect_connection(original, replacement);
+
+        REQUIRE(rejected.status == audioalgo::editor::ProjectEditStatus::rejected);
+        REQUIRE_FALSE(rejected.diagnostics.empty());
+        CHECK(rejected.diagnostics.front().code == "parameter_gesture_active");
+        CHECK(same_complete_project(controller.project(), before));
+        CHECK(controller.history().undo_size() == undo_size);
+        CHECK(controller.history().redo_size() == redo_size);
+        CHECK(controller.dirty() == dirty_before);
+        CHECK(controller.results_stale() == stale_before);
+        REQUIRE(controller.cancel_parameter_gesture().status ==
+                audioalgo::editor::ParameterEditStatus::cancelled);
+        CHECK(controller.history().can_redo());
+    }
+
+    SECTION("missing old edge rejects reconnect without changing project identity or history") {
+        audioalgo::editor::EditorController controller(registry);
+        controller.adopt_project(initial);
+        controller.mark_result_current();
+        establish_redo_branch(controller);
+        const audioalgo::Connection missing{"ghost", "missing-output", "output", "audio"};
+
+        const auto before = controller.project();
+        const auto undo_size = controller.history().undo_size();
+        const auto redo_size = controller.history().redo_size();
+        const auto dirty_before = controller.dirty();
+        const auto stale_before = controller.results_stale();
+        const auto rejected = controller.reconnect_connection(missing, replacement);
+
+        REQUIRE(rejected.status == audioalgo::editor::ProjectEditStatus::rejected);
+        REQUIRE_FALSE(rejected.diagnostics.empty());
+        CHECK(rejected.diagnostics.front().code == "connection_missing");
+        CHECK(rejected.diagnostics.front().node_id == missing.to_node);
+        CHECK(rejected.diagnostics.front().port_id == missing.to_port);
+        CHECK(same_complete_project(controller.project(), before));
+        CHECK(controller.project().project_id == before.project_id);
+        CHECK(controller.history().undo_size() == undo_size);
+        CHECK(controller.history().redo_size() == redo_size);
+        CHECK(controller.dirty() == dirty_before);
+        CHECK(controller.results_stale() == stale_before);
+    }
+}
+
 TEST_CASE("AR-08.a AddSourceNode records the chosen resource and supports undo and redo",
           "[R2][AR-08.a]") {
     const auto registry = probe_catalog();
@@ -378,6 +523,120 @@ TEST_CASE("AR-08.a Connect and Disconnect validate atomically and share undo his
     CHECK_FALSE(controller.history().can_redo());
     CHECK(controller.dirty());
     CHECK(controller.results_stale());
+}
+
+TEST_CASE("NCE-06.a Connection rejection identifies direction and invalid graph cases atomically",
+          "[NCE-06.a][CNL0001][controller]") {
+    auto registry = probe_catalog();
+    REQUIRE(registry.register_descriptor({
+        "test.controller_control_source", "1.0.0", "Control source",
+        {{"control", "control.value@1", audioalgo::PortDirection::output, false}}, {},
+        audioalgo::NodeExecutionKind::source}));
+
+    auto project = probe_project();
+    project.serialized_extensions = {{"project_extension", "{\"keep\":true}"}};
+    project.nodes.push_back({"control", "test.controller_control_source", {}, 300.0, 160.0});
+    project.nodes.push_back({"file-2", "test.controller_source", {{"path", std::string("second.wav")}},
+                             0.0, 160.0});
+    project.nodes.push_back({"cycle-a", "test.controller_node", {}, 400.0, 220.0});
+    project.nodes.push_back({"cycle-b", "test.controller_node", {}, 500.0, 220.0});
+    project.connections.push_back({"cycle-a", "audio_out", "cycle-b", "audio_in"});
+
+    const auto same_complete_project = [](const audioalgo::ProjectModel& left,
+                                          const audioalgo::ProjectModel& right) {
+        if (left.schema_version != right.schema_version || left.project_id != right.project_id ||
+            left.name != right.name || left.revision != right.revision ||
+            left.selected_output_node_id != right.selected_output_node_id ||
+            left.selected_output_port_id != right.selected_output_port_id ||
+            left.serialized_extensions != right.serialized_extensions || left.nodes.size() != right.nodes.size() ||
+            left.connections.size() != right.connections.size())
+            return false;
+        for (std::size_t index = 0; index < left.nodes.size(); ++index) {
+            const auto& actual = left.nodes[index];
+            const auto& expected = right.nodes[index];
+            if (actual.id != expected.id || actual.type_id != expected.type_id ||
+                actual.parameters != expected.parameters || actual.x != expected.x || actual.y != expected.y ||
+                actual.opaque_parameters != expected.opaque_parameters ||
+                actual.serialized_extensions != expected.serialized_extensions ||
+                actual.managed_version != expected.managed_version)
+                return false;
+        }
+        for (std::size_t index = 0; index < left.connections.size(); ++index) {
+            const auto& actual = left.connections[index];
+            const auto& expected = right.connections[index];
+            if (actual.from_node != expected.from_node || actual.from_port != expected.from_port ||
+                actual.to_node != expected.to_node || actual.to_port != expected.to_port ||
+                actual.serialized_extensions != expected.serialized_extensions)
+                return false;
+        }
+        return true;
+    };
+
+    struct RejectedAttempt {
+        audioalgo::Connection connection;
+        const char* diagnostic;
+        const char* message;
+        const char* node;
+        const char* port;
+    };
+    const std::vector<RejectedAttempt> attempts{
+        {{"gain", "audio_in", "output", "audio"}, "connection_source_port_direction",
+         "Connection source must use an output port", "gain", "audio_in"},
+        {{"file", "audio", "gain", "audio_out"}, "connection_target_port_direction",
+         "Connection target must use an input port", "gain", "audio_out"},
+        {{"control", "control", "gain", "audio_in"}, "connection_type_mismatch",
+         "Port types do not match", "gain", "audio_in"},
+        {{"file", "unknown_output", "gain", "audio_in"}, "connection_source_port_missing",
+         "Output port does not exist", "file", "unknown_output"},
+        {{"cycle-a", "audio_out", "cycle-a", "audio_in"}, "connection_self",
+         "A node cannot connect to itself", "cycle-a", "audio_in"},
+        {{"cycle-b", "audio_out", "cycle-a", "audio_in"}, "graph_cycle", "Graph must be acyclic", "", ""},
+        {{"file-2", "audio", "gain", "audio_in"}, "input_connection_duplicate",
+         "An input port accepts at most one connection", "gain", "audio_in"},
+    };
+
+    for (const auto& attempt : attempts) {
+        audioalgo::editor::EditorController controller(registry);
+        controller.adopt_project(project);
+        REQUIRE(controller.set_parameter("gain", "gain_db", 3.0).status ==
+                audioalgo::editor::ParameterEditStatus::applied);
+        REQUIRE(controller.undo());
+        controller.mark_saved();
+        controller.mark_result_current();
+
+        const auto before = controller.project();
+        const auto dirty_before = controller.dirty();
+        const auto stale_before = controller.results_stale();
+        const auto undo_before = controller.history().undo_size();
+        const auto redo_before = controller.history().redo_size();
+        const auto session_before = controller.session_identity();
+        const auto document_generation_before = controller.document_generation();
+        REQUIRE(redo_before == 1);
+
+        const auto rejected = controller.connect(attempt.connection);
+        REQUIRE(rejected.status == audioalgo::editor::ProjectEditStatus::rejected);
+        CHECK(rejected.diagnostics.size() == 1);
+        REQUIRE_FALSE(rejected.diagnostics.empty());
+        for (std::size_t index = 0; index < rejected.diagnostics.size(); ++index) {
+            CAPTURE(index, rejected.diagnostics[index].code, rejected.diagnostics[index].message,
+                    rejected.diagnostics[index].node_id, rejected.diagnostics[index].port_id);
+            CHECK(rejected.diagnostics[index].code == attempt.diagnostic);
+            CHECK(rejected.diagnostics[index].message == attempt.message);
+            if (index == 0) {
+                CHECK(rejected.diagnostics[index].node_id == attempt.node);
+                CHECK(rejected.diagnostics[index].port_id == attempt.port);
+            }
+        }
+        CHECK(same_complete_project(controller.project(), before));
+        CHECK(controller.dirty() == dirty_before);
+        CHECK(controller.results_stale() == stale_before);
+        CHECK(controller.history().undo_size() == undo_before);
+        CHECK(controller.history().redo_size() == redo_before);
+        CHECK(controller.history().can_redo());
+        CHECK(controller.session_identity().project_id == session_before.project_id);
+        CHECK(controller.session_identity().generation == session_before.generation);
+        CHECK(controller.document_generation() == document_generation_before);
+    }
 }
 
 TEST_CASE("AR-08.a InsertNode replaces one edge, preserves branches, and is atomic",

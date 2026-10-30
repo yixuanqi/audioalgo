@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <string>
+#include <vector>
 
 namespace audioalgo::editor {
 
@@ -55,6 +57,38 @@ struct NodeInsertionResult {
     project.connections.erase(connection);
     ++project.revision;
     return true;
+}
+
+[[nodiscard]] inline bool try_disconnect_node_connections(ProjectModel& project,
+                                                          const std::vector<std::string>& node_ids) {
+    if (node_ids.empty())
+        return false;
+    const auto previous_size = project.connections.size();
+    std::erase_if(project.connections, [&](const auto& connection) {
+        const auto is_selected = [&](const std::string& id) {
+            return std::find(node_ids.begin(), node_ids.end(), id) != node_ids.end();
+        };
+        return is_selected(connection.from_node) || is_selected(connection.to_node);
+    });
+    return project.connections.size() != previous_size;
+}
+
+[[nodiscard]] inline bool try_disconnect_node_connections(ProjectModel& project,
+                                                          const std::string& node_id) {
+    return try_disconnect_node_connections(project, std::vector<std::string>{node_id});
+}
+
+[[nodiscard]] inline bool try_disconnect_port_connections(ProjectModel& project, const std::string& node_id,
+                                                          const std::string& port_id, PortDirection direction) {
+    if (node_id.empty() || port_id.empty())
+        return false;
+    const auto previous_size = project.connections.size();
+    std::erase_if(project.connections, [&](const auto& connection) {
+        return direction == PortDirection::output
+            ? connection.from_node == node_id && connection.from_port == port_id
+            : connection.to_node == node_id && connection.to_port == port_id;
+    });
+    return project.connections.size() != previous_size;
 }
 
 [[nodiscard]] inline bool try_delete_node(ProjectModel& project, const NodeCatalog& registry,

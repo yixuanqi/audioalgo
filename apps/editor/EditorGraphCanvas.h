@@ -6,12 +6,45 @@
 #include "EditorTopologyCommands.h"
 #include "EditorNodeSummary.h"
 #include "audio_editor_application/EditorController.h"
+#include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <functional>
+#include <optional>
+#include <vector>
 namespace audioalgo::editor {
 class GraphCanvas final : public juce::Component, public juce::SettableTooltipClient,
                           public juce::DragAndDropTarget {
+    struct ConnectionContextCandidate {
+        audioalgo::Connection connection;
+        std::uint64_t project_epoch = 0;
+        std::uint64_t revision = 0;
+    };
+
+    struct PortContextCandidate {
+        std::string node_id;
+        std::string port_id;
+        std::vector<audioalgo::Connection> connections;
+        std::uint64_t project_epoch = 0;
+        std::uint64_t revision = 0;
+    };
+
+    struct NodeContextCandidate {
+        std::string node_id;
+        std::uint64_t project_epoch = 0;
+        std::uint64_t revision = 0;
+    };
+
 public:
+    using ConnectionContextMenuHandler = std::function<void(std::string, std::function<void()>)>;
+    struct PortConnectionMenuItem {
+        std::string label;
+        std::function<void()> action;
+    };
+    using PortConnectionContextMenuHandler = std::function<void(std::vector<PortConnectionMenuItem>)>;
+    using NodeConnectionContextMenuHandler =
+        std::function<void(std::vector<std::string>, std::function<void()>)>;
+
     GraphCanvas(const audioalgo::ProjectModel& project, const audioalgo::NodeCatalog& descriptors,
                 audioalgo::editor::NodeSelectionState& selection,
                 audioalgo::editor::EditorController& controller,
@@ -40,6 +73,15 @@ public:
 
     const std::string& selected_node_id() const noexcept { return selection_.selected_node_id(); }
     const audioalgo::editor::CanvasCoordinateTransform& coordinate_transform() const noexcept { return coordinates_; }
+    void set_connection_context_menu_handler(ConnectionContextMenuHandler handler) {
+        connection_context_menu_handler_ = std::move(handler);
+    }
+    void set_port_connection_context_menu_handler(PortConnectionContextMenuHandler handler) {
+        port_connection_context_menu_handler_ = std::move(handler);
+    }
+    void set_node_connection_context_menu_handler(NodeConnectionContextMenuHandler handler) {
+        node_connection_context_menu_handler_ = std::move(handler);
+    }
 
     void set_project_epoch(std::uint64_t epoch) noexcept {
         project_epoch_ = epoch;
@@ -50,6 +92,7 @@ public:
         node_order_swap_target_.reset();
         node_order_drop_target_.reset();
         connection_gesture_.cancel();
+        clear_connection_gesture_origin();
         panning_ = false;
         cancel_marquee();
         coordinates_.reset_pan();
@@ -85,17 +128,35 @@ public:
         const auto compatible_target = compatible_connection_target();
         paint_connections(g);
         if (connection_gesture_.is_active()) {
-            const auto* source = find_node(project_, connection_gesture_.source_node_id());
-            const auto start = source == nullptr ? std::optional<juce::Point<float>>{} :
-                port_anchor(*source, connection_gesture_.source_port_id());
-            if (start) {
-                juce::Path path;
-                path.startNewSubPath(*start);
-                const auto preview_pointer = to_juce_point(connection_gesture_.pointer_position());
-                const auto bend = 64.0f * coordinates_.zoom_scale();
-                path.cubicTo(start->translated(bend, 0.0f), preview_pointer.translated(-bend, 0.0f), preview_pointer);
-                g.setColour(signal.withAlpha(0.75f));
-                g.strokePath(path, juce::PathStrokeType(2.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+            juce::Path path;
+            const auto preview_pointer = to_juce_point(connection_gesture_.pointer_position());
+            const auto bend = 64.0f * coordinates_.zoom_scale();
+            if (connection_gesture_.is_reconnecting_source() && connection_gesture_.connection_to_replace()) {
+                const auto& original = *connection_gesture_.connection_to_replace();
+                const auto* target = find_node(project_, original.to_node);
+                const auto finish = target == nullptr ? std::optional<juce::Point<float>>{} :
+                    port_anchor(*target, original.to_port);
+                if (finish) {
+                    path.startNewSubPath(preview_pointer);
+                    path.cubicTo(preview_pointer.translated(bend, 0.0f),
+                                 finish->translated(-bend, 0.0f), *finish);
+                }
+            } else {
+                const auto* source = find_node(project_, connection_gesture_.source_node_id());
+                const auto start = source == nullptr ? std::optional<juce::Point<float>>{} :
+                    port_anchor(*source, connection_gesture_.source_port_id());
+                if (start) {
+                    path.startNewSubPath(*start);
+                    const auto source_bend = connection_gesture_.preview_source_direction() ==
+                        audioalgo::PortDirection::output ? bend : -bend;
+                    path.cubicTo(start->translated(source_bend, 0.0f),
+                                 preview_pointer.translated(-source_bend, 0.0f), preview_pointer);
+                }
+            }
+            if (!path.isEmpty()) {
+                g.setColour((connection_gesture_.is_reconnecting() ? amber : signal).withAlpha(0.8f));
+                g.strokePath(path, juce::PathStrokeType(2.0f, juce::PathStrokeType::curved,
+                                                        juce::PathStrokeType::rounded));
             }
         }
         for (const auto& node : project_.nodes)
@@ -117,6 +178,7 @@ public:
     }
 
     bool isInterestedInDragSource(const SourceDetails& details) override {
+        if (!isVisible()) return false;
         const auto type_id = library_drag_type(details.description);
         const auto source_epoch = library_drag_epoch_ ? library_drag_epoch_(details.sourceComponent.get()) : std::nullopt;
         if (!type_id || !source_epoch || *source_epoch != project_epoch_)
@@ -129,7 +191,7 @@ public:
     void itemDragEnter(const SourceDetails& details) override {
         const auto type_id = library_drag_type(details.description);
         const auto source_epoch = library_drag_epoch_ ? library_drag_epoch_(details.sourceComponent.get()) : std::nullopt;
-        if (!type_id || !source_epoch || *source_epoch != project_epoch_ ||
+        if (!isVisible() || !type_id || !source_epoch || *source_epoch != project_epoch_ ||
             !library_drop_session_.begin(*type_id, *source_epoch, project_.revision)) {
             library_drop_session_.cancel();
             repaint();
@@ -149,6 +211,10 @@ public:
     }
 
     void itemDropped(const SourceDetails& details) override {
+        if (!isVisible()) {
+            cancel_library_drag();
+            return;
+        }
         const auto type_id = library_drag_type(details.description);
         const auto source_epoch = library_drag_epoch_ ? library_drag_epoch_(details.sourceComponent.get()) : std::nullopt;
         // JUCE does not guarantee a final itemDragMove before itemDropped. Re-evaluate
@@ -174,28 +240,69 @@ public:
     }
 
     void mouseMove(const juce::MouseEvent& event) override {
+        if (connection_gesture_.is_active() && !connection_gesture_origin_is_current()) {
+            (void)cancel_active_connection_gesture();
+            repaint();
+            return;
+        }
         const auto canvas_point = coordinates_.event_to_canvas({event.position.x, event.position.y});
         mouse_position_ = to_juce_point(canvas_point);
         update_tooltip(mouse_position_);
         if (connection_gesture_.is_active()) {
             (void)connection_gesture_.update_pointer(canvas_point);
+            update_tooltip(mouse_position_);
             repaint();
         }
     }
 
     void mouseDown(const juce::MouseEvent& event) override {
+        if (!event.mods.isRightButtonDown()) {
+            right_click_candidate_.reset();
+            right_click_port_candidate_.reset();
+        }
         if (event.mods.isMiddleButtonDown()) {
             cancel_marquee();
             panning_ = true;
             last_pan_position_ = event.position;
-            connection_gesture_.cancel();
+            (void)cancel_active_connection_gesture();
             setMouseCursor(juce::MouseCursor::DraggingHandCursor);
             return;
         }
         grabKeyboardFocus();
         // Right drags always belong to the marquee, even over nodes, sockets or edges.
         if (event.mods.isRightButtonDown()) {
-            connection_gesture_.cancel();
+            const auto canvas_point = coordinates_.event_to_canvas({event.position.x, event.position.y});
+            right_click_candidate_.reset();
+            right_click_port_candidate_.reset();
+            const auto hit_port = audioalgo::editor::find_topmost_port_at(
+                project_.nodes, descriptors_, canvas_point, coordinates_);
+            if (hit_port) {
+                PortContextCandidate candidate;
+                candidate.node_id = hit_port->node_id;
+                candidate.port_id = hit_port->port_id;
+                candidate.project_epoch = project_epoch_;
+                candidate.revision = project_.revision;
+                for (const auto& connection : project_.connections) {
+                    const bool belongs_to_port = hit_port->direction == audioalgo::PortDirection::output
+                        ? connection.from_node == hit_port->node_id && connection.from_port == hit_port->port_id
+                        : connection.to_node == hit_port->node_id && connection.to_port == hit_port->port_id;
+                    if (belongs_to_port)
+                        candidate.connections.push_back(connection);
+                }
+                if (!candidate.connections.empty())
+                    right_click_port_candidate_ = std::move(candidate);
+            } else {
+                const auto hit_connection = audioalgo::editor::find_visible_connection_at(
+                    project_, descriptors_, canvas_point, 8.0f, coordinates_);
+                if (hit_connection && *hit_connection < project_.connections.size())
+                    right_click_candidate_ = ConnectionContextCandidate{
+                        project_.connections[*hit_connection], project_epoch_, project_.revision};
+                else if (const auto* hit_node = audioalgo::editor::find_topmost_node_at(
+                             project_.nodes, descriptors_, canvas_point, coordinates_))
+                    right_click_node_candidate_ = NodeContextCandidate{
+                        hit_node->id, project_epoch_, project_.revision};
+            }
+            (void)cancel_active_connection_gesture();
             dragging_node_.clear();
             node_drag_preview_position_.reset();
             existing_node_insertion_target_.reset();
@@ -210,24 +317,69 @@ public:
         const auto canvas_point = coordinates_.event_to_canvas({event.position.x, event.position.y});
         const auto canvas_position = to_juce_point(canvas_point);
         mouse_position_ = canvas_position;
-        const auto hit_port = audioalgo::editor::find_topmost_port_at(
+        const auto port_hit = audioalgo::editor::find_topmost_port_at(
             project_.nodes, descriptors_, canvas_point, coordinates_);
+        if (!port_hit && selected_connection_index_ && *selected_connection_index_ < project_.connections.size()) {
+            const auto selected_connection = project_.connections[*selected_connection_index_];
+            const auto handle = audioalgo::editor::make_source_endpoint_handle_geometry(
+                project_, descriptors_, selected_connection, coordinates_);
+            if (handle && audioalgo::editor::source_endpoint_handle_contains(*handle, canvas_point)) {
+                if (connection_gesture_.begin_source_reconnect(selected_connection, canvas_point)) {
+                    capture_connection_gesture_origin({event.position.x, event.position.y});
+                    grabKeyboardFocus();
+                    dragging_node_.clear();
+                    node_drag_preview_position_.reset();
+                    existing_node_insertion_target_.reset();
+                    update_tooltip(canvas_position);
+                    repaint();
+                    return;
+                }
+            }
+        }
+        const auto hit_port = port_hit;
         if (hit_port) {
             selected_connection_index_.reset();
             const auto* owner = find_node(project_, hit_port->node_id);
             if (owner == nullptr)
                 return;
             if (hit_port->direction == audioalgo::PortDirection::output) {
-                (void)connection_gesture_.begin(owner->id, hit_port->port_id, canvas_point);
+                if (connection_gesture_.begin(owner->id, hit_port->port_id, hit_port->direction, canvas_point)) {
+                    capture_connection_gesture_origin({event.position.x, event.position.y});
+                }
                 grabKeyboardFocus();
                 dragging_node_.clear();
+                update_tooltip(canvas_position);
                 repaint();
                 return;
             }
-            if (connection_gesture_.is_active())
-                connect_to(*owner, hit_port->port_id);
-            else if (graph_error_)
-                graph_error_("Select an output socket first, then its input socket.");
+            if (connection_gesture_.is_active()) {
+                if (connection_gesture_.start_direction() == audioalgo::PortDirection::output)
+                    connect_to(*owner, hit_port->port_id, hit_port->direction);
+                else if (graph_error_)
+                    graph_error_("Select a different output socket to finish the connection.");
+            } else {
+                std::vector<audioalgo::Connection> incoming;
+                for (const auto& connection : project_.connections)
+                    if (connection.to_node == owner->id && connection.to_port == hit_port->port_id)
+                        incoming.push_back(connection);
+                bool began_gesture = false;
+                if (incoming.size() == 1)
+                    began_gesture = connection_gesture_.begin_reconnect(incoming.front(), canvas_point);
+                else if (incoming.empty())
+                    began_gesture = connection_gesture_.begin(owner->id, hit_port->port_id, hit_port->direction, canvas_point);
+                else {
+                    if (graph_error_)
+                        graph_error_("Select a specific connection before reconnecting this input.");
+                    return;
+                }
+                if (began_gesture) {
+                    capture_connection_gesture_origin({event.position.x, event.position.y});
+                }
+                grabKeyboardFocus();
+                dragging_node_.clear();
+                update_tooltip(canvas_position);
+                repaint();
+            }
             return;
         }
 
@@ -256,7 +408,7 @@ public:
             project_, descriptors_, canvas_point, 8.0f, coordinates_);
         if (hit_connection) {
             selected_connection_index_ = *hit_connection;
-            connection_gesture_.cancel();
+            (void)cancel_active_connection_gesture();
             (void)selection_.select(project_, {});
             selection_changed_({});
             repaint();
@@ -264,7 +416,7 @@ public:
         }
         selected_connection_index_.reset();
         if (connection_gesture_.is_active()) {
-            connection_gesture_.cancel();
+            (void)cancel_active_connection_gesture();
             (void)selection_.select(project_, {});
             dragging_node_.clear();
             selection_changed_({});
@@ -287,10 +439,16 @@ public:
             return;
         }
         if (connection_gesture_.is_active()) {
+            if (!connection_gesture_origin_is_current()) {
+                (void)cancel_active_connection_gesture();
+                repaint();
+                return;
+            }
             const auto canvas_point = coordinates_.event_to_canvas({event.position.x, event.position.y});
             mouse_position_ = to_juce_point(canvas_point);
-            (void)connection_gesture_.update_pointer(canvas_point);
+            (void)connection_gesture_.update_pointer(canvas_point, {event.position.x, event.position.y});
             connection_gesture_.mark_drag_started();
+            update_tooltip(mouse_position_);
             repaint();
             return;
         }
@@ -316,12 +474,21 @@ public:
             const auto band = marquee_rect_;
             const bool is_click = !marquee_dragged_;
             const bool preserve_click = marquee_right_button_;
+            const auto context_candidate = right_click_candidate_;
+            const auto port_context_candidate = right_click_port_candidate_;
+            const auto node_context_candidate = right_click_node_candidate_;
             cancel_marquee();
             if (is_click) {
                 if (!preserve_click) {
                     (void)selection_.select(project_, {});
                     selection_changed_({});
-                }
+                } else if (port_context_candidate)
+                    show_port_connection_menu(*port_context_candidate);
+                else if (context_candidate)
+                    show_connection_disconnect_menu(*context_candidate);
+                else if (node_context_candidate)
+                    show_node_disconnect_menu(*node_context_candidate,
+                        resolve_node_context_targets(node_context_candidate->node_id));
             } else {
                 const auto ids = audioalgo::editor::nodes_intersecting_rect(
                     project_.nodes, descriptors_,
@@ -332,18 +499,55 @@ public:
             repaint();
             return;
         }
+        if (connection_gesture_.is_active() && !connection_gesture_origin_is_current())
+            (void)cancel_active_connection_gesture();
         if (connection_gesture_.is_dragging()) {
             const auto canvas_point = coordinates_.event_to_canvas({event.position.x, event.position.y});
             const auto hit_port = audioalgo::editor::find_topmost_port_at(
                 project_.nodes, descriptors_, canvas_point, coordinates_);
-            const auto* target = hit_port && hit_port->direction == audioalgo::PortDirection::input
+            const auto expected_direction = connection_gesture_.target_direction();
+            const auto* target = hit_port && hit_port->direction == expected_direction
                 ? find_node(project_, hit_port->node_id) : nullptr;
             if (target != nullptr)
-                connect_to(*target, hit_port->port_id);
+                connect_to(*target, hit_port->port_id, hit_port->direction);
             else {
+                const auto original = connection_gesture_.connection_to_replace();
+                const bool disconnect_on_blank = original && is_blank_canvas_location(canvas_point);
                 connection_gesture_.cancel();
+                clear_connection_gesture_origin();
+                if (hit_port && hit_port->direction != expected_direction)
+                    report_connection_direction_mismatch(expected_direction);
+                if (disconnect_on_blank) {
+                    if (selected_connection_index_ && *selected_connection_index_ < project_.connections.size() &&
+                        same_connection_endpoints(project_.connections[*selected_connection_index_], *original))
+                        selected_connection_index_.reset();
+                    const auto disconnected = controller_.disconnect(*original);
+                    switch (disconnected.status) {
+                    case audioalgo::editor::ProjectEditStatus::applied:
+                        layout_changed_();
+                        break;
+                    case audioalgo::editor::ProjectEditStatus::rejected:
+                        if (graph_error_)
+                            graph_error_(disconnected.diagnostics.empty() ? "The connection could not be disconnected." :
+                                         disconnected.diagnostics.front().code + ": " +
+                                         disconnected.diagnostics.front().message);
+                        break;
+                    case audioalgo::editor::ProjectEditStatus::unchanged:
+                        break;
+                    }
+                }
+                update_tooltip(to_juce_point(canvas_point));
                 repaint();
             }
+        } else if (connection_gesture_.is_active() &&
+                   connection_gesture_.start_direction() == audioalgo::PortDirection::input) {
+            const bool reconnecting = connection_gesture_.is_reconnecting();
+            connection_gesture_.cancel();
+            clear_connection_gesture_origin();
+            if (!reconnecting && graph_error_)
+                graph_error_("Select an output socket first, then its input socket.");
+            update_tooltip(mouse_position_);
+            repaint();
         }
         if (!dragging_node_.empty() && node_drag_preview_position_) {
             const auto canvas_point = coordinates_.event_to_canvas({event.position.x, event.position.y});
@@ -409,7 +613,7 @@ public:
     }
 
     bool keyPressed(const juce::KeyPress& key) override {
-        if (connection_gesture_.cancel_on_escape(key.getKeyCode() == juce::KeyPress::escapeKey)) {
+        if (key.getKeyCode() == juce::KeyPress::escapeKey && cancel_active_connection_gesture()) {
             repaint();
             return true;
         }
@@ -429,12 +633,15 @@ public:
 
     void focusLost(FocusChangeType) override {
         cancel_marquee();
+        (void)cancel_active_connection_gesture();
         repaint();
     }
 
     void visibilityChanged() override {
         if (!isVisible()) {
+            library_drop_session_.cancel();
             cancel_marquee();
+            (void)cancel_active_connection_gesture();
             repaint();
         }
     }
@@ -486,6 +693,134 @@ private:
         marquee_rect_ = {};
         marquee_right_button_ = false;
         marquee_dragged_ = false;
+        right_click_candidate_.reset();
+        right_click_port_candidate_.reset();
+        right_click_node_candidate_.reset();
+    }
+
+    std::vector<std::string> resolve_node_context_targets(const std::string& clicked_node_id) {
+        auto selected_node_ids = selection_.selected_node_ids();
+        if (std::find(selected_node_ids.begin(), selected_node_ids.end(), clicked_node_id) !=
+            selected_node_ids.end())
+            return selected_node_ids;
+        if (selection_.select(project_, clicked_node_id))
+            selection_changed_(selection_.selected_node_id());
+        return {clicked_node_id};
+    }
+
+    static std::string connection_endpoint_label(const audioalgo::Connection& connection) {
+        return connection.from_node + ":" + connection.from_port + " -> " +
+               connection.to_node + ":" + connection.to_port;
+    }
+
+    void report_context_edit_outcome(const audioalgo::editor::ProjectEditOutcome& outcome,
+                                     const std::string& context_identity) {
+        if (outcome.status == audioalgo::editor::ProjectEditStatus::applied) {
+            layout_changed_();
+            repaint();
+        } else if (outcome.status == audioalgo::editor::ProjectEditStatus::rejected && graph_error_) {
+            auto message = outcome.diagnostics.empty() ? std::string("The context menu edit was rejected") :
+                outcome.diagnostics.front().code + ": " + outcome.diagnostics.front().message;
+            if (!context_identity.empty())
+                message += " [" + context_identity + "]";
+            graph_error_(std::move(message));
+        }
+    }
+
+    void disconnect_context_connection(const audioalgo::Connection& connection,
+                                       std::uint64_t expected_epoch, std::uint64_t expected_revision) {
+        if (project_epoch_ != expected_epoch || project_.revision != expected_revision) {
+            if (graph_error_)
+                graph_error_("The project changed while the connection menu was open for " +
+                             connection_endpoint_label(connection) + ".");
+            return;
+        }
+        report_context_edit_outcome(controller_.disconnect(connection), connection_endpoint_label(connection));
+    }
+
+    void disconnect_context_port(const std::string& node_id, const std::string& port_id,
+                                 std::uint64_t expected_epoch, std::uint64_t expected_revision) {
+        if (project_epoch_ != expected_epoch || project_.revision != expected_revision) {
+            if (graph_error_)
+                graph_error_("The project changed while the port connection menu was open for " +
+                             node_id + ":" + port_id + ".");
+            return;
+        }
+        report_context_edit_outcome(controller_.disconnect_port_connections(node_id, port_id),
+                                    node_id + ":" + port_id);
+    }
+
+    void disconnect_context_nodes(const std::vector<std::string>& node_ids,
+                                  std::uint64_t expected_epoch, std::uint64_t expected_revision) {
+        if (project_epoch_ != expected_epoch || project_.revision != expected_revision) {
+            if (graph_error_)
+                graph_error_("The project changed while the node connection menu was open.");
+            return;
+        }
+        std::string context_identity;
+        for (const auto& node_id : node_ids) {
+            if (!context_identity.empty())
+                context_identity += ", ";
+            context_identity += node_id;
+        }
+        report_context_edit_outcome(controller_.disconnect_node_connections(node_ids), context_identity);
+    }
+
+    void show_connection_disconnect_menu(const ConnectionContextCandidate& candidate) {
+        if (!connection_context_menu_handler_)
+            return;
+        const auto connection = candidate.connection;
+        const auto expected_epoch = candidate.project_epoch;
+        const auto expected_revision = candidate.revision;
+        juce::Component::SafePointer<GraphCanvas> safe_this(this);
+        auto disconnect = [safe_this, connection, expected_epoch, expected_revision] {
+            if (safe_this != nullptr)
+                safe_this->disconnect_context_connection(connection, expected_epoch, expected_revision);
+        };
+        connection_context_menu_handler_("Disconnect connection", std::move(disconnect));
+    }
+
+    void show_port_connection_menu(const PortContextCandidate& candidate) {
+        if (!port_connection_context_menu_handler_)
+            return;
+        std::vector<PortConnectionMenuItem> items;
+        items.reserve(candidate.connections.size());
+        juce::Component::SafePointer<GraphCanvas> safe_this(this);
+        for (const auto& connection : candidate.connections) {
+            const auto expected_epoch = candidate.project_epoch;
+            const auto expected_revision = candidate.revision;
+            auto disconnect = [safe_this, connection, expected_epoch, expected_revision] {
+                if (safe_this != nullptr)
+                    safe_this->disconnect_context_connection(connection, expected_epoch, expected_revision);
+            };
+            items.push_back({connection_endpoint_label(connection), std::move(disconnect)});
+        }
+        if (candidate.connections.size() > 1) {
+            const auto node_id = candidate.node_id;
+            const auto port_id = candidate.port_id;
+            const auto expected_epoch = candidate.project_epoch;
+            const auto expected_revision = candidate.revision;
+            auto disconnect_all = [safe_this, node_id, port_id, expected_epoch, expected_revision] {
+                if (safe_this != nullptr)
+                    safe_this->disconnect_context_port(node_id, port_id, expected_epoch, expected_revision);
+            };
+            items.push_back({"Disconnect all from " + node_id + ":" + port_id, std::move(disconnect_all)});
+        }
+        port_connection_context_menu_handler_(std::move(items));
+    }
+
+    void show_node_disconnect_menu(const NodeContextCandidate& candidate, std::vector<std::string> node_ids) {
+        if (!node_connection_context_menu_handler_ || node_ids.empty())
+            return;
+        const auto expected_epoch = candidate.project_epoch;
+        const auto expected_revision = candidate.revision;
+        auto menu_node_ids = node_ids;
+        juce::Component::SafePointer<GraphCanvas> safe_this(this);
+        auto disconnect = [safe_this, node_ids = std::move(node_ids), expected_epoch, expected_revision] {
+            if (safe_this != nullptr)
+                safe_this->disconnect_context_nodes(node_ids, expected_epoch, expected_revision);
+        };
+        node_connection_context_menu_handler_(std::move(menu_node_ids), std::move(disconnect));
     }
 
     void commit_existing_node_insertion(const std::string& node_id, const audioalgo::Connection& target,
@@ -638,16 +973,26 @@ private:
             return std::nullopt;
         const auto hit = audioalgo::editor::find_topmost_port_at(
             project_.nodes, descriptors_, connection_gesture_.pointer_position(), coordinates_);
-        if (!hit || hit->direction != audioalgo::PortDirection::input)
+        const auto expected_direction = connection_gesture_.target_direction();
+        if (!hit || hit->direction != expected_direction)
             return std::nullopt;
         const auto* target = find_node(project_, hit->node_id);
         if (target == nullptr)
             return std::nullopt;
-        const auto connection = audioalgo::Connection{
-            connection_gesture_.source_node_id(), connection_gesture_.source_port_id(),
-            hit->node_id, hit->port_id};
+        const auto connection = connection_gesture_.connection_to(hit->node_id, hit->port_id, hit->direction);
+        if (!connection)
+            return std::nullopt;
         auto candidate = project_;
-        if (!audioalgo::try_add_connection(candidate, connection, descriptors_).empty())
+        if (const auto& original = connection_gesture_.connection_to_replace(); original) {
+            const auto matches = [&](const auto& edge) {
+                return edge.from_node == original->from_node && edge.from_port == original->from_port &&
+                       edge.to_node == original->to_node && edge.to_port == original->to_port;
+            };
+            if (std::count_if(candidate.connections.begin(), candidate.connections.end(), matches) != 1)
+                return std::nullopt;
+            std::erase_if(candidate.connections, matches);
+        }
+        if (!audioalgo::try_add_connection(candidate, *connection, descriptors_).empty())
             return std::nullopt;
         return hit;
     }
@@ -748,6 +1093,46 @@ private:
         return to_juce_point(found->anchor);
     }
 
+    static bool same_connection_endpoints(const audioalgo::Connection& left,
+                                          const audioalgo::Connection& right) noexcept {
+        return left.from_node == right.from_node && left.from_port == right.from_port &&
+               left.to_node == right.to_node && left.to_port == right.to_port;
+    }
+
+    bool is_blank_canvas_location(audioalgo::editor::EditorPoint point) const {
+        if (!getLocalBounds().toFloat().contains(point.x, point.y))
+            return false;
+        if (audioalgo::editor::find_topmost_port_at(project_.nodes, descriptors_, point, coordinates_) ||
+            audioalgo::editor::find_topmost_node_at(project_.nodes, descriptors_, point, coordinates_))
+            return false;
+        return !audioalgo::editor::find_visible_connection_at(
+            project_, descriptors_, point, 8.0f, coordinates_).has_value();
+    }
+
+    bool cancel_active_connection_gesture() {
+        if (!connection_gesture_.is_active())
+            return false;
+        connection_gesture_.cancel();
+        clear_connection_gesture_origin();
+        update_tooltip(mouse_position_);
+        return true;
+    }
+
+    void capture_connection_gesture_origin(audioalgo::editor::EditorPoint drag_origin) noexcept {
+        connection_gesture_epoch_ = project_epoch_;
+        connection_gesture_revision_ = project_.revision;
+        connection_gesture_.set_drag_origin(drag_origin);
+    }
+
+    void clear_connection_gesture_origin() noexcept {
+        connection_gesture_epoch_ = 0;
+        connection_gesture_revision_ = 0;
+    }
+
+    bool connection_gesture_origin_is_current() const noexcept {
+        return connection_gesture_epoch_ == project_epoch_ && connection_gesture_revision_ == project_.revision;
+    }
+
     void paint_connections(juce::Graphics& g) {
         std::optional<audioalgo::editor::NodePositionPreview> position_preview;
         if (!dragging_node_.empty() && node_drag_preview_position_)
@@ -770,9 +1155,28 @@ private:
                 project_, descriptors_, connection, coordinates_, position_preview);
             if (!geometry)
                 continue;
+            const auto& replacing = connection_gesture_.connection_to_replace();
+            const bool is_reconnect_original = connection_gesture_.is_active() && replacing &&
+                same_connection_endpoints(connection, *replacing);
             const bool selected = !is_insertion_target && selected_connection_index_ &&
                                   *selected_connection_index_ == index;
-            paint_connection_curve(g, *geometry, selected ? ink : signal, selected ? 4.0f : 3.0f);
+            const auto colour = is_reconnect_original ? muted : (selected ? ink : signal);
+            const auto width = is_reconnect_original ? 2.0f : (selected ? 4.0f : 3.0f);
+            paint_connection_curve(g, *geometry, colour, width);
+        }
+
+        if (selected_connection_index_ && *selected_connection_index_ < project_.connections.size()) {
+            const auto handle = audioalgo::editor::make_source_endpoint_handle_geometry(
+                project_, descriptors_, project_.connections[*selected_connection_index_], coordinates_);
+            if (handle) {
+                const auto point = to_juce_point(handle->center);
+                const auto radius = handle->radius;
+                g.setColour(signal);
+                g.fillEllipse(point.x - radius, point.y - radius, radius * 2.0f, radius * 2.0f);
+                g.setColour(raised);
+                g.fillEllipse(point.x - radius * 0.42f, point.y - radius * 0.42f,
+                              radius * 0.84f, radius * 0.84f);
+            }
         }
 
         if (!split_insertion_preview)
@@ -864,22 +1268,29 @@ private:
 
     void update_tooltip(juce::Point<float> position) {
         std::string tooltip;
-        for (auto it = project_.nodes.rbegin(); it != project_.nodes.rend(); ++it) {
-            const auto layout = node_geometry(*it);
-            if (!to_juce_rect(layout.bounds).contains(position))
-                continue;
-            const auto* descriptor = descriptors_.find(it->type_id);
-            const auto display_name = descriptor == nullptr ? std::string("Missing node") : descriptor->display_name;
-            const auto summary = to_utf8(summary_for_node(*it));
-            std::string hovered_port;
-            for (const auto& port : layout.ports) {
-                if (to_juce_rect(port.label_bounds).contains(position)) {
-                    hovered_port = port.id;
-                    break;
+        if (connection_gesture_.is_active()) {
+            if (connection_gesture_.is_reconnecting())
+                tooltip = "Reconnect edge: release on a compatible socket to move this endpoint; release on blank canvas to disconnect. Press Esc to cancel.";
+            else
+                tooltip = "New connection: release on a compatible socket to connect; release on blank canvas or press Esc to cancel.";
+        } else {
+            for (auto it = project_.nodes.rbegin(); it != project_.nodes.rend(); ++it) {
+                const auto layout = node_geometry(*it);
+                if (!to_juce_rect(layout.bounds).contains(position))
+                    continue;
+                const auto* descriptor = descriptors_.find(it->type_id);
+                const auto display_name = descriptor == nullptr ? std::string("Missing node") : descriptor->display_name;
+                const auto summary = to_utf8(summary_for_node(*it));
+                std::string hovered_port;
+                for (const auto& port : layout.ports) {
+                    if (to_juce_rect(port.label_bounds).contains(position)) {
+                        hovered_port = port.id;
+                        break;
+                    }
                 }
+                tooltip = audioalgo::editor::build_node_tooltip_text(display_name, summary, hovered_port);
+                break;
             }
-            tooltip = audioalgo::editor::build_node_tooltip_text(display_name, summary, hovered_port);
-            break;
         }
         if (tooltip != tooltip_text_) {
             tooltip_text_ = std::move(tooltip);
@@ -887,20 +1298,40 @@ private:
         }
     }
 
-    void connect_to(const audioalgo::NodeInstance& target, const std::string& target_port_id) {
-        const auto connection = connection_gesture_.finish(target.id, target_port_id);
+    void connect_to(const audioalgo::NodeInstance& target, const std::string& target_port_id,
+                    audioalgo::PortDirection target_direction) {
+        const auto original = connection_gesture_.connection_to_replace();
+        const auto connection = connection_gesture_.finish(target.id, target_port_id, target_direction);
+        clear_connection_gesture_origin();
         if (!connection)
             return;
 
-        const auto connected = controller_.connect(*connection);
-        if (connected.status != audioalgo::editor::ProjectEditStatus::applied) {
+        const auto connected = original
+            ? controller_.reconnect_connection(*original, *connection)
+            : controller_.connect(*connection);
+        switch (connected.status) {
+        case audioalgo::editor::ProjectEditStatus::rejected:
             if (graph_error_)
                 graph_error_(connected.diagnostics.empty() ? "The connection did not change the graph." :
                              connected.diagnostics.front().code + ": " + connected.diagnostics.front().message);
-        } else {
+            break;
+        case audioalgo::editor::ProjectEditStatus::applied:
             layout_changed_();
+            break;
+        case audioalgo::editor::ProjectEditStatus::unchanged:
+            break;
         }
+        update_tooltip(mouse_position_);
         repaint();
+    }
+
+    void report_connection_direction_mismatch(audioalgo::PortDirection expected_direction) {
+        if (!graph_error_)
+            return;
+        const bool expected_input = expected_direction == audioalgo::PortDirection::input;
+        graph_error_(expected_input
+            ? "connection_target_port_direction: Connection target must use an input port"
+            : "connection_source_port_direction: Connection source must use an output port");
     }
 
     const audioalgo::ProjectModel& project_;
@@ -911,12 +1342,17 @@ private:
     std::function<void(std::string)> selection_changed_;
     std::function<void()> layout_changed_;
     std::function<void(std::string)> graph_error_;
+    ConnectionContextMenuHandler connection_context_menu_handler_;
+    PortConnectionContextMenuHandler port_connection_context_menu_handler_;
+    NodeConnectionContextMenuHandler node_connection_context_menu_handler_;
     std::function<void(std::string, audioalgo::editor::EditorPoint, std::uint64_t, std::uint64_t,
                        std::optional<audioalgo::Connection>)> library_drop_;
     std::function<std::optional<std::uint64_t>(juce::Component*)> library_drag_epoch_;
     audioalgo::editor::LibraryDropSession library_drop_session_;
     std::uint64_t project_epoch_ = 1;
     audioalgo::editor::PortConnectionGesture connection_gesture_;
+    std::uint64_t connection_gesture_epoch_ = 0;
+    std::uint64_t connection_gesture_revision_ = 0;
     std::string dragging_node_;
     std::optional<audioalgo::editor::EditorPoint> node_drag_preview_position_;
     std::optional<audioalgo::Connection> existing_node_insertion_target_;
@@ -932,6 +1368,9 @@ private:
     juce::Rectangle<float> marquee_rect_;
     bool marquee_right_button_ = false;
     bool marquee_dragged_ = false;
+    std::optional<ConnectionContextCandidate> right_click_candidate_;
+    std::optional<PortContextCandidate> right_click_port_candidate_;
+    std::optional<NodeContextCandidate> right_click_node_candidate_;
 };
 
 

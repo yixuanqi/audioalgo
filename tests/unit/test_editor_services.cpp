@@ -5,7 +5,6 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include <filesystem>
 #include <string>
 #include <utility>
 #include <variant>
@@ -190,3 +189,4 @@ TEST_CASE("AR-09.e asynchronous document completions reject edited and replaced 
     CHECK_FALSE(invalidated_for_stale_open);
     CHECK(controller.project().project_id == "async-project-B");
 }
+

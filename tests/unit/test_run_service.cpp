@@ -1755,6 +1755,83 @@ TEST_CASE("NED-14.d", "[node_interaction][NED-14]") {
         }
 }
 
+TEST_CASE("NCE-08.a Run rejects persisted isolated nodes instead of skipping them",
+          "[connection_library][NCE-08][native_integration]") {
+    juce::ScopedJuceInitialiser_GUI juce_message_environment;
+    TemporaryDirectory temporary;
+    const auto input_path = temporary.path / "input.wav";
+    const auto project_path = temporary.path / "isolated-source.aaproj";
+    AudioBuffer input(48000, {"left", "right"}, 257);
+    for (std::size_t frame = 0; frame < input.frame_count(); ++frame) {
+        input.mutable_channel(0)[frame] = static_cast<float>(0.31 * std::sin(frame * 0.041));
+        input.mutable_channel(1)[frame] = static_cast<float>(-0.17 * std::cos(frame * 0.059));
+    }
+    REQUIRE(std::holds_alternative<audioalgo::WavWriteSummary>(
+        write_wav_file(input_path, input, WavEncoding::float32)));
+
+    auto project = make_project();
+    project.project_id = "nce08-a-isolated-source-project";
+    project.name = "Persisted isolated source is not skipped";
+    project.nodes.push_back({"isolated-source", "builtin.file_source",
+                             {{"path", std::string("input.wav")}}, 650.0, 30.0});
+    ++project.revision;
+    REQUIRE(project.connections.size() == 2);
+    REQUIRE(project.nodes.size() == 4);
+
+    NodeRegistry descriptors;
+    register_builtin_nodes(descriptors);
+    REQUIRE(audioalgo::validate_project_structure(project, descriptors).empty());
+    REQUIRE(std::holds_alternative<std::monostate>(save_project_file(project_path, project)));
+
+    const auto loaded = load_project_file(project_path);
+    REQUIRE(std::holds_alternative<ProjectModel>(loaded));
+    const auto& reopened = std::get<ProjectModel>(loaded);
+    REQUIRE(reopened.project_id == project.project_id);
+    REQUIRE(reopened.revision == project.revision);
+    REQUIRE(reopened.selected_output_node_id == "output");
+    REQUIRE(reopened.nodes.size() == 4);
+    REQUIRE(reopened.connections.size() == 2);
+    const auto graph_diagnostics = audioalgo::validate_project(reopened, descriptors);
+    const auto isolated_diagnostic = std::find_if(graph_diagnostics.begin(), graph_diagnostics.end(), [](const auto& diagnostic) {
+        return diagnostic.code == "node_isolated";
+    });
+    CHECK(isolated_diagnostic != graph_diagnostics.end());
+    if (isolated_diagnostic != graph_diagnostics.end()) {
+        CHECK(isolated_diagnostic->node_id == "isolated-source");
+        CHECK(isolated_diagnostic->port_id.empty());
+    }
+    const auto isolated = std::find_if(reopened.nodes.begin(), reopened.nodes.end(), [](const auto& node) {
+        return node.id == "isolated-source";
+    });
+    REQUIRE(isolated != reopened.nodes.end());
+    REQUIRE(std::get<std::string>(isolated->parameters.at("path")) == "input.wav");
+
+    RunService service(descriptors);
+    const auto service_output = temporary.path / "isolated-service";
+    const auto service_outcome = service.run({reopened, project_path, service_output, 127});
+    const auto* service_diagnostic = std::get_if<audioalgo::Diagnostic>(&service_outcome);
+    if (const auto* unexpected_success = std::get_if<RunSuccess>(&service_outcome))
+        INFO("Run silently skipped the isolated node and produced " << unexpected_success->complete_file.string());
+    CHECK(service_diagnostic != nullptr);
+    if (service_diagnostic != nullptr) {
+        CHECK(service_diagnostic->code == "node_isolated");
+        CHECK(service_diagnostic->node_id == "isolated-source");
+        CHECK(service_diagnostic->port_id.empty());
+    }
+    CHECK_FALSE(std::filesystem::exists(service_output));
+
+    const auto cli_output = temporary.path / "isolated-cli";
+    const auto cli = run_cli(project_path, cli_output);
+    REQUIRE(cli.started);
+    REQUIRE(cli.finished);
+    INFO(cli.output);
+    CHECK(cli.exit_code == 1);
+    CHECK(cli.output.find("node_isolated") != std::string::npos);
+    CHECK(cli.output.find("isolated-source") != std::string::npos);
+    CHECK_FALSE(std::filesystem::exists(cli_output / "complete.json"));
+    CHECK_FALSE(std::filesystem::exists(cli_output / "output.wav"));
+}
+
 TEST_CASE("NED-14.e", "[node_interaction][NED-14]") {
     juce::ScopedJuceInitialiser_GUI juce_message_environment;
     TemporaryDirectory temporary;

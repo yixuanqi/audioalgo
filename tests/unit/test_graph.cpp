@@ -59,7 +59,7 @@ TEST_CASE("GRAPH-01 rejects cycles, self edges, missing ports and duplicate requ
 
     auto cyclic = valid_gain_project();
     cyclic.connections.push_back({"out", "audio", "file", "audio"});
-    REQUIRE(has_code(validate_project(cyclic, registry), "connection_source_port_missing"));
+    REQUIRE(has_code(validate_project(cyclic, registry), "connection_source_port_direction"));
     cyclic.connections.back() = {"gain", "audio_out", "gain", "audio_in"};
     const auto self_diagnostics = validate_project(cyclic, registry);
     REQUIRE(has_code(self_diagnostics, "connection_self"));

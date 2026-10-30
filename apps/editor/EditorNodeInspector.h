@@ -6,6 +6,9 @@
 #include "EditorText.h"
 #include "EditorUiSupport.h"
 
+#include <algorithm>
+#include <vector>
+
 namespace audioalgo::editor {
 
 class NodeInspector final : public juce::Component {
@@ -14,6 +17,18 @@ public:
                   audioalgo::editor::NodeSelectionState& selection, std::function<void()> changed)
         : controller_(controller), selection_(selection), changed_(std::move(changed)) {
         addAndMakeVisible(panel_);
+        addAndMakeVisible(disconnect_all_button_);
+        disconnect_all_button_.setComponentID("inspector.disconnect-all-connections");
+        disconnect_all_button_.setTooltip(
+            "Remove all connections to or from this node; keep the node and its settings.");
+        disconnect_all_button_.onClick = [this] { disconnect_all_connections(); };
+        disconnect_all_button_.setVisible(false);
+        addAndMakeVisible(disconnect_selected_button_);
+        disconnect_selected_button_.setComponentID("inspector.disconnect-selected-node-connections");
+        disconnect_selected_button_.setTooltip(
+            "Remove connections touching the selected nodes; keep the nodes and their settings.");
+        disconnect_selected_button_.onClick = [this] { disconnect_selected_connections(); };
+        disconnect_selected_button_.setVisible(false);
     }
 
     void show_node(const std::string& node_id) {
@@ -25,14 +40,19 @@ public:
         // Presentation must not replace the canvas's multi-selection with its primary node.
         snapshot_ = controller_.node_snapshot(node_id);
         if (!snapshot_) {
+            disconnect_all_button_.setVisible(false);
+            disconnect_selected_button_.setVisible(false);
             panel_.clear("Inspector", node_id.empty() ? "Select a node to edit its parameters." : "Node not found.");
+            resized();
             return;
         }
+        update_disconnect_buttons();
 
         const auto& node = snapshot_->node;
         const auto* descriptor = descriptors_->find(node.type_id);
         if (descriptor == nullptr) {
             panel_.clear("Missing node", utf8_string(node.type_id + "\nID " + node.id));
+            resized();
             return;
         }
         const audioalgo::editor::EditorNodeParameterBinding binding(controller_, *snapshot_);
@@ -56,15 +76,81 @@ public:
     void set_descriptor_registry(const audioalgo::NodeCatalog& descriptors) noexcept { descriptors_ = &descriptors; }
 
     void resized() override {
-        panel_.setBounds(getLocalBounds());
+        auto bounds = getLocalBounds();
+        const auto disconnect_bounds = disconnect_all_button_.isVisible() || disconnect_selected_button_.isVisible()
+            ? bounds.removeFromBottom(38).reduced(12, 4)
+            : juce::Rectangle<int>{};
+        disconnect_all_button_.setBounds(disconnect_all_button_.isVisible() ? disconnect_bounds : juce::Rectangle<int>{});
+        disconnect_selected_button_.setBounds(disconnect_selected_button_.isVisible()
+            ? disconnect_bounds : juce::Rectangle<int>{});
+        panel_.setBounds(bounds);
     }
 
 private:
+    void update_disconnect_buttons() {
+        const auto node_id = snapshot_ ? snapshot_->node.id : std::string{};
+        std::vector<std::string> selected_ids = selection_.selected_node_ids();
+        if (selected_ids.empty() && !node_id.empty())
+            selected_ids.push_back(node_id);
+        const bool multiple = selected_ids.size() > 1;
+        const auto is_selected = [&](const std::string& id) {
+            return std::find(selected_ids.begin(), selected_ids.end(), id) != selected_ids.end();
+        };
+        const bool has_connections = !selected_ids.empty() && std::any_of(
+            controller_.project().connections.begin(), controller_.project().connections.end(),
+            [&](const auto& connection) { return is_selected(connection.from_node) || is_selected(connection.to_node); });
+        disconnect_all_button_.setVisible(snapshot_.has_value() && !multiple);
+        disconnect_all_button_.setEnabled(!multiple && has_connections);
+        disconnect_selected_button_.setVisible(snapshot_.has_value() && multiple);
+        disconnect_selected_button_.setEnabled(multiple && has_connections);
+        resized();
+    }
+
+    void disconnect_all_connections() {
+        if (!snapshot_)
+            return;
+        disconnect_node_set({snapshot_->node.id});
+    }
+
+    void disconnect_selected_connections() {
+        if (!snapshot_ || selection_.selected_node_ids().size() < 2)
+            return;
+        disconnect_node_set(selection_.selected_node_ids());
+    }
+
+    void disconnect_node_set(const std::vector<std::string>& node_ids) {
+        if (!snapshot_)
+            return;
+        const auto primary_node_id = snapshot_->node.id;
+        const bool stale_selection = snapshot_->session != controller_.session_identity() ||
+            std::any_of(node_ids.begin(), node_ids.end(), [&](const auto& id) {
+                return !controller_.node_snapshot(id).has_value();
+            });
+        if (stale_selection) {
+            clear_stale_snapshot();
+            return;
+        }
+
+        const auto outcome = controller_.disconnect_node_connections(node_ids);
+        if (outcome.status == audioalgo::editor::ProjectEditStatus::applied) {
+            show_node(primary_node_id);
+            if (changed_)
+                changed_();
+        } else if (outcome.status == audioalgo::editor::ProjectEditStatus::rejected &&
+                   !outcome.diagnostics.empty()) {
+            const auto& diagnostic = outcome.diagnostics.front();
+            panel_.show_parameter_error("connections", diagnostic.code + ": " + diagnostic.message);
+        }
+    }
+
     void clear_stale_snapshot() {
         snapshot_.reset();
         active_gesture_parameter_.reset();
         (void)selection_.select(controller_.project(), {});
+        disconnect_all_button_.setVisible(false);
+        disconnect_selected_button_.setVisible(false);
         panel_.clear("Inspector", "The project changed. Select a node to continue editing.");
+        resized();
     }
 
     void apply_parameter(const audioalgo::editor::EditorNodeParameterBinding& binding,
@@ -144,6 +230,8 @@ private:
     std::function<void()> changed_;
     std::optional<std::string> active_gesture_parameter_;
     audioalgo::editor::ParameterPanel panel_;
+    juce::TextButton disconnect_all_button_{"Disconnect all connections"};
+    juce::TextButton disconnect_selected_button_{"Disconnect selected nodes"};
 };
 
 

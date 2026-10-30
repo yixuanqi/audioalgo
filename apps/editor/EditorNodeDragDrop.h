@@ -134,11 +134,57 @@ class PortConnectionGesture {
 public:
     [[nodiscard]] bool begin(std::string source_node_id, std::string source_port_id,
                              EditorPoint pointer_position = {}) {
-        if (source_node_id.empty() || source_port_id.empty())
+        return begin(std::move(source_node_id), std::move(source_port_id),
+                     audioalgo::PortDirection::output, pointer_position);
+    }
+
+    [[nodiscard]] bool begin(std::string start_node_id, std::string start_port_id,
+                             audioalgo::PortDirection start_direction,
+                             EditorPoint pointer_position = {}) {
+        if (start_node_id.empty() || start_port_id.empty())
             return false;
-        source_node_id_ = std::move(source_node_id);
-        source_port_id_ = std::move(source_port_id);
+        start_node_id_ = std::move(start_node_id);
+        start_port_id_ = std::move(start_port_id);
+        start_direction_ = start_direction;
+        connection_to_replace_.reset();
+        reconnect_source_endpoint_ = false;
         pointer_position_ = pointer_position;
+        drag_origin_position_ = pointer_position;
+        drag_position_ = pointer_position;
+        active_ = true;
+        dragging_ = false;
+        return true;
+    }
+
+    [[nodiscard]] bool begin_reconnect(Connection connection, EditorPoint pointer_position = {}) {
+        if (connection.from_node.empty() || connection.from_port.empty() ||
+            connection.to_node.empty() || connection.to_port.empty())
+            return false;
+        start_node_id_ = connection.to_node;
+        start_port_id_ = connection.to_port;
+        start_direction_ = audioalgo::PortDirection::input;
+        pointer_position_ = pointer_position;
+        drag_origin_position_ = pointer_position;
+        drag_position_ = pointer_position;
+        connection_to_replace_ = std::move(connection);
+        reconnect_source_endpoint_ = false;
+        active_ = true;
+        dragging_ = false;
+        return true;
+    }
+
+    [[nodiscard]] bool begin_source_reconnect(Connection connection, EditorPoint pointer_position = {}) {
+        if (connection.from_node.empty() || connection.from_port.empty() ||
+            connection.to_node.empty() || connection.to_port.empty())
+            return false;
+        start_node_id_ = connection.from_node;
+        start_port_id_ = connection.from_port;
+        start_direction_ = audioalgo::PortDirection::output;
+        pointer_position_ = pointer_position;
+        drag_origin_position_ = pointer_position;
+        drag_position_ = pointer_position;
+        connection_to_replace_ = std::move(connection);
+        reconnect_source_endpoint_ = true;
         active_ = true;
         dragging_ = false;
         return true;
@@ -148,11 +194,27 @@ public:
         if (!active_)
             return false;
         pointer_position_ = pointer_position;
+        drag_position_ = pointer_position;
         return true;
     }
 
-    void mark_drag_started() noexcept {
+    [[nodiscard]] bool update_pointer(EditorPoint pointer_position, EditorPoint drag_position) noexcept {
+        if (!active_)
+            return false;
+        pointer_position_ = pointer_position;
+        drag_position_ = drag_position;
+        return true;
+    }
+
+    void set_drag_origin(EditorPoint drag_origin_position) noexcept {
         if (active_)
+            drag_origin_position_ = drag_origin_position;
+    }
+
+    void mark_drag_started() noexcept {
+        const auto dx = drag_position_.x - drag_origin_position_.x;
+        const auto dy = drag_position_.y - drag_origin_position_.y;
+        if (active_ && dx * dx + dy * dy > drag_threshold_ * drag_threshold_)
             dragging_ = true;
     }
 
@@ -165,9 +227,43 @@ public:
 
     [[nodiscard]] std::optional<Connection> finish(const std::string& target_node_id,
                                                    const std::string& target_port_id) {
+        return finish(target_node_id, target_port_id, target_direction());
+    }
+
+    [[nodiscard]] std::optional<Connection> connection_to(const std::string& target_node_id,
+                                                          const std::string& target_port_id,
+                                                          audioalgo::PortDirection target_direction) const {
         if (!active_ || target_node_id.empty() || target_port_id.empty())
             return std::nullopt;
-        Connection connection{source_node_id_, source_port_id_, target_node_id, target_port_id};
+        if (connection_to_replace_ && reconnect_source_endpoint_ &&
+            target_direction == audioalgo::PortDirection::output) {
+            auto replacement = *connection_to_replace_;
+            replacement.from_node = target_node_id;
+            replacement.from_port = target_port_id;
+            return replacement;
+        }
+        if (connection_to_replace_ && !reconnect_source_endpoint_ &&
+            target_direction == audioalgo::PortDirection::input) {
+            auto replacement = *connection_to_replace_;
+            replacement.to_node = target_node_id;
+            replacement.to_port = target_port_id;
+            return replacement;
+        }
+        if (start_direction_ == audioalgo::PortDirection::output &&
+            target_direction == audioalgo::PortDirection::input)
+            return Connection{start_node_id_, start_port_id_, target_node_id, target_port_id};
+        if (start_direction_ == audioalgo::PortDirection::input &&
+            target_direction == audioalgo::PortDirection::output)
+            return Connection{target_node_id, target_port_id, start_node_id_, start_port_id_};
+        return std::nullopt;
+    }
+
+    [[nodiscard]] std::optional<Connection> finish(const std::string& target_node_id,
+                                                   const std::string& target_port_id,
+                                                   audioalgo::PortDirection target_direction) {
+        if (!active_ || target_node_id.empty() || target_port_id.empty())
+            return std::nullopt;
+        auto connection = connection_to(target_node_id, target_port_id, target_direction);
         cancel();
         return connection;
     }
@@ -175,21 +271,53 @@ public:
     void cancel() noexcept {
         active_ = false;
         dragging_ = false;
-        source_node_id_.clear();
-        source_port_id_.clear();
+        start_node_id_.clear();
+        start_port_id_.clear();
+        start_direction_ = audioalgo::PortDirection::output;
+        connection_to_replace_.reset();
+        reconnect_source_endpoint_ = false;
         pointer_position_ = {};
+        drag_origin_position_ = {};
+        drag_position_ = {};
     }
 
     [[nodiscard]] bool is_active() const noexcept { return active_; }
     [[nodiscard]] bool is_dragging() const noexcept { return active_ && dragging_; }
-    [[nodiscard]] const std::string& source_node_id() const noexcept { return source_node_id_; }
-    [[nodiscard]] const std::string& source_port_id() const noexcept { return source_port_id_; }
+    [[nodiscard]] audioalgo::PortDirection start_direction() const noexcept { return start_direction_; }
+    [[nodiscard]] bool is_reconnecting() const noexcept { return connection_to_replace_.has_value(); }
+    [[nodiscard]] bool is_reconnecting_source() const noexcept {
+        return connection_to_replace_.has_value() && reconnect_source_endpoint_;
+    }
+    [[nodiscard]] audioalgo::PortDirection target_direction() const noexcept {
+        if (connection_to_replace_)
+            return reconnect_source_endpoint_ ? audioalgo::PortDirection::output : audioalgo::PortDirection::input;
+        return start_direction_ == audioalgo::PortDirection::output
+            ? audioalgo::PortDirection::input : audioalgo::PortDirection::output;
+    }
+    [[nodiscard]] const std::optional<Connection>& connection_to_replace() const noexcept {
+        return connection_to_replace_;
+    }
+    [[nodiscard]] const std::string& source_node_id() const noexcept {
+        return connection_to_replace_ ? connection_to_replace_->from_node : start_node_id_;
+    }
+    [[nodiscard]] const std::string& source_port_id() const noexcept {
+        return connection_to_replace_ ? connection_to_replace_->from_port : start_port_id_;
+    }
+    [[nodiscard]] audioalgo::PortDirection preview_source_direction() const noexcept {
+        return connection_to_replace_ ? audioalgo::PortDirection::output : start_direction_;
+    }
     [[nodiscard]] EditorPoint pointer_position() const noexcept { return pointer_position_; }
 
 private:
-    std::string source_node_id_;
-    std::string source_port_id_;
+    static constexpr float drag_threshold_ = 6.0f;
+    std::string start_node_id_;
+    std::string start_port_id_;
+    audioalgo::PortDirection start_direction_ = audioalgo::PortDirection::output;
+    std::optional<Connection> connection_to_replace_;
+    bool reconnect_source_endpoint_ = false;
     EditorPoint pointer_position_;
+    EditorPoint drag_origin_position_;
+    EditorPoint drag_position_;
     bool active_ = false;
     bool dragging_ = false;
 };

@@ -83,7 +83,13 @@ public:
     [[nodiscard]] ProjectEditOutcome swap_processing_nodes(const std::string& first_node_id,
                                                           const std::string& second_node_id);
     [[nodiscard]] ProjectEditOutcome connect(const Connection& connection);
+    [[nodiscard]] ProjectEditOutcome reconnect_connection(const Connection& original,
+                                                          const Connection& replacement);
     [[nodiscard]] ProjectEditOutcome disconnect(const Connection& connection);
+    [[nodiscard]] ProjectEditOutcome disconnect_port_connections(const std::string& node_id,
+                                                                 const std::string& port_id);
+    [[nodiscard]] ProjectEditOutcome disconnect_node_connections(const std::string& node_id);
+    [[nodiscard]] ProjectEditOutcome disconnect_node_connections(const std::vector<std::string>& node_ids);
     [[nodiscard]] ProjectEditOutcome insert_node(const std::string& type_id, const std::string& node_id,
                                                  const Connection& target_connection, double x, double y,
                                                  std::optional<InsertionPortChoice> port_choice = std::nullopt);

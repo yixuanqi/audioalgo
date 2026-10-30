@@ -174,7 +174,7 @@ TEST_CASE("NED-04.a", "[node_interaction][NED-04]") {
         require_diagnostic(audioalgo::try_add_connection(project, {"file", "missing", "gain", "audio_in"}, registry),
                            "connection_source_port_missing", "file", "missing");
         require_diagnostic(audioalgo::try_add_connection(project, {"gain", "audio_in", "out", "audio"}, registry),
-                           "connection_source_port_missing", "gain", "audio_in");
+                           "connection_source_port_direction", "gain", "audio_in");
     }
 
     SECTION("type mismatch and self-connections are rejected") {
@@ -517,6 +517,7 @@ TEST_CASE("NED-08.a", "[node_interaction][NED-08]") {
 
     audioalgo::editor::PortConnectionGesture drag_gesture;
     REQUIRE(drag_gesture.begin("file", "audio"));
+    REQUIRE(drag_gesture.update_pointer({7.0f, 0.0f}));
     drag_gesture.mark_drag_started();
     REQUIRE(drag_gesture.is_dragging());
     const auto drag_connection = drag_gesture.finish("gain", "audio_in");
@@ -563,12 +564,14 @@ TEST_CASE("NED-08.c", "[node_interaction][NED-08]") {
     audioalgo::editor::PortConnectionGesture gesture;
 
     REQUIRE(gesture.begin("file", "audio", {52.0f, 63.0f}));
+    REQUIRE(gesture.update_pointer({59.0f, 63.0f}));
     gesture.mark_drag_started();
     gesture.cancel(); // Invalid release has no target port and uses this cleanup path.
     REQUIRE_FALSE(gesture.is_active());
     REQUIRE(same_project_state(project, before));
 
     REQUIRE(gesture.begin("file", "audio", {52.0f, 63.0f}));
+    REQUIRE(gesture.update_pointer({59.0f, 63.0f}));
     gesture.mark_drag_started();
     REQUIRE_FALSE(gesture.cancel_on_escape(false));
     REQUIRE(gesture.is_dragging());
@@ -590,6 +593,7 @@ TEST_CASE("NED-08.d", "[node_interaction][NED-08]") {
 
     audioalgo::editor::PortConnectionGesture gesture;
     REQUIRE(gesture.begin("file-2", "audio", {600.0f, 160.0f}));
+    REQUIRE(gesture.update_pointer({607.0f, 160.0f}));
     gesture.mark_drag_started();
     const auto attempted_connection = gesture.finish("gain", "audio_in");
     REQUIRE(attempted_connection.has_value());
@@ -1336,6 +1340,7 @@ TEST_CASE("NED-11.f", "[node_interaction][NED-11]") {
     REQUIRE(library_drop.update({280.0f, 160.0f}, audioalgo::editor::EditorPoint{192.0f, 110.0f}, edge));
     audioalgo::editor::PortConnectionGesture connection_gesture;
     REQUIRE(connection_gesture.begin("gain", "audio_out", {420.0f, 80.0f}));
+    REQUIRE(connection_gesture.update_pointer({427.0f, 80.0f}));
     connection_gesture.mark_drag_started();
     REQUIRE(connection_gesture.is_dragging());
 

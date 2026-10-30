@@ -178,17 +178,21 @@ struct PortHit {
     PortDirection direction = PortDirection::input;
 };
 
+[[nodiscard]] inline float port_hit_radius(const CanvasCoordinateTransform& transform) noexcept {
+    return std::max(12.0f, 6.5f * transform.zoom_scale());
+}
+
 [[nodiscard]] inline std::optional<PortHit> find_topmost_port_at(
     const std::vector<NodeInstance>& nodes, const NodeCatalog& registry, EditorPoint point,
     const CanvasCoordinateTransform& transform = {}) {
-    const auto port_hit_radius = std::max(12.0f, 6.5f * transform.zoom_scale());
+    const auto hit_radius = port_hit_radius(transform);
     for (auto it = nodes.rbegin(); it != nodes.rend(); ++it) {
         const auto geometry = make_node_geometry(*it, registry.find(it->type_id), transform);
         const PortVisualGeometry* nearest = nullptr;
         auto nearest_distance = std::numeric_limits<float>::infinity();
         for (const auto& port : geometry.ports) {
             const auto distance = std::hypot(point.x - port.anchor.x, point.y - port.anchor.y);
-            if ((distance <= port_hit_radius || port.label_bounds.contains(point)) && distance < nearest_distance) {
+            if ((distance <= hit_radius || port.label_bounds.contains(point)) && distance < nearest_distance) {
                 nearest = &port;
                 nearest_distance = distance;
             }
@@ -249,6 +253,29 @@ struct NodePositionPreview {
     const auto control_distance = std::max(48.0f * transform.zoom_scale(), (finish->x - start->x) * 0.44f);
     return CubicConnectionGeometry{*start, {start->x + control_distance, start->y},
                                    {finish->x - control_distance, finish->y}, *finish};
+}
+
+struct SourceEndpointHandleGeometry {
+    EditorPoint center;
+    float radius = 0.0f;
+};
+
+[[nodiscard]] inline bool source_endpoint_handle_contains(
+    const SourceEndpointHandleGeometry& handle, EditorPoint point) noexcept {
+    return std::hypot(point.x - handle.center.x, point.y - handle.center.y) <= handle.radius;
+}
+
+[[nodiscard]] inline std::optional<SourceEndpointHandleGeometry> make_source_endpoint_handle_geometry(
+    const ProjectModel& project, const NodeCatalog& registry, const Connection& connection,
+    const CanvasCoordinateTransform& transform = {}) {
+    const auto edge = make_connection_geometry(project, registry, connection, transform);
+    if (!edge)
+        return std::nullopt;
+
+    const auto radius = 6.0f * transform.zoom_scale();
+    const auto socket_hit_radius = port_hit_radius(transform);
+    const auto offset = std::max(18.0f * transform.zoom_scale(), socket_hit_radius + radius + 1.0f);
+    return SourceEndpointHandleGeometry{{edge->start.x + offset, edge->start.y}, radius};
 }
 
 [[nodiscard]] inline EditorPoint midpoint(EditorPoint first, EditorPoint second) noexcept {

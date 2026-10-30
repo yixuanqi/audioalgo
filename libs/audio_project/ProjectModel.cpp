@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <map>
 #include <set>
 #include <type_traits>
@@ -116,6 +117,7 @@ static std::vector<GraphDiagnostic> validate_project_impl(const ProjectModel& pr
     }
 
     std::set<std::tuple<std::string, std::string, std::string, std::string>> unique_connections;
+    std::set<std::string, std::less<>> nodes_with_valid_edges;
     std::map<std::pair<std::string, std::string>, std::size_t> input_counts;
     std::map<std::string, std::vector<std::string>, std::less<>> adjacency;
     std::map<std::string, std::size_t, std::less<>> indegree;
@@ -149,17 +151,29 @@ static std::vector<GraphDiagnostic> validate_project_impl(const ProjectModel& pr
         const auto* source_port = find_port(*source_descriptor->second, connection.from_port, PortDirection::output);
         const auto* target_port = find_port(*target_descriptor->second, connection.to_port, PortDirection::input);
         if (source_port == nullptr) {
-            diagnostics.push_back({"connection_source_port_missing", "Output port does not exist", connection.from_node, connection.from_port});
+            const auto* input_port = find_port(*source_descriptor->second, connection.from_port, PortDirection::input);
+            diagnostics.push_back({input_port != nullptr ? "connection_source_port_direction"
+                                                          : "connection_source_port_missing",
+                                   input_port != nullptr ? "Connection source must use an output port"
+                                                         : "Output port does not exist",
+                                   connection.from_node, connection.from_port});
             continue;
         }
         if (target_port == nullptr) {
-            diagnostics.push_back({"connection_target_port_missing", "Input port does not exist", connection.to_node, connection.to_port});
+            const auto* output_port = find_port(*target_descriptor->second, connection.to_port, PortDirection::output);
+            diagnostics.push_back({output_port != nullptr ? "connection_target_port_direction"
+                                                           : "connection_target_port_missing",
+                                   output_port != nullptr ? "Connection target must use an input port"
+                                                          : "Input port does not exist",
+                                   connection.to_node, connection.to_port});
             continue;
         }
         if (source_port->type_id != target_port->type_id) {
             diagnostics.push_back({"connection_type_mismatch", "Port types do not match", connection.to_node, connection.to_port});
             continue;
         }
+        nodes_with_valid_edges.insert(connection.from_node);
+        nodes_with_valid_edges.insert(connection.to_node);
         auto& count = input_counts[{connection.to_node, connection.to_port}];
         ++count;
         if (count > 1)
@@ -176,6 +190,8 @@ static std::vector<GraphDiagnostic> validate_project_impl(const ProjectModel& pr
                 if (port.direction == PortDirection::input && port.required && input_counts[{node_id, port.id}] == 0)
                     diagnostics.push_back({"input_required", "Required input is not connected", node_id, port.id});
             }
+            if (!nodes_with_valid_edges.contains(node_id))
+                diagnostics.push_back({"node_isolated", "Node is not connected to any other node", node_id, {}});
         }
     }
 
@@ -227,6 +243,10 @@ std::vector<GraphDiagnostic> validate_project_structure(const ProjectModel& proj
 
 std::vector<GraphDiagnostic> try_add_connection(ProjectModel& project, Connection connection,
                                                 const NodeCatalog& registry) {
+    if (project.revision == std::numeric_limits<std::uint64_t>::max())
+        return {{"revision_exhausted", "The project revision cannot be advanced",
+                 connection.to_node, connection.to_port}};
+
     auto candidate = project;
     candidate.connections.push_back(std::move(connection));
     auto diagnostics = validate_project_structure(candidate, registry);

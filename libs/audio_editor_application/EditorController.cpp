@@ -331,6 +331,50 @@ ProjectEditOutcome EditorController::connect(const Connection& connection) {
     return {ProjectEditStatus::applied, {}};
 }
 
+ProjectEditOutcome EditorController::reconnect_connection(const Connection& original,
+                                                          const Connection& replacement) {
+    if (parameter_gesture_.has_value())
+        return project_edit_rejected("parameter_gesture_active", "Finish or cancel the active parameter gesture",
+                                     replacement.to_node, replacement.to_port);
+    if (project_.revision == std::numeric_limits<std::uint64_t>::max())
+        return project_edit_rejected("revision_exhausted", "The project revision cannot be advanced",
+                                     replacement.to_node, replacement.to_port);
+
+    const auto matches = [&](const Connection& edge) {
+        return edge.from_node == original.from_node && edge.from_port == original.from_port &&
+               edge.to_node == original.to_node && edge.to_port == original.to_port;
+    };
+    const auto count = std::count_if(project_.connections.begin(), project_.connections.end(), matches);
+    if (count == 0)
+        return project_edit_rejected("connection_missing", "The connection to reconnect no longer exists",
+                                     original.to_node, original.to_port);
+    if (count != 1)
+        return project_edit_rejected("connection_ambiguous", "The connection to reconnect is not unique",
+                                     original.to_node, original.to_port);
+
+    auto candidate = project_;
+    const auto edge = std::find_if(candidate.connections.begin(), candidate.connections.end(), matches);
+    auto updated = replacement;
+    updated.serialized_extensions = edge->serialized_extensions;
+    if (edge->from_node == updated.from_node && edge->from_port == updated.from_port &&
+        edge->to_node == updated.to_node && edge->to_port == updated.to_port)
+        return {ProjectEditStatus::unchanged, {}};
+    *edge = std::move(updated);
+    auto diagnostics = validate_project_structure(candidate, catalog_);
+    if (!diagnostics.empty())
+        return {ProjectEditStatus::rejected, std::move(diagnostics)};
+
+    const auto applied = history_.apply(project_, [&](ProjectModel& edited) {
+        edited = std::move(candidate);
+        return true;
+    });
+    if (!applied)
+        return {ProjectEditStatus::unchanged, {}};
+
+    mark_edited();
+    return {ProjectEditStatus::applied, {}};
+}
+
 ProjectEditOutcome EditorController::disconnect(const Connection& connection) {
     if (parameter_gesture_.has_value())
         return project_edit_rejected("parameter_gesture_active", "Finish or cancel the active parameter gesture",
@@ -355,6 +399,123 @@ ProjectEditOutcome EditorController::disconnect(const Connection& connection) {
     if (!try_disconnect_connection(candidate, connection))
         return project_edit_rejected("connection_missing", "The selected connection could not be removed",
                                      connection.to_node, connection.to_port);
+
+    const auto applied = history_.apply(project_, [&](ProjectModel& edited) {
+        edited = std::move(candidate);
+        return true;
+    });
+    if (!applied)
+        return {ProjectEditStatus::unchanged, {}};
+
+    mark_edited();
+    return {ProjectEditStatus::applied, {}};
+}
+
+ProjectEditOutcome EditorController::disconnect_port_connections(const std::string& node_id,
+                                                                 const std::string& port_id) {
+    if (node_id.empty())
+        return project_edit_rejected("node_missing", "A node ID is required", node_id, port_id);
+    if (port_id.empty())
+        return project_edit_rejected("port_missing", "A port ID is required", node_id, port_id);
+    if (parameter_gesture_.has_value())
+        return project_edit_rejected("parameter_gesture_active", "Finish or cancel the active parameter gesture",
+                                     node_id, port_id);
+
+    const auto node_count = std::count_if(project_.nodes.begin(), project_.nodes.end(), [&](const auto& node) {
+        return node.id == node_id;
+    });
+    if (node_count == 0)
+        return project_edit_rejected("node_missing", "The port's node does not exist", node_id, port_id);
+    if (node_count != 1)
+        return project_edit_rejected("node_id_ambiguous", "The port's node ID is not unique", node_id, port_id);
+    const auto* node = find_node(node_id);
+    const auto* descriptor = node == nullptr ? nullptr : catalog_.find(node->type_id);
+    if (descriptor == nullptr)
+        return project_edit_rejected("node_type_missing", "No registered descriptor for the port's node type",
+                                     node_id, port_id);
+
+    const auto matching_ports = std::count_if(descriptor->ports.begin(), descriptor->ports.end(),
+        [&](const auto& port) { return port.id == port_id; });
+    if (matching_ports == 0)
+        return project_edit_rejected("port_missing", "The port does not exist on this node", node_id, port_id);
+    if (matching_ports != 1)
+        return project_edit_rejected("port_ambiguous", "The port ID is not unique on this node", node_id, port_id);
+    const auto port = std::find_if(descriptor->ports.begin(), descriptor->ports.end(),
+        [&](const auto& candidate) { return candidate.id == port_id; });
+    const auto has_connection = std::any_of(project_.connections.begin(), project_.connections.end(),
+        [&](const auto& connection) {
+            return port->direction == PortDirection::output
+                ? connection.from_node == node_id && connection.from_port == port_id
+                : connection.to_node == node_id && connection.to_port == port_id;
+        });
+    if (!has_connection)
+        return {ProjectEditStatus::unchanged, {}};
+    if (project_.revision == std::numeric_limits<std::uint64_t>::max())
+        return project_edit_rejected("revision_exhausted", "The project revision cannot be advanced",
+                                     node_id, port_id);
+
+    auto candidate = project_;
+    if (!try_disconnect_port_connections(candidate, node_id, port_id, port->direction))
+        return project_edit_rejected("connection_missing", "The port connections could not be removed",
+                                     node_id, port_id);
+
+    const auto applied = history_.apply(project_, [&](ProjectModel& edited) {
+        edited = std::move(candidate);
+        return true;
+    });
+    if (!applied)
+        return {ProjectEditStatus::unchanged, {}};
+
+    mark_edited();
+    return {ProjectEditStatus::applied, {}};
+}
+
+ProjectEditOutcome EditorController::disconnect_node_connections(const std::string& node_id) {
+    return disconnect_node_connections(std::vector<std::string>{node_id});
+}
+
+ProjectEditOutcome EditorController::disconnect_node_connections(const std::vector<std::string>& node_ids) {
+    if (node_ids.empty())
+        return {ProjectEditStatus::unchanged, {}};
+    if (parameter_gesture_.has_value())
+        return project_edit_rejected("parameter_gesture_active", "Finish or cancel the active parameter gesture",
+                                     node_ids.front());
+
+    std::vector<std::string> unique_node_ids;
+    unique_node_ids.reserve(node_ids.size());
+    for (const auto& node_id : node_ids) {
+        if (node_id.empty())
+            return project_edit_rejected("node_missing", "A selected node ID is empty", node_id);
+        if (std::find(unique_node_ids.begin(), unique_node_ids.end(), node_id) != unique_node_ids.end())
+            continue;
+
+        const auto node_count = std::count_if(project_.nodes.begin(), project_.nodes.end(), [&](const auto& node) {
+            return node.id == node_id;
+        });
+        if (node_count == 0)
+            return project_edit_rejected("node_missing", "A selected node does not exist", node_id);
+        if (node_count != 1)
+            return project_edit_rejected("node_id_ambiguous", "A selected node ID is not unique", node_id);
+        unique_node_ids.push_back(node_id);
+    }
+
+    const auto has_incident_connection = std::any_of(project_.connections.begin(), project_.connections.end(),
+        [&](const auto& connection) {
+            const auto is_selected = [&](const std::string& id) {
+                return std::find(unique_node_ids.begin(), unique_node_ids.end(), id) != unique_node_ids.end();
+            };
+            return is_selected(connection.from_node) || is_selected(connection.to_node);
+        });
+    if (!has_incident_connection)
+        return {ProjectEditStatus::unchanged, {}};
+    if (project_.revision == std::numeric_limits<std::uint64_t>::max())
+        return project_edit_rejected("revision_exhausted", "The project revision cannot be advanced",
+                                     unique_node_ids.front());
+
+    auto candidate = project_;
+    if (!try_disconnect_node_connections(candidate, unique_node_ids))
+        return project_edit_rejected("connection_missing", "The selected nodes have no connections to remove",
+                                     unique_node_ids.front());
 
     const auto applied = history_.apply(project_, [&](ProjectModel& edited) {
         edited = std::move(candidate);
