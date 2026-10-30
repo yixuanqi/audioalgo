@@ -587,7 +587,9 @@
       "layer": "integration",
       "runner": "ctest",
       "test_names": [
-        "NA-04.a production panel offers isolated source checking"
+        "NA-04.a production panel offers isolated source checking",
+        "PKG-01 relocated host checks applies and runs a directory node using its bundled runner",
+        "PKG-01 runtime selection preserves explicit overrides and diagnoses incomplete bundles without development fallback"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -595,7 +597,8 @@
       ],
       "related_ids": [],
       "shared_evidence": [
-        "build/reports/loops/NA0004-python-check/independent-probe.json"
+        "build/reports/loops/NA0004-python-check/independent-probe.json",
+        "build/reports/loops/PKG0001-python-runtime/summary.json"
       ],
       "test_results": [
         {
@@ -604,6 +607,20 @@
           "evidence": "build/reports/loops/NA0030-draft-close/exit-regression.xml",
           "command_record": "build/reports/loops/NA0030-draft-close/exit-regression.json",
           "snapshot_scope": "NA0030 Debug executed development subset; full requirement remains partial"
+        },
+        {
+          "test_name": "PKG-01 relocated host checks applies and runs a directory node using its bundled runner",
+          "status": "passed",
+          "evidence": "build/reports/loops/PKG0001-python-runtime/wide-debug-probes.xml",
+          "command_record": "build/reports/loops/PKG0001-python-runtime/wide-debug-probes.json",
+          "snapshot_scope": "PKG0001 final Unicode probe Debug development subset; shared runner capture and Check/Apply/Run, Release probes separately passed. No formal requirement/stage or desktop promotion."
+        },
+        {
+          "test_name": "PKG-01 runtime selection preserves explicit overrides and diagnoses incomplete bundles without development fallback",
+          "status": "passed",
+          "evidence": "build/reports/loops/PKG0001-python-runtime/wide-debug-probes.xml",
+          "command_record": "build/reports/loops/PKG0001-python-runtime/wide-debug-probes.json",
+          "snapshot_scope": "PKG0001 final Unicode probe Debug development subset; shared runner capture and Check/Apply/Run, Release probes separately passed. No formal requirement/stage or desktop promotion."
         }
       ],
       "status": "partial",
@@ -680,7 +697,8 @@
         "NA-14.b cancelled completed check cannot deliver Ready to the production panel",
         "PC-03.c production Check cancellation reclaims only its process tree and permits recovery",
         "NA-04.d chosen work directory checks and applies without moving installed versions",
-        "PC-03.c production Check deadline preserves logs reclaims its tree and permits recovery"
+        "PC-03.c production Check deadline preserves logs reclaims its tree and permits recovery",
+        "PKG-01 runner capture excludes interpreter files but retains byte identity budgets and Apply environment locking"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -715,11 +733,21 @@
           "evidence": "build/reports/loops/PC0305-check-timeout/direct-regression-current.xml",
           "command_record": "build/reports/loops/PC0305-check-timeout/direct-regression-current.json",
           "snapshot_scope": "PC0305 Windows Debug per-task timeout, owned tree, archived log and recovery subset; 9 cases/204 assertions. Not the full requirement/stage."
+        },
+        {
+          "test_name": "PKG-01 runner capture excludes interpreter files but retains byte identity budgets and Apply environment locking",
+          "status": "passed",
+          "evidence": "build/reports/loops/PKG0001-python-runtime/wide-debug-probes.xml",
+          "command_record": "build/reports/loops/PKG0001-python-runtime/wide-debug-probes.json",
+          "snapshot_scope": "PKG0001 final Unicode probe Debug development subset; shared runner capture and Check/Apply/Run, Release probes separately passed. No formal requirement/stage or desktop promotion."
         }
       ],
       "status": "partial",
       "remaining_clauses": [
         "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
+      ],
+      "shared_evidence": [
+        "build/reports/loops/PKG0001-python-runtime/summary.json"
       ]
     },
     {
@@ -1247,7 +1275,8 @@
       "test_names": [
         "NA-04.c Ready retains the exact source that was probed despite mutable candidate edits",
         "NA-07.a checked Python draft applies one immutable library version",
-        "PC-02 production Print Apply library drop Canvas Run exposes only this run logs"
+        "PC-02 production Print Apply library drop Canvas Run exposes only this run logs",
+        "PKG-01 relocated host checks applies and runs a directory node using its bundled runner"
       ],
       "coverage": "partial",
       "evidence_requirements": [
@@ -1275,6 +1304,13 @@
           "evidence": "build/reports/loops/PC0201-print/green-line-endings.xml",
           "command_record": "build/reports/loops/PC0201-print/green-line-endings.json",
           "snapshot_scope": "executed development subset, full requirement remains partial"
+        },
+        {
+          "test_name": "PKG-01 relocated host checks applies and runs a directory node using its bundled runner",
+          "status": "passed",
+          "evidence": "build/reports/loops/PKG0001-python-runtime/wide-debug-probes.xml",
+          "command_record": "build/reports/loops/PKG0001-python-runtime/wide-debug-probes.json",
+          "snapshot_scope": "PKG0001 final Unicode probe Debug development subset; shared runner capture and Check/Apply/Run, Release probes separately passed. No formal requirement/stage or desktop promotion."
         }
       ],
       "status": "partial",
@@ -1282,7 +1318,8 @@
         "Full acceptance clauses and independent evidence not yet closed; bound tests cover only their explicit assertions"
       ],
       "shared_evidence": [
-        "build/reports/loops/PC0201-print/summary.json: component subset only; desktop remains not_verified"
+        "build/reports/loops/PC0201-print/summary.json: component subset only; desktop remains not_verified",
+        "build/reports/loops/PKG0001-python-runtime/summary.json"
       ]
     },
     {

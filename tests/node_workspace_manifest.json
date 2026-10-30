@@ -835,7 +835,8 @@
       ],
       "test_names": [
         "NWS-03.a production directory Apply library drop and saved GUI CLI graphs execute exact helper versions",
-        "NWS-03.a explicit resource and adjacent data file are frozen and change real Python audio"
+        "NWS-03.a explicit resource and adjacent data file are frozen and change real Python audio",
+        "PKG-01 relocated host checks applies and runs a directory node using its bundled runner"
       ],
       "test_results": [
         {
@@ -907,11 +908,21 @@
           "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
           "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
           "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "PKG-01 relocated host checks applies and runs a directory node using its bundled runner",
+          "status": "passed",
+          "evidence": "build/reports/loops/PKG0001-python-runtime/wide-debug-probes.xml",
+          "command_record": "build/reports/loops/PKG0001-python-runtime/wide-debug-probes.json",
+          "snapshot_scope": "PKG0001 final Unicode probe Debug development subset; shared runner capture and Check/Apply/Run, Release probes separately passed. No formal requirement/stage or desktop promotion."
         }
       ],
       "status": "partial",
       "remaining_clauses": [
         "Deleted helper / missing module and full stable audio matrix remain. Real OS interaction stays in NWS-10.a not_verified."
+      ],
+      "shared_evidence": [
+        "build/reports/loops/PKG0001-python-runtime/summary.json"
       ]
     },
     {
@@ -1097,7 +1108,8 @@
       "test_names": [
         "NWS-05.a created node project immediately shows its file list and detects external helper changes",
         "NWS-03.a explicit resource and adjacent data file are frozen and change real Python audio",
-        "NWS-04.a Apply waits for a new disk scan and rejects Ready after external source changes"
+        "NWS-04.a Apply waits for a new disk scan and rejects Ready after external source changes",
+        "PKG-01 runner capture excludes interpreter files but retains byte identity budgets and Apply environment locking"
       ],
       "test_results": [
         {
@@ -1176,11 +1188,21 @@
           "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
           "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
           "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "PKG-01 runner capture excludes interpreter files but retains byte identity budgets and Apply environment locking",
+          "status": "passed",
+          "evidence": "build/reports/loops/PKG0001-python-runtime/wide-debug-probes.xml",
+          "command_record": "build/reports/loops/PKG0001-python-runtime/wide-debug-probes.json",
+          "snapshot_scope": "PKG0001 final Unicode probe Debug development subset; shared runner capture and Check/Apply/Run, Release probes separately passed. No formal requirement/stage or desktop promotion."
         }
       ],
       "status": "partial",
       "remaining_clauses": [
         "Full resource/environment change and Apply preflight interleaving matrix remains; click-after-scan Ready invalidation is covered by NWS0009."
+      ],
+      "shared_evidence": [
+        "build/reports/loops/PKG0001-python-runtime/summary.json"
       ]
     },
     {
