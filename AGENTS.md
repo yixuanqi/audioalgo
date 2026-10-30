@@ -4,6 +4,8 @@
 
 本仓库建设可扩展的 JUCE 音频算法可视化编辑平台，支持 C++ / Python 算法、类型化节点、调参、试听和可复现实验。
 
+2026-10-28补充：[连线编辑与节点库分类修改方案](doc/plan_connection_editing_and_node_library.md)、[66项测试通过准则](doc/testing_connection_editing_and_node_library.md)、[Agent TDD执行规程及启动提示词](doc/agent_loop_connection_editing_and_node_library.md)指导保留节点断线、端口双向建连/原子改接，以及功能分类/搜索/筛选/Apply刷新。处理相关代码前在原必读文档后依次读取。本次仅文档，未启动产品实现，不提升验收状态；用户启动该专项后按CNL行为接续，完成后回原NWS主线。既有右键框选、缩放连线、负坐标拖动、节点插入/历史、工作台及精确版本不能回退；原生ABI与manifest完整比较、NWS/W0冻结身份契约保持。真实桌面暂停继续有效，不把组件验证当桌面通过。
+
 2026-10-22更新：[交付收口与独立原生节点约束](doc/plan_delivery_convergence.md)是当前排程、必要验证和新增插件边界的有效补充；覆盖旧文档中相反条款。用户C++节点必须支持在仓库外仅用发布SDK独立编译DLL、部署后重启现有宿主使用，宿主无需重新编译/链接；首版不要求热卸载。原110个AR子项保留，新增UPN-01～06单列必需验收；实际已实现子集和未验证项以`doc/development_status.md`唯一当前摘要为准，不沿用首次编写时全部未实现的历史状态。
 
 开始代码工作前依次阅读：
