@@ -505,3 +505,66 @@ TEST_CASE("NWS-01.b author identity survives snapshot and changes revoke an othe
     const auto invalid = WorkspaceStore{}.open(directory);
     REQUIRE(std::holds_alternative<Diagnostic>(invalid)); CHECK(std::get<Diagnostic>(invalid).code == "workspace_identity_invalid");
 }
+
+TEST_CASE("NWS-05.b declaration save changes only node json and rejects stale or failed publication",
+          "[NWS-05.b][NWS0015][node_workspace][pure]") {
+    const auto directory = root() / "author";
+    const auto created = WorkspaceStore{}.create(directory, python_draft_for("declaration-save")); require_workspace(created);
+    const auto original = std::get<Workspace>(created);
+    auto edited = original.declaration;
+    const auto name = edited.find("Print A"); REQUIRE(name != std::string::npos);
+    edited.replace(name, 7, "Saved definition");
+    edited.insert(edited.size() - 1, R"(,"future_node_field":{"preserve":[1,"value"]})");
+    const auto author_identity = bytes(directory / ".audioalgo-authoring.json");
+    const auto source = bytes(directory / "src/declaration_save/process.py");
+    const auto no_temporary_files = [&] {
+        for (const auto& entry : fs::directory_iterator(directory))
+            CHECK(entry.path().filename().string().find(".tmp-") == std::string::npos);
+    };
+    SECTION("a valid definition is saved with unchanged author source and control sections") {
+        const auto saved = WorkspaceStore{}.save_declaration(original, edited); require_workspace(saved);
+        const auto& updated = std::get<Workspace>(saved);
+        CHECK(updated.declaration.find("Saved definition") != std::string::npos);
+        CHECK(updated.declaration.find("future_node_field") != std::string::npos);
+        CHECK(updated.content_sha256 != original.content_sha256);
+        CHECK(updated.author_id == original.author_id); CHECK(updated.entrypoint == original.entrypoint);
+        CHECK(updated.entry_source == original.entry_source);
+        CHECK(bytes(directory / ".audioalgo-authoring.json") == author_identity);
+        CHECK(bytes(directory / "src/declaration_save/process.py") == source);
+        const auto reopened = WorkspaceStore{}.open(directory); require_workspace(reopened);
+        CHECK(std::get<Workspace>(reopened) == updated); no_temporary_files();
+    }
+    SECTION("an external node json edit is preserved and local definition stays available") {
+        const auto external = original.node_json + "\n"; write(directory / "node.json", external);
+        const auto saved = WorkspaceStore{}.save_declaration(original, edited);
+        REQUIRE(std::holds_alternative<Diagnostic>(saved)); CHECK(std::get<Diagnostic>(saved).code == "workspace_definition_conflict");
+        CHECK(bytes(directory / "node.json") == external); CHECK(edited.find("Saved definition") != std::string::npos); no_temporary_files();
+    }
+    SECTION("an external edit immediately before publication is detected") {
+        const auto external = original.node_json + " \n";
+        WorkspaceStore saving([&](WorkspacePhase phase) { if (phase == WorkspacePhase::replace) write(directory / "node.json", external); return true; });
+        const auto saved = saving.save_declaration(original, edited);
+        REQUIRE(std::holds_alternative<Diagnostic>(saved)); CHECK(std::get<Diagnostic>(saved).code == "workspace_definition_conflict");
+        CHECK(bytes(directory / "node.json") == external); no_temporary_files();
+    }
+    SECTION("write verification and replace failures retain every original byte") {
+        for (const auto rejected : {WorkspacePhase::write, WorkspacePhase::verify, WorkspacePhase::replace}) {
+            const auto saved = WorkspaceStore([&](WorkspacePhase phase) { return phase != rejected; }).save_declaration(original, edited);
+            REQUIRE(std::holds_alternative<Diagnostic>(saved)); CHECK(bytes(directory / "node.json") == original.node_json);
+            CHECK(bytes(directory / "src/declaration_save/process.py") == source); no_temporary_files();
+        }
+    }
+    SECTION("invalid definitions are rejected before writing") {
+        for (const auto* bad : {"{broken", "[]", "{}"}) {
+            const auto saved = WorkspaceStore{}.save_declaration(original, bad);
+            REQUIRE(std::holds_alternative<Diagnostic>(saved)); CHECK(bytes(directory / "node.json") == original.node_json); no_temporary_files();
+        }
+    }
+    SECTION("independent source edits are retained while saving the declaration") {
+        const auto external_source = source + "\n# external source remains authoritative\n";
+        write(directory / "src/declaration_save/process.py", external_source);
+        const auto saved = WorkspaceStore{}.save_declaration(original, edited); require_workspace(saved);
+        CHECK(std::get<Workspace>(saved).entry_source == external_source);
+        CHECK(bytes(directory / "src/declaration_save/process.py") == external_source); no_temporary_files();
+    }
+}

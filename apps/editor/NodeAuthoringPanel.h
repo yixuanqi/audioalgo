@@ -37,8 +37,8 @@ struct DraftFileActions {
         std::uint64_t bytes = 0;
         std::optional<authoring::Workspace> document;
     };
-    // Read-only directory binding: the directory is authoritative, so this panel
-    // holds no second source buffer and never writes a .aadraft for it.
+    // Disk-owned directory source: declaration Save updates node.json, while this
+    // panel holds no second source buffer and never writes a .aadraft for it.
     std::optional<WorkspaceBinding> workspace;
     std::function<void(std::function<void(std::filesystem::path)>)> choose_workspace_directory;
     std::function<void(Completion)> choose_workspace_for_edit;
@@ -47,6 +47,7 @@ struct DraftFileActions {
     std::function<void(const std::filesystem::path&)> workspace_opened;
     std::function<authoring::WorkspaceOutcome(const std::filesystem::path&, const authoring::Draft&)> create_workspace;
     std::function<authoring::WorkspaceOutcome(const std::filesystem::path&)> scan_workspace;
+    std::function<authoring::WorkspaceOutcome(const authoring::Workspace&, const std::string&)> save_workspace_declaration;
     std::function<void(std::function<void(bool)>)> choose_editor;
     std::function<std::string()> editor_description;
     std::function<std::optional<std::string>(const std::filesystem::path&, const std::string&, int, int)> open_project;
@@ -205,6 +206,7 @@ public:
         if (applying_.valid()) applying_.wait();
         if (workspace_creating_.valid()) workspace_creating_.wait();
         if (workspace_refresh_.valid()) workspace_refresh_.wait();
+        if (workspace_saving_.valid()) workspace_saving_.wait();
         if (workspace_preview_.valid()) workspace_preview_.wait();
         workspace_files_.setModel(nullptr);
         if (discard_catalog_) discard_catalog_();
@@ -216,7 +218,7 @@ public:
             auto& document = definition_.hasKeyboardFocus(true) ? definition_document_ : source_document_;
             if (code == 'Z') { if (key.getModifiers().isShiftDown()) document.redo(); else document.undo(); return true; }
             if (code == 'Y') { document.redo(); return true; }
-            if (code == 'S') { if (key.getModifiers().isShiftDown() && files_.choose_save) request_file_save(true); else { save_requested_ = true; save(); } return true; }
+            if (code == 'S') { if (key.getModifiers().isShiftDown() && (workspace_mode() || files_.choose_save)) request_file_save(true); else { save_requested_ = true; save(); } return true; }
         }
         return false;
     }
@@ -254,16 +256,17 @@ public:
                 (show_recent && !message.empty() ? " | " : "") + message),juce::dontSendNotification);
             preferences_status_.setTooltip(preferences_status_.getText());
         }
-        for (auto* c : std::initializer_list<juce::Component*>{&work_folder_, &recovery_folder_, &library_folder_, &locations_, &templates_, &type_id_, &display_name_}) c->setVisible(!folder);
+        for (auto* c : std::initializer_list<juce::Component*>{&work_folder_, &recovery_folder_, &library_folder_, &locations_, &templates_}) c->setVisible(!folder);
+        type_id_.setVisible(true); display_name_.setVisible(true);
         auto locations = folder ? juce::Rectangle<int>{} : area.removeFromTop(26);
         work_folder_.setBounds(locations.removeFromLeft(130).reduced(2)); recovery_folder_.setBounds(locations.removeFromLeft(145).reduced(2)); library_folder_.setBounds(locations.removeFromLeft(135).reduced(2)); locations_.setBounds(locations);
-        auto fields = folder ? juce::Rectangle<int>{} : area.removeFromTop(32); templates_.setBounds(fields.removeFromLeft(180).reduced(2));
+        auto fields = area.removeFromTop(32); if (!folder) templates_.setBounds(fields.removeFromLeft(180).reduced(2));
         type_id_.setBounds(fields.removeFromLeft(fields.getWidth() / 2).reduced(2));
         display_name_.setBounds(fields.reduced(2));
         definition_summary_.setBounds(area.removeFromTop(22));
         auto bottom = area.removeFromBottom(42);
         close_button_.setBounds(bottom.removeFromRight(120).reduced(4));
-        if (folder) state_.setBounds(bottom.reduced(4));
+        if (folder) { save_.setBounds(bottom.removeFromRight(136).reduced(4)); state_.setBounds(bottom.reduced(4)); }
         else {
         save_.setBounds(bottom.removeFromRight(120).reduced(4)); state_.setBounds(bottom.reduced(4));
         save_as_.setBounds(bottom.removeFromRight(110).reduced(4));
@@ -301,7 +304,7 @@ public:
     const std::filesystem::path& workspace_directory() const { return workspace_directory_; }
     const std::string& workspace_content_sha256() const { return workspace_content_sha256_; }
     std::size_t workspace_file_count() const { return workspace_file_count_; }
-    bool file_save_pending() const { return choosing_file_ || choosing_overwrite_ || file_target_loading_.valid() || file_saving_.valid(); }
+    bool file_save_pending() const { return workspace_saving_.valid() || choosing_file_ || choosing_overwrite_ || file_target_loading_.valid() || file_saving_.valid(); }
     bool check_in_progress() const { return checking_.valid(); }
     bool check_result_pending() const { return checking_.valid() && checking_.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready; }
     bool apply_in_progress() const { return preparing_.valid() || applying_.valid(); }
@@ -314,7 +317,19 @@ private:
     void codeDocumentTextInserted(const juce::String&, int) override { edited(); }
     void codeDocumentTextDeleted(int, int) override { edited(); }
     void edited() {
-        if (workspace_mode()) return; // Read-only previews never become a second draft buffer.
+        if (workspace_mode()) {
+            if (workspace_loading_definition_) return;
+            const auto definition = definition_document_.getAllContent().toStdString();
+            if (definition == session_.document().declaration) return; // Source is a read-only disk preview.
+            session_.edit({}, definition, now());
+            if (!writing_definition_fields_) synchronize_definition_fields();
+            workspace_check_after_refresh_ = workspace_apply_after_refresh_ = false;
+            invalidate_workspace_check(); check_.setEnabled(false);
+            failed_ = false;
+            check_state_.setText("Unsaved definition - Save before Check", juce::dontSendNotification);
+            update_status();
+            return;
+        }
         const auto declaration_changed = session_.document().declaration != definition_document_.getAllContent().toStdString();
         session_.edit(source_document_.getAllContent().toStdString(), definition_document_.getAllContent().toStdString(), now());
         if (declaration_changed && !writing_definition_fields_) synchronize_definition_fields();
@@ -378,11 +393,16 @@ private:
             const auto hash = workspace_content_sha256_.substr(0, std::min<std::size_t>(12, workspace_content_sha256_.size()));
             file_path_.setText("Project: " + utf8_string(path_to_utf8(workspace_directory_)), juce::dontSendNotification);
             file_path_.setTooltip(file_path_.getText());
-            state_.setText((workspace_disk_changed_ ? utf8_literal("Disk changed · ") : utf8_literal("Files on disk · ")) + juce::String(static_cast<int>(workspace_file_count_)) +
+            const auto definition_state = failed_ ? utf8_string(error_) + " | " : workspace_saving_.valid() ? juce::String("Saving definition... | ") :
+                workspace_definition_conflict_ ? juce::String("Definition conflict - unsaved edits kept | ") : session_.dirty() ? juce::String("Unsaved definition | ") : juce::String{};
+            state_.setText(definition_state + (workspace_disk_changed_ ? utf8_literal("Disk changed · ") : utf8_literal("Files on disk · ")) + juce::String(static_cast<int>(workspace_file_count_)) +
                 utf8_literal(" files · ") + utf8_string(hash), juce::dontSendNotification);
             state_.setColour(juce::Label::textColourId, failed_ ? danger : muted);
             state_.setTooltip(state_.getText());
-            save_.setVisible(false); save_as_.setVisible(false); discard_.setVisible(false); workspace_.setVisible(false);
+            save_.setVisible(true); save_.setButtonText("Save definition");
+            save_.setEnabled(session_.dirty() && files_.workspace->document && !workspace_saving_.valid());
+            close_button_.setButtonText(session_.dirty() ? "Save && close" : "Close project");
+            save_as_.setVisible(false); discard_.setVisible(false); workspace_.setVisible(false);
             work_folder_.setEnabled(false); recovery_folder_.setEnabled(false); library_folder_.setEnabled(false);
             return;
         }
@@ -433,26 +453,42 @@ private:
         if (cancel_apply_) cancel_apply_->store(true);
         apply_.setEnabled(false);
     }
-    void adopt_workspace(const authoring::Workspace& workspace, bool changed) {
-        if (!changed && workspace_valid_ && files_.workspace->document) return;
-        if (changed) { invalidate_workspace_check(); workspace_disk_changed_ = true; check_state_.setText("Disk changed · Check again", juce::dontSendNotification); }
-        workspace_valid_ = true;
-        const auto generation = session_.document().generation + (changed ? 1 : 0);
-        session_ = authoring::DraftSession(authoring::workspace_identity(workspace, generation), true);
+    void bind_workspace(const authoring::Workspace& workspace) {
         files_.workspace->document = workspace;
         files_.workspace->directory = workspace.directory;
         files_.workspace->content_sha256 = workspace.content_sha256;
         files_.workspace->files = workspace.files.size();
         workspace_directory_ = workspace.directory; workspace_content_sha256_ = workspace.content_sha256;
         workspace_file_count_ = workspace.files.size();
+    }
+    void adopt_workspace(const authoring::Workspace& workspace, bool changed, bool definition_saved = false) {
+        if (!changed && workspace_valid_ && files_.workspace->document && !definition_saved) return;
+        if (changed && session_.dirty() && !definition_saved) {
+            invalidate_workspace_check();
+            const auto& expected = files_.workspace->document;
+            workspace_definition_conflict_ = expected && (expected->node_json != workspace.node_json || expected->authoring_metadata != workspace.authoring_metadata);
+            if (!workspace_definition_conflict_) bind_workspace(workspace);
+            workspace_disk_changed_ = true;
+            check_state_.setText("Disk changed - unsaved definition kept", juce::dontSendNotification);
+            update_status();
+            return;
+        }
+        const juce::ScopedValueSetter<bool> loading(workspace_loading_definition_, true);
+        if (changed) { invalidate_workspace_check(); workspace_disk_changed_ = true; check_state_.setText("Disk changed · Check again", juce::dontSendNotification); }
+        workspace_valid_ = true;
+        const auto generation = session_.document().generation + (changed ? 1 : 0);
+        session_ = authoring::DraftSession(authoring::workspace_identity(workspace, generation), true);
+        bind_workspace(workspace);
         files_.path.clear(); files_.expected_bytes.reset();
         title_.setText(workspace.language == "python" ? "Python node project" : "C++ node project", juce::dontSendNotification);
         close_button_.setButtonText("Close project");
-        source_.setReadOnly(true); definition_.setReadOnly(true);
+        source_.setReadOnly(true); definition_.setReadOnly(false);
         source_document_.replaceAllContent(workspace.entry_source.size() <= 256 * 1024 ? utf8_string(workspace.entry_source) : "Open this file in your editor; it exceeds the 256 KiB preview budget."); source_document_.clearUndoHistory();
-        definition_document_.replaceAllContent(utf8_string(workspace.declaration)); definition_document_.clearUndoHistory();
+        definition_document_.replaceAllContent(utf8_string(workspace.declaration)); if (!definition_saved) definition_document_.clearUndoHistory();
         update_definition_summary();
-        type_id_.setEnabled(false); display_name_.setEnabled(false); templates_.setEnabled(false);
+        synchronize_definition_fields(); templates_.setEnabled(false);
+        workspace_definition_conflict_ = false;
+        if (definition_saved) { workspace_disk_changed_ = false; check_state_.setText("Definition saved - Check again", juce::dontSendNotification); }
         workspace_.setEnabled(false);
         workspace_files_.setVisible(true); workspace_files_.updateContent();
         for (auto* button : {&open_project_, &refresh_project_, &choose_editor_, &toggle_definition_, &toggle_workspace_logs_}) button->setVisible(true);
@@ -460,7 +496,7 @@ private:
         resized(); update_status();
     }
     void refresh_workspace() {
-        if (!workspace_mode() || workspace_refresh_.valid()) return;
+        if (!workspace_mode() || workspace_refresh_.valid() || workspace_saving_.valid()) return;
         ++workspace_scan_sequence_;
         workspace_last_scan_ = now();
         workspace_refresh_ = std::async(std::launch::async, [directory = workspace_directory_, scan = files_.scan_workspace] {
@@ -531,7 +567,22 @@ private:
         update_status();
     }
     void save() {
-        if (files_.workspace) { save_requested_ = false; if (close_requested_) finish_close(); return; }
+        if (files_.workspace) {
+            if (workspace_saving_.valid()) return;
+            if (!session_.dirty()) { save_requested_ = false; if (close_requested_) finish_close(); return; }
+            if (workspace_refresh_.valid()) { save_requested_ = true; return; }
+            if (!files_.workspace->document) { failed_ = true; error_ = "Node project unavailable; preserve the unsaved definition"; close_requested_ = save_requested_ = false; update_status(); return; }
+            const auto expected = *files_.workspace->document;
+            workspace_saving_draft_ = session_.document();
+            const auto declaration = workspace_saving_draft_.declaration;
+            const auto store = files_.save_workspace_declaration;
+            workspace_saving_ = std::async(std::launch::async, [expected, declaration, store]() -> authoring::WorkspaceOutcome {
+                try { return store ? store(expected, declaration) : authoring::WorkspaceStore{}.save_declaration(expected, declaration); }
+                catch (const std::exception& error) { return Diagnostic{"workspace_io_failed", error.what()}; }
+            });
+            save_requested_ = false; failed_ = false; update_status();
+            return;
+        }
         if (files_.choose_save) { request_file_save(false); return; }
         if (saving_.valid()) return;
         if (!session_.dirty()) { save_requested_ = false; if (close_requested_) finish_close(); return; }
@@ -541,6 +592,10 @@ private:
         save_requested_ = false; update_status();
     }
     void request_file_save(bool as) {
+        if (workspace_mode()) {
+            check_state_.setText("Use Save definition for node.json; directory Save As is not available yet", juce::dontSendNotification);
+            return;
+        }
         if (!files_.choose_save || file_save_pending()) return;
         if (choosing_directory_ || location_work_.valid()) { save_requested_ = true; return; }
         save_requested_ = false;
@@ -597,6 +652,21 @@ private:
         });
     }
     void timerCallback() override {
+        if (workspace_saving_.valid() && workspace_saving_.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
+            auto result = workspace_saving_.get();
+            if (auto* error = std::get_if<Diagnostic>(&result)) {
+                failed_ = true; error_ = error->code + ": " + error->message;
+                close_requested_ = save_requested_ = false;
+                auto failed = std::move(close_failed_); if (failed) failed();
+            } else {
+                failed_ = false; workspace_definition_conflict_ = false;
+                const auto& saved = std::get<authoring::Workspace>(result);
+                if (session_.document() == workspace_saving_draft_) adopt_workspace(saved, true, true);
+                else bind_workspace(saved); // Keep newer local edits; next Save compares the published bytes.
+                if (close_requested_) { if (session_.dirty()) save_requested_ = true; else finish_close(); }
+            }
+            update_status();
+        }
         if (workspace_preview_.valid() && workspace_preview_.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
             auto preview = workspace_preview_.get();
             if (auto* bytes = std::get_if<std::string>(&preview); bytes && preview_hash_ == workspace_content_sha256_) {
@@ -623,7 +693,7 @@ private:
             }
             update_status();
         }
-        if (workspace_mode() && !workspace_refresh_.valid() && now() - workspace_last_scan_ >= 750) refresh_workspace();
+        if (workspace_mode() && !workspace_refresh_.valid() && !workspace_saving_.valid() && !save_requested_ && now() - workspace_last_scan_ >= 750) refresh_workspace();
         if (workspace_creating_.valid() && workspace_creating_.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
             auto selection = workspace_creating_.get();
             auto outcome = std::move(selection.first);
@@ -787,6 +857,7 @@ private:
             // Pause automatic saves during conversion as well. A slow create
             // must not race the draft debounce and leave a second source copy.
             // Failed or stale conversion resumes the normal draft policy.
+            if (files_.workspace && save_requested_ && !workspace_saving_.valid() && !workspace_refresh_.valid()) save();
         } else if (files_.choose_save) {
             if (!failed_ && save_requested_) save();
             if (!saving_.valid() && recovery_error_.empty() && session_.recovery_due(now())) {
@@ -796,7 +867,7 @@ private:
             }
             update_status();
         } else if (!failed_ && (save_requested_ || session_.save_due(now()))) save();
-        check_.setEnabled((!workspace_mode() || workspace_valid_) && checks_ && !apply_in_progress() && !location_work_.valid() && !choosing_directory_);
+        check_.setEnabled((!workspace_mode() || (workspace_valid_ && !session_.dirty() && !workspace_saving_.valid())) && checks_ && !apply_in_progress() && !location_work_.valid() && !choosing_directory_);
         apply_.setEnabled((!workspace_mode() || (workspace_valid_ && ready_ && ready_->workspace && ready_->workspace->content_sha256 == workspace_content_sha256_)) && ready_ && ready_->draft == session_.document() && !checking_.valid() && !apply_in_progress() && !location_work_.valid() && !choosing_directory_ && (!files_.allow_apply || files_.allow_apply()) && catalog_ && applied_);
     }
     void apply_failed(const authoring::SourceDiagnostic& error) {
@@ -806,6 +877,7 @@ private:
         check_state_.setText(utf8_literal("Draft · apply failed"), juce::dontSendNotification);
     }
     void apply_requested() {
+        if (workspace_mode() && (session_.dirty() || workspace_saving_.valid())) { check_state_.setText("Save definition before Apply", juce::dontSendNotification); return; }
         if (workspace_mode()) { workspace_apply_after_refresh_ = true; workspace_apply_min_scan_ = workspace_scan_sequence_ + 1; refresh_workspace(); return; }
         start_apply();
     }
@@ -820,10 +892,12 @@ private:
         });
     }
     void check_requested() {
+        if (workspace_mode() && (session_.dirty() || workspace_saving_.valid())) { check_state_.setText("Save definition before Check", juce::dontSendNotification); return; }
         if (workspace_mode()) { workspace_check_after_refresh_ = true; workspace_check_min_scan_ = workspace_scan_sequence_ + 1; refresh_workspace(); return; }
         queue_check();
     }
     void queue_check() {
+        if (workspace_mode() && (session_.dirty() || workspace_saving_.valid())) return;
         if (!checks_ || apply_in_progress() || location_work_.valid() || choosing_directory_) return;
         if (checking_.valid()) { pending_check_ = session_.document(); cancel_check_->store(true); return; }
         start_check(session_.document());
@@ -918,6 +992,9 @@ private:
     juce::TextButton toggle_definition_{"Definition"}, toggle_workspace_logs_{"Logs"};
     bool workspace_definition_expanded_ = false, workspace_logs_expanded_ = false;
     std::future<authoring::WorkspaceOutcome> workspace_refresh_;
+    std::future<authoring::WorkspaceOutcome> workspace_saving_;
+    authoring::Draft workspace_saving_draft_;
+    bool workspace_loading_definition_ = false, workspace_definition_conflict_ = false;
     std::future<authoring::WorkspaceReadOutcome> workspace_preview_;
     std::uint64_t workspace_last_scan_ = 0;
     bool workspace_valid_ = false, workspace_disk_changed_ = false;

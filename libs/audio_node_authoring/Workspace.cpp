@@ -913,6 +913,80 @@ WorkspaceOutcome WorkspaceStore::open(const std::filesystem::path& directory) co
         return Diagnostic{"workspace_io_failed", error.what()};
     }
 }
+WorkspaceOutcome WorkspaceStore::save_declaration(const Workspace& expected, const std::string& declaration) const {
+    std::filesystem::path transaction, candidate;
+    const auto cleanup = [&] {
+        if (!candidate.empty()) remove_unlinked(candidate);
+        if (!transaction.empty()) remove_unlinked(transaction); // Only an empty, still-unlinked owned directory.
+    };
+    try {
+        const auto target = expected.directory / "node.json";
+        const auto unchanged = [&] {
+            require_unlinked(expected.directory);
+            if (read_bytes(target, kMaximumNodeJsonBytes, "workspace_node_json_missing") != expected.node_json)
+                fail("workspace_definition_conflict", "node.json changed outside this panel; preserve the disk and unsaved definition");
+            const auto author_file = expected.directory / ".audioalgo-authoring.json";
+            const auto author = std::filesystem::exists(io_path(author_file))
+                ? read_bytes(author_file, 16 * 1024, "workspace_identity_invalid") : std::string{};
+            if (author != expected.authoring_metadata)
+                fail("workspace_definition_conflict", "The node project author identity changed; refresh without overwriting it");
+        };
+        unchanged();
+        auto updated = open_workspace(expected.directory); // Keep independent external source edits.
+        auto document = JsonParser(expected.node_json).parse();
+        auto* node = document.find("node");
+        if (!node) fail("workspace_contract_invalid", "node.json has no node declaration");
+        *node = JsonParser(declaration).parse();
+        parse_document(document);
+        std::string serialized;
+        dump_value(serialized, document);
+        if (serialized.size() > kMaximumNodeJsonBytes)
+            fail("workspace_budget_exceeded", "node.json exceeds the frozen budget");
+        updated.node_json = serialized;
+        updated.declaration.clear(); dump_value(updated.declaration, *node);
+        std::uint64_t source_bytes = 0;
+        for (auto& file : updated.files) {
+            if (file.path == "node.json") { file.bytes = serialized.size(); file.sha256 = sha256_of(serialized); }
+            if (file.path == "node.json" || file.path.starts_with("src/") || file.path.starts_with("include/"))
+                source_bytes += file.bytes;
+        }
+        if (source_bytes > kMaximumSourceBytes)
+            fail("workspace_budget_exceeded", "Source bytes exceed the frozen budget after declaration editing");
+        updated.content_sha256 = sha256_of(manifest_text(updated.files));
+        static std::atomic<std::uint64_t> serial{0};
+        for (int attempt = 0; attempt < 16; ++attempt) {
+            transaction = expected.directory / (".audioalgo-definition-" + std::to_string(++serial));
+            require_unlinked(transaction);
+            std::error_code error;
+            if (std::filesystem::create_directory(io_path(transaction), error)) break;
+            transaction.clear();
+            if (error) fail("workspace_io_failed", "Could not create a declaration transaction directory: " + error.message());
+        }
+        if (transaction.empty()) fail("workspace_io_failed", "Could not allocate an unused declaration transaction directory");
+        candidate = transaction / "node.json";
+        const auto checkpoint = [&](WorkspacePhase phase) {
+            if (allow_ && !allow_(phase)) fail("workspace_write_failed", "Injected declaration save failure");
+            unchanged();
+        };
+        write_atomic(candidate, serialized, [&](WorkspacePhase phase) {
+            if (phase != WorkspacePhase::replace) checkpoint(phase);
+            return true;
+        });
+        checkpoint(WorkspacePhase::replace);
+        require_unlinked(candidate); require_unlinked(target);
+#ifdef _WIN32
+        if (!MoveFileExW(io_path(candidate).c_str(), io_path(target).c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+            fail("workspace_io_failed", "Could not publish node.json, Windows error " + std::to_string(GetLastError()));
+#else
+        std::error_code error;
+        std::filesystem::rename(io_path(candidate), io_path(target), error);
+        if (error) fail("workspace_io_failed", "Could not publish node.json: " + error.message());
+#endif
+        cleanup();
+        return updated;
+    } catch (const WorkspaceFailure& failure) { cleanup(); return diagnostic_of(failure); }
+      catch (const std::exception& error) { cleanup(); return Diagnostic{"workspace_io_failed", error.what()}; }
+}
 WorkspaceOutcome WorkspaceStore::snapshot(const std::filesystem::path& directory, const std::filesystem::path& target,
     const std::function<bool()>& cancelled, const std::function<void(const std::string&)>& copied) const {
     bool owned = false;

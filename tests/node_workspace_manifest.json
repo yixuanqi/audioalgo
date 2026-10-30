@@ -27,7 +27,7 @@
     "skipped",
     "timeout"
   ],
-  "notes": "W0 freezes this file, the ADR and the fixture lock. A requirement may only leave not_run when a bound test actually executed on an identified source snapshot; every passed entry must name existing evidence. Real OS desktop items stay not_verified while desktop work is paused. NWS0013 remembers editor executable and one last successful workspace in a separate path-only settings file; fresh host/store and final shutdown flush are component/file verified, real OS restart remains not_verified. Formal stage statuses unchanged. NWS0014 user-authorized module commits: transaction 92ef968; project UI/reopen 81edcf2; Trae CN stdio fix alone 0958815; editor/project preferences 2ef79ad. Final product/behavior-test bytes retain the NWS0013 executed snapshot. Commit bookkeeping does not promote any formal status; original evidence records retained.",
+  "notes": "W0 freezes this file, the ADR and the fixture lock. A requirement may only leave not_run when a bound test actually executed on an identified source snapshot; every passed entry must name existing evidence. Real OS desktop items stay not_verified while desktop work is paused. NWS0013 remembers editor executable and one last successful workspace in a separate path-only settings file; fresh host/store and final shutdown flush are component/file verified, real OS restart remains not_verified. Formal stage statuses unchanged. NWS0014 user-authorized module commits: transaction 92ef968; project UI/reopen 81edcf2; Trae CN stdio fix alone 0958815; editor/project preferences 2ef79ad. Final product/behavior-test bytes retain the NWS0013 executed snapshot. Commit bookkeeping does not promote any formal status; original evidence records retained. NWS0015: directory declaration explicit Save and expected-byte conflict rejection implemented; 74 Debug direct cases and 18 pure authoring cases pass on archived identities. NWS-05.b now partial, no W3/desktop promotion; Compare/Reload/Save As remain. CNL Release is an immutable earlier snapshot.",
   "requirements": [
     {
       "id": "NWS-01.a",
@@ -1417,7 +1417,9 @@
       "test_names": [
         "NWS-05.a created node project immediately shows its file list and detects external helper changes",
         "NWS-05.a fresh draft presents external editing and keeps raw definition collapsed",
-        "NWS-06.a external edit resumes an existing project without creating or replacing its files"
+        "NWS-06.a external edit resumes an existing project without creating or replacing its files",
+        "NWS-05.b declaration save changes only node json and rejects stale or failed publication",
+        "NWS-05.b production directory form saves node json and retains local edits on disk conflict"
       ],
       "test_results": [
         {
@@ -1475,11 +1477,25 @@
           "evidence": "build/reports/loops/NWS0012-editor-stdio/direct-final.xml",
           "command_record": "build/reports/loops/NWS0012-editor-stdio/direct-final.json",
           "snapshot_scope": "NWS0012 final Debug source hashes in command; private Windows launcher uses dedicated NUL handles. Delayed stdout/stderr writes after launcher/component destruction verified with an owned helper; installed Trae/VS Code and desktop remain not_verified. Not a cumulative full-stage pass."
+        },
+        {
+          "test_name": "NWS-05.b declaration save changes only node json and rejects stale or failed publication",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0015-declaration-save/independent-oracle.json",
+          "command_record": "build/reports/loops/NWS0015-declaration-save/regression-debug.json",
+          "snapshot_scope": "NWS0015 Debug exact source and executable archives in identity-debug.json; component/file evidence only, no desktop or full W3 pass. Pure store also passed with runtime/Python/editor disabled in regression-pure.json."
+        },
+        {
+          "test_name": "NWS-05.b production directory form saves node json and retains local edits on disk conflict",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0015-declaration-save/independent-oracle.json",
+          "command_record": "build/reports/loops/NWS0015-declaration-save/regression-debug.json",
+          "snapshot_scope": "NWS0015 Debug exact source and executable archives in identity-debug.json; component/file evidence only, no desktop or full W3 pass. Pure store also passed with runtime/Python/editor disabled in regression-pure.json."
         }
       ],
       "status": "partial",
       "remaining_clauses": [
-        "Editable descriptor forms and conflict comparison; actual OS desktop/DPI review remains not_verified. Advanced JSON/log foldouts and component preview/jump are implemented."
+        "Dedicated typed-port and six-parameter form controls, multi-file diagnostic and full layout/fault matrix; actual OS desktop/DPI remains not_verified. Name/type and advanced JSON explicit Save now implemented."
       ]
     },
     {
@@ -1502,14 +1518,38 @@
         "both_side_bytes",
         "four_state_separation"
       ],
-      "test_names": [],
-      "test_results": [],
-      "status": "not_run",
+      "test_names": [
+        "NWS-05.b declaration save changes only node json and rejects stale or failed publication",
+        "NWS-05.b production directory form saves node json and retains local edits on disk conflict",
+        "NWS-05.b directory Save As shortcut never serializes a source-empty legacy draft"
+      ],
+      "test_results": [
+        {
+          "test_name": "NWS-05.b declaration save changes only node json and rejects stale or failed publication",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0015-declaration-save/independent-oracle.json",
+          "command_record": "build/reports/loops/NWS0015-declaration-save/regression-debug.json",
+          "snapshot_scope": "NWS0015 Debug exact source and executable archives in identity-debug.json; component/file evidence only, no desktop or full W3 pass. Pure store also passed with runtime/Python/editor disabled in regression-pure.json."
+        },
+        {
+          "test_name": "NWS-05.b production directory form saves node json and retains local edits on disk conflict",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0015-declaration-save/independent-oracle.json",
+          "command_record": "build/reports/loops/NWS0015-declaration-save/regression-debug.json",
+          "snapshot_scope": "NWS0015 Debug exact source and executable archives in identity-debug.json; component/file evidence only, no desktop or full W3 pass. Pure store also passed with runtime/Python/editor disabled in regression-pure.json."
+        },
+        {
+          "test_name": "NWS-05.b directory Save As shortcut never serializes a source-empty legacy draft",
+          "status": "passed",
+          "evidence": "build/reports/loops/NWS0016-directory-save-as/independent-oracle.json",
+          "command_record": "build/reports/loops/NWS0016-directory-save-as/direct.json",
+          "snapshot_scope": "NWS0016 production keyboard guard, with/without legacy chooser and ordinary Ctrl+S recovery. 54 assertions plus 35 direct cases; archived exact current UI/test/executables with immutable unchanged source reuse from NWS0015. No directory Save As implementation or desktop promotion."
+        }
+      ],
+      "status": "partial",
       "remaining_clauses": [
-        "External node.json edit versus unsaved form yields an expected-hash conflict",
-        "Compare, reload and save-as preserve both sides; cancel clears neither",
-        "External source edit disables old Ready/Apply",
-        "Saved, recovery-backed, checked and applied/pending-restart states never impersonate each other"
+        "Compare, reload and save-as conflict resolution preserving both sides and cancel, complete concurrent/hostile path/failure matrix and actual desktop remain unverified.",
+        "Optimistic expected-byte checks are not a filesystem-wide compare-and-swap; source/hash refresh and all saved/recovery/checked/applied/pending-restart distinctions require the complete matrix."
       ]
     },
     {

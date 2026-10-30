@@ -6,6 +6,7 @@
 #include <regex>
 #include <cmath>
 #include <set>
+#include <thread>
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -288,7 +289,30 @@ PrepareOutcome PythonAuthoring::prepare_apply(const ReadyPackage& ready, const D
         require(std::holds_alternative<std::filesystem::path>(capture) && std::get<std::filesystem::path>(capture).filename().string() == ready.package_sha256, "Ready capture failed");
         auto target = root_ / "packages" / id / ready.package_sha256;
         unlinked(target); std::filesystem::create_directories(io_path(target.parent_path()));
-        if (!std::filesystem::exists(io_path(target))) std::filesystem::rename(io_path(std::get<std::filesystem::path>(capture)), io_path(target));
+        checkpoint(ApplyPhase::package_publish);
+        if (!std::filesystem::exists(io_path(target))) {
+            const auto source = std::get<std::filesystem::path>(capture);
+            constexpr int maximum_publish_attempts = 12;
+            for (int attempt = 0; ; ++attempt) {
+                require(!cancelled(), "Apply cancelled before package publication");
+                unlinked(source); unlinked(target);
+                require(!std::filesystem::exists(io_path(target)), "Package target appeared during installation");
+                std::error_code error;
+                std::filesystem::rename(io_path(source), io_path(target), error);
+                if (!error) break;
+#ifdef _WIN32
+                // A scanner or reader may briefly omit FILE_SHARE_DELETE. Only
+                // retry Windows sharing/access denial, on the owned worker,
+                // while the exact source/target and cancellation remain valid.
+                if (attempt + 1 < maximum_publish_attempts && (error.value() == ERROR_SHARING_VIOLATION || error.value() == ERROR_ACCESS_DENIED)) {
+                    checkpoint(ApplyPhase::package_retry);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                    continue;
+                }
+#endif
+                throw std::filesystem::filesystem_error("Publish immutable package", source, target, error);
+            }
+        }
         // Complete but unindexed orphan versions are harmless after a failed transaction.
         checkpoint(ApplyPhase::registration);
         auto original = std::filesystem::exists(io_path(root_ / "index.json")) ? std::optional(read(root_ / "index.json")) : std::nullopt;

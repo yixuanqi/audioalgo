@@ -46,6 +46,10 @@ public:
     WorkspaceOutcome create(const std::filesystem::path& target, const Draft& draft) const;
     // Read-only validation of an authoring directory. Writes nothing.
     WorkspaceOutcome open(const std::filesystem::path& directory) const;
+    // Worker-only optimistic declaration save. The exact expected node.json and
+    // author record are rechecked before atomic publication; source files are
+    // never written. A conflict preserves both disk bytes and caller-owned edits.
+    WorkspaceOutcome save_declaration(const Workspace& expected, const std::string& declaration) const;
     WorkspaceReadOutcome read_file(const Workspace&, const std::string& relative) const;
     // Worker-only stable copy. Never mutates the author directory. The optional
     // observation hook makes concurrent edits reproducible in transaction tests.

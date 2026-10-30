@@ -4,7 +4,8 @@
 #include <mutex>
 
 namespace audioalgo::authoring {
-enum class ApplyPhase { package, registration, index_write, index_verify, index_replace };
+// Worker-side transaction checkpoints; these are unrelated to the published C ABI.
+enum class ApplyPhase { package, registration, index_write, index_verify, index_replace, package_publish, package_retry };
 class PythonAuthoring final : public AuthoringChecks {
 public:
     PythonAuthoring(std::filesystem::path root, std::filesystem::path interpreter = {},

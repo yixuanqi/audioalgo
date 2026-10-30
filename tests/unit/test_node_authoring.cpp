@@ -1,7 +1,10 @@
 #include "EditorNodeLibrary.h"
+#include "EditorHostServices.h"
 #include "EditorWorkspace.h"
 #include "audio_node_authoring_runtime/PythonAuthoring.h"
 #include "audio_native_plugins/NativePlugins.h"
+#include "audio_io/WavFile.h"
+#include "audio_project/ProjectFileIO.h"
 #include "tests/fixtures/AllocationCounter.h"
 #include "plugins/builtin/registration.h"
 #include <catch2/catch_test_macros.hpp>
@@ -10,6 +13,8 @@
 #include <fstream>
 #include <iostream>
 #include <chrono>
+#include <cmath>
+#include <future>
 #include <set>
 #include <tuple>
 #ifdef _WIN32
@@ -138,6 +143,338 @@ void wire_workspace(audioalgo::editor::EditorComponent& workspace, const audioal
     canvas->mouseDrag(mouse(to, juce::ModifierKeys::leftButtonModifier, true));
     canvas->mouseUp(mouse(to, 0, true));
 }
+
+struct Nce10bRunIdentity {
+    std::string origin;
+    std::string project_id;
+    std::int64_t project_revision = 0;
+    std::int64_t session_epoch = 0;
+    std::string run_id;
+    std::string request_id;
+    std::string output_sha256;
+    std::filesystem::path directory;
+};
+}
+
+TEST_CASE("NCE-10.b Production canvas rewire survives save reopen and GUI CLI runs match audio oracle",
+          "[NCE-10.b][CNL0001][integration]") {
+    using namespace audioalgo;
+    using namespace audioalgo::editor;
+    juce::ScopedJuceInitialiser_GUI gui;
+
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) /
+        "build/reports/loops/CNL0001/nce10b-artifacts" / juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root);
+    std::cout << "NCE10B_ARTIFACT_ROOT=" << root.generic_string() << '\n';
+
+    AudioBuffer input_a(48000, {"left", "right"}, 513);
+    AudioBuffer input_b(48000, {"left", "right"}, 513);
+    for (std::size_t frame = 0; frame < 513; ++frame) {
+        input_a.mutable_channel(0)[frame] = static_cast<float>(0.14 * std::sin((frame + 1) * 0.031));
+        input_a.mutable_channel(1)[frame] = static_cast<float>(0.10 * std::cos((frame + 3) * 0.027));
+        input_b.mutable_channel(0)[frame] = static_cast<float>(0.22 * std::cos((frame + 5) * 0.019));
+        input_b.mutable_channel(1)[frame] = static_cast<float>(-0.18 * std::sin((frame + 7) * 0.023));
+    }
+    REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root / "input-a.wav", input_a, WavEncoding::float32)));
+    REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root / "input-b.wav", input_b, WavEncoding::float32)));
+
+    constexpr double gain_db = 6.020599913279624;
+    const auto project_path = root / "production-rewire.aaproj";
+    ProjectModel original;
+    original.schema_version = 2;
+    original.project_id = "cnl-nce10b-production-rewire";
+    original.name = project_path.stem().string();
+    original.revision = 20;
+    original.selected_output_node_id = "output";
+    original.nodes = {
+        {"source-a", "builtin.file_source", {{"path", std::string("input-a.wav")}}, 40.0, 40.0},
+        {"source-b", "builtin.file_source", {{"path", std::string("input-b.wav")}}, 40.0, 330.0},
+        {"gain-a", "builtin.gain", {{"gain_db", 0.0}}, 270.0, 35.0},
+        {"gain-b", "builtin.gain", {{"gain_db", 0.0}}, 270.0, 325.0},
+        {"mix", "builtin.mixer", {{"primary_gain_db", -gain_db}, {"secondary_gain_db", gain_db}}, 520.0, 170.0},
+        {"output", "builtin.output", {}, 870.0, 170.0},
+    };
+    original.connections = {
+        {"source-a", "audio", "gain-a", "audio_in"},
+        {"source-b", "audio", "gain-b", "audio_in"},
+        {"gain-a", "audio_out", "mix", "primary"},
+        {"gain-b", "audio_out", "mix", "secondary"},
+        {"mix", "sum", "output", "audio"},
+    };
+    auto registry = std::make_shared<NodeRegistry>();
+    REQUIRE(register_builtin_nodes(*registry));
+    REQUIRE(validate_project(original, *registry).empty());
+    REQUIRE(std::holds_alternative<std::monostate>(save_project_file(project_path, original)));
+    const auto original_project_sha256 = juce::SHA256(juce::File(project_path.generic_string())).toHexString().toStdString();
+    const auto original_project_copy = root / "original-project.aaproj";
+    REQUIRE(std::filesystem::copy_file(project_path, original_project_copy));
+    CHECK(file_bytes(original_project_copy) == file_bytes(project_path));
+    const auto input_a_sha256 = juce::SHA256(juce::File((root / "input-a.wav").generic_string())).toHexString().toStdString();
+    const auto input_b_sha256 = juce::SHA256(juce::File((root / "input-b.wav").generic_string())).toHexString().toStdString();
+    const auto host = juce::File::getSpecialLocation(juce::File::currentExecutableFile);
+    const auto cli = host.getSiblingFile("audio_cli.exe");
+    REQUIRE(cli.existsAsFile());
+    const auto host_sha256 = juce::SHA256(host).toHexString().toStdString();
+    const auto cli_sha256 = juce::SHA256(cli).toHexString().toStdString();
+
+    EditorComponent workspace(registry, std::make_shared<ProjectFileDocumentService>(),
+        std::make_shared<ProjectResourceService>(), std::make_shared<Preview>(),
+        std::make_shared<authoring::FileDraftStorage>(root / "drafts"), false, {}, {}, false, {}, {}, {}, RunConfiguration{127});
+    const auto initial_document_generation = workspace.controller().document_generation();
+    workspace.open_project_file(project_path);
+    REQUIRE(pump([&] {
+        return workspace.controller().document_generation() > initial_document_generation &&
+            workspace.controller().project().project_id == original.project_id && !workspace.controller().dirty();
+    }));
+    auto* canvas = control<GraphCanvas>(workspace, "project.canvas");
+    REQUIRE(canvas != nullptr);
+
+    const auto port_point = [&](const std::string& node_id, const std::string& port_id) {
+        for (const auto& node : workspace.controller().project().nodes) {
+            if (node.id != node_id)
+                continue;
+            const auto* descriptor = registry->find(node.type_id);
+            REQUIRE(descriptor != nullptr);
+            for (const auto& port : make_node_geometry(node, descriptor, canvas->coordinate_transform()).ports)
+                if (port.id == port_id)
+                    return juce::Point<float>(port.anchor.x, port.anchor.y);
+        }
+        throw std::runtime_error("NCE-10.b expected a production canvas port that is absent");
+    };
+    const auto old_edge = original.connections[2];
+    const auto expected_rewired_edge = Connection{"gain-b", "audio_out", "mix", "primary"};
+    const auto mouse = [&](juce::Point<float> position, int buttons,
+                           juce::Point<float> mouse_down_position, bool dragged) {
+        return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(), position,
+            juce::ModifierKeys(buttons), 0, 0, 0, 0, 0, canvas, canvas, juce::Time(100),
+            mouse_down_position, juce::Time(0), 1, dragged);
+    };
+    const auto pre_gesture = workspace.controller().project();
+    const auto pre_gesture_revision = workspace.controller().revision();
+    const auto cable_geometry = make_connection_geometry(
+        workspace.controller().project(), *registry, old_edge, canvas->coordinate_transform());
+    REQUIRE(cable_geometry.has_value());
+    const juce::Point<float> select_point{
+        (cable_geometry->start.x + 3.0f * cable_geometry->control1.x +
+         3.0f * cable_geometry->control2.x + cable_geometry->finish.x) / 8.0f,
+        (cable_geometry->start.y + 3.0f * cable_geometry->control1.y +
+         3.0f * cable_geometry->control2.y + cable_geometry->finish.y) / 8.0f};
+    canvas->mouseDown(mouse(select_point, juce::ModifierKeys::leftButtonModifier, select_point, false));
+    canvas->mouseUp(mouse(select_point, 0, select_point, false));
+    CHECK(workspace.controller().revision() == pre_gesture_revision);
+    const auto handle_geometry = make_source_endpoint_handle_geometry(
+        workspace.controller().project(), *registry, old_edge, canvas->coordinate_transform());
+    REQUIRE(handle_geometry.has_value());
+    const juce::Point<float> start{handle_geometry->center.x, handle_geometry->center.y};
+    const auto finish = port_point("gain-b", "audio_out");
+    canvas->mouseDown(mouse(start, juce::ModifierKeys::leftButtonModifier, start, false));
+    CHECK(workspace.controller().revision() == pre_gesture_revision);
+    CHECK(workspace.controller().project().connections.size() == pre_gesture.connections.size());
+    canvas->mouseDrag(mouse(finish, juce::ModifierKeys::leftButtonModifier, start, true));
+    CHECK(workspace.controller().revision() == pre_gesture_revision);
+    CHECK(workspace.controller().project().connections.size() == pre_gesture.connections.size());
+    canvas->mouseUp(mouse(finish, 0, start, true));
+
+    const auto rewired_revision = workspace.controller().revision();
+    const auto& rewired = workspace.controller().project();
+    REQUIRE(rewired_revision == original.revision + 1);
+    REQUIRE(rewired.connections.size() == original.connections.size());
+    for (std::size_t index = 0; index < rewired.connections.size(); ++index) {
+        const auto& actual = rewired.connections[index];
+        const auto& expected = index == 2 ? expected_rewired_edge : original.connections[index];
+        CHECK(actual.from_node == expected.from_node);
+        CHECK(actual.from_port == expected.from_port);
+        CHECK(actual.to_node == expected.to_node);
+        CHECK(actual.to_port == expected.to_port);
+    }
+    CHECK(workspace.controller().dirty());
+    REQUIRE(validate_project(rewired, *registry).empty());
+    CHECK(juce::SHA256(juce::File(project_path.generic_string())).toHexString().toStdString() == original_project_sha256);
+
+    const auto gain_primary = std::pow(10.0, -gain_db / 20.0);
+    const auto gain_secondary = std::pow(10.0, gain_db / 20.0);
+    std::set<std::filesystem::path> seen_gui_runs;
+    std::vector<Nce10bRunIdentity> run_identities;
+    const auto verify_run = [&](const std::filesystem::path& directory, std::string origin) {
+        const auto read = read_wav_file(directory / "output.wav");
+        REQUIRE(std::holds_alternative<AudioBuffer>(read));
+        const auto& rendered = std::get<AudioBuffer>(read);
+        REQUIRE(rendered.sample_rate_hz() == 48000);
+        REQUIRE(rendered.channel_count() == 2);
+        REQUIRE(rendered.frame_count() == 513);
+        for (std::size_t channel = 0; channel < 2; ++channel) {
+            for (std::size_t frame = 0; frame < 513; ++frame) {
+                const auto upstream = static_cast<double>(input_b.channel(channel)[frame]);
+                const auto expected = upstream * gain_primary + upstream * gain_secondary;
+                const auto actual = static_cast<double>(rendered.channel(channel)[frame]);
+                CHECK(std::abs(actual - expected) <= 2.0e-6 + 1.0e-5 * std::abs(expected));
+            }
+        }
+        const auto manifest_file = juce::File((directory / "run.json").generic_string());
+        REQUIRE(manifest_file.existsAsFile());
+        const auto manifest = juce::JSON::parse(manifest_file.loadFileAsString());
+        REQUIRE(manifest.isObject());
+        Nce10bRunIdentity identity;
+        identity.origin = std::move(origin);
+        identity.project_id = manifest["project_id"].toString().toStdString();
+        identity.project_revision = static_cast<std::int64_t>(manifest["project_revision"]);
+        identity.session_epoch = static_cast<std::int64_t>(manifest["session_epoch"]);
+        identity.run_id = manifest["run_id"].toString().toStdString();
+        identity.request_id = manifest["request_id"].toString().toStdString();
+        identity.output_sha256 = manifest["output_sha256"].toString().toStdString();
+        identity.directory = directory;
+        REQUIRE(identity.project_id == original.project_id);
+        REQUIRE(identity.project_revision == static_cast<std::int64_t>(rewired_revision));
+        REQUIRE_FALSE(identity.run_id.empty());
+        REQUIRE(identity.run_id == identity.request_id);
+        REQUIRE(identity.output_sha256.size() == 64);
+        CHECK(identity.output_sha256 == juce::SHA256(juce::File((directory / "output.wav").generic_string())).toHexString().toStdString());
+        CHECK(static_cast<int>(manifest["block_size"]) == 127);
+        const auto snapshot_name = manifest["project_snapshot"].toString().toStdString();
+        REQUIRE_FALSE(snapshot_name.empty());
+        const auto snapshot = load_project_file(directory / std::filesystem::u8path(snapshot_name));
+        REQUIRE(std::holds_alternative<ProjectModel>(snapshot));
+        const auto& snapshot_model = std::get<ProjectModel>(snapshot);
+        REQUIRE(snapshot_model.project_id == original.project_id);
+        REQUIRE(snapshot_model.revision == rewired_revision);
+        REQUIRE(snapshot_model.connections.size() == original.connections.size());
+        CHECK(snapshot_model.connections[2].from_node == expected_rewired_edge.from_node);
+        CHECK(snapshot_model.connections[2].to_node == expected_rewired_edge.to_node);
+        CHECK(snapshot_model.connections[2].to_port == expected_rewired_edge.to_port);
+        return identity;
+    };
+    const auto run_gui = [&](std::string label) {
+        click(workspace, "project.run");
+        auto* status = control<RunStatusPanel>(workspace, "project.status");
+        REQUIRE(status != nullptr);
+        REQUIRE(pump([&] { return status->status_text().contains("Completed run") && workspace.background_job_count() == 0; }, 20000));
+        std::filesystem::path fresh;
+        const auto run_root = root / "runs";
+        REQUIRE(std::filesystem::is_directory(run_root));
+        for (const auto& entry : std::filesystem::directory_iterator(run_root)) {
+            if (!entry.is_directory() || seen_gui_runs.contains(entry.path()) ||
+                !std::filesystem::is_regular_file(entry.path() / "run.json"))
+                continue;
+            REQUIRE(fresh.empty());
+            fresh = entry.path();
+        }
+        REQUIRE_FALSE(fresh.empty());
+        seen_gui_runs.insert(fresh);
+        auto identity = verify_run(fresh, std::move(label));
+        run_identities.push_back(identity);
+        return identity;
+    };
+
+    const auto first_gui_run = run_gui("gui-before-save");
+    CHECK(first_gui_run.session_epoch > 0);
+    CHECK(juce::SHA256(juce::File(project_path.generic_string())).toHexString().toStdString() == original_project_sha256);
+    click(workspace, "project.save");
+    auto* save_status = control<RunStatusPanel>(workspace, "project.status");
+    REQUIRE(save_status != nullptr);
+    REQUIRE(pump([&] { return !workspace.controller().dirty() && save_status->status_text().startsWith("Saved "); }));
+    const auto saved_project_sha256 = juce::SHA256(juce::File(project_path.generic_string())).toHexString().toStdString();
+    REQUIRE(saved_project_sha256 != original_project_sha256);
+    const auto saved_project = load_project_file(project_path);
+    REQUIRE(std::holds_alternative<ProjectModel>(saved_project));
+    const auto& saved_model = std::get<ProjectModel>(saved_project);
+    REQUIRE(saved_model.project_id == original.project_id);
+    REQUIRE(saved_model.revision == rewired_revision);
+    REQUIRE(saved_model.connections.size() == original.connections.size());
+    CHECK(saved_model.connections[2].from_node == expected_rewired_edge.from_node);
+    CHECK(saved_model.connections[2].to_node == expected_rewired_edge.to_node);
+    CHECK(saved_model.connections[2].to_port == expected_rewired_edge.to_port);
+
+    const auto before_reopen_generation = workspace.controller().document_generation();
+    workspace.open_project_file(project_path);
+    REQUIRE(pump([&] {
+        return workspace.controller().document_generation() > before_reopen_generation &&
+            workspace.controller().project().project_id == original.project_id && !workspace.controller().dirty();
+    }));
+    REQUIRE(workspace.controller().project().revision == rewired_revision);
+    REQUIRE(workspace.controller().project().connections.size() == original.connections.size());
+    CHECK(workspace.controller().project().connections[2].from_node == expected_rewired_edge.from_node);
+    CHECK(workspace.controller().project().connections[2].to_node == expected_rewired_edge.to_node);
+    CHECK(workspace.controller().project().connections[2].to_port == expected_rewired_edge.to_port);
+    const auto second_gui_run = run_gui("gui-after-reopen");
+    CHECK(second_gui_run.session_epoch > first_gui_run.session_epoch);
+    CHECK(second_gui_run.project_id == first_gui_run.project_id);
+    CHECK(second_gui_run.project_revision == first_gui_run.project_revision);
+    CHECK(second_gui_run.request_id != first_gui_run.request_id);
+    CHECK(second_gui_run.directory != first_gui_run.directory);
+
+    const auto cli_run_directory = root / "cli-run";
+    struct CliOutcome { bool started = false; bool finished = false; int exit_code = -1; std::string output; };
+    auto cli_future = std::async(std::launch::async, [&] {
+        CliOutcome outcome;
+        juce::ChildProcess child;
+        outcome.started = child.start(juce::StringArray{cli.getFullPathName(), "run",
+            juce::String(project_path.generic_string()), juce::String(cli_run_directory.generic_string()), "127"});
+        if (!outcome.started)
+            return outcome;
+        auto reader = std::async(std::launch::async, [&] { return child.readAllProcessOutput(); });
+        outcome.finished = child.waitForProcessToFinish(15000);
+        if (!outcome.finished)
+            child.kill();
+        outcome.output = reader.get().toStdString();
+        outcome.exit_code = outcome.finished ? child.getExitCode() : -2;
+        return outcome;
+    });
+    REQUIRE(pump([&] { return cli_future.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready; }, 16000));
+    const auto cli_outcome = cli_future.get();
+    std::ofstream(root / "cli-stdout.txt", std::ios::binary) << cli_outcome.output;
+    REQUIRE(cli_outcome.started);
+    REQUIRE(cli_outcome.finished);
+    INFO(cli_outcome.output);
+    REQUIRE(cli_outcome.exit_code == 0);
+    const auto cli_identity = verify_run(cli_run_directory, "cli-after-reopen");
+    CHECK(cli_identity.session_epoch == 0);
+    CHECK(cli_identity.project_id == second_gui_run.project_id);
+    CHECK(cli_identity.project_revision == second_gui_run.project_revision);
+    CHECK(cli_identity.request_id != second_gui_run.request_id);
+    CHECK(cli_outcome.output.find("run_id=" + cli_identity.run_id) != std::string::npos);
+    CHECK(cli_outcome.output.find("output_sha256=" + cli_identity.output_sha256) != std::string::npos);
+    CHECK(juce::SHA256(juce::File(project_path.generic_string())).toHexString().toStdString() == saved_project_sha256);
+    run_identities.push_back(cli_identity);
+
+    juce::Array<juce::var> run_receipts;
+    for (const auto& identity : run_identities) {
+        juce::DynamicObject::Ptr row = new juce::DynamicObject();
+        row->setProperty("origin", juce::String(identity.origin));
+        row->setProperty("project_id", juce::String(identity.project_id));
+        row->setProperty("project_revision", static_cast<juce::int64>(identity.project_revision));
+        row->setProperty("session_epoch", static_cast<juce::int64>(identity.session_epoch));
+        row->setProperty("run_id", juce::String(identity.run_id));
+        row->setProperty("request_id", juce::String(identity.request_id));
+        row->setProperty("output_sha256", juce::String(identity.output_sha256));
+        row->setProperty("output_file", juce::String((identity.directory / "output.wav").lexically_relative(root).generic_string()));
+        run_receipts.add(juce::var(row.get()));
+    }
+    juce::DynamicObject::Ptr receipt = new juce::DynamicObject();
+    receipt->setProperty("test", "NCE-10.b");
+    receipt->setProperty("project_id", juce::String(original.project_id));
+    receipt->setProperty("original_revision", static_cast<juce::int64>(original.revision));
+    receipt->setProperty("rewired_revision", static_cast<juce::int64>(rewired_revision));
+    receipt->setProperty("original_project_sha256", juce::String(original_project_sha256));
+    receipt->setProperty("original_project_file", "original-project.aaproj");
+    receipt->setProperty("saved_project_sha256", juce::String(saved_project_sha256));
+    receipt->setProperty("saved_project_file", "production-rewire.aaproj");
+    receipt->setProperty("input_a", "input-a.wav");
+    receipt->setProperty("input_a_sha256", juce::String(input_a_sha256));
+    receipt->setProperty("input_b", "input-b.wav");
+    receipt->setProperty("input_b_sha256", juce::String(input_b_sha256));
+    receipt->setProperty("primary_gain_db", -gain_db);
+    receipt->setProperty("secondary_gain_db", gain_db);
+    receipt->setProperty("upstream_gain_db", 0.0);
+    receipt->setProperty("host_sha256", juce::String(host_sha256));
+    receipt->setProperty("cli_sha256", juce::String(cli_sha256));
+    receipt->setProperty("runs", juce::var(run_receipts));
+    std::ofstream(root / "receipt.json", std::ios::binary) << juce::JSON::toString(juce::var(receipt.get()), true).toStdString() << '\n';
+
+    int drained = 0;
+    workspace.begin_shutdown([&] { ++drained; });
+    REQUIRE(pump([&] { return drained == 1; }));
+    CHECK(juce::SHA256(host).toHexString().toStdString() == host_sha256);
+    CHECK(juce::SHA256(cli).toHexString().toStdString() == cli_sha256);
 }
 
 TEST_CASE("NA-01.a production draft offers a user chosen Save As target",
@@ -1224,6 +1561,463 @@ TEST_CASE("NA-07.a checked Python draft applies one immutable library version",
 #endif
 }
 
+TEST_CASE("NLC-06.a real Python Apply refresh retains filters folding scroll and unique default identities",
+          "[NLC-06.a][node_authoring][node_library][component]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto fixture_path = std::filesystem::path(AUDIOALGO_SOURCE_DIR) /
+        "tests/fixtures/node_browser/library_apply_refresh_v1.json";
+    const auto fixture = juce::JSON::parse(juce::String::fromUTF8(file_bytes(fixture_path).c_str()));
+    REQUIRE(fixture.isObject());
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) /
+        "build/reports/loops/CNL0001/nlc06a/artifacts" / juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root);
+    std::cout << "NLC06A_ARTIFACT_ROOT=" << root.generic_string() << '\n';
+    auto registry = std::make_shared<audioalgo::NodeRegistry>();
+    REQUIRE(audioalgo::register_builtin_nodes(*registry));
+    const auto* stable = fixture["stable_type_ids"].getArray(); REQUIRE(stable);
+    for (const auto& id : *stable) {
+        audioalgo::NodeDescriptor d{id.toString().toStdString(), "1.0.0", id.toString().toStdString(),
+            {{"audio_in", "audio.pcm@1", audioalgo::PortDirection::input, true},
+             {"audio_out", "audio.pcm@1", audioalgo::PortDirection::output, false}},
+            {}, audioalgo::NodeExecutionKind::block};
+        d.browser_classification = audioalgo::NodeBrowserClassification{"utility", "inspection"};
+        d.plugin_origin = audioalgo::NodeDescriptor::PluginOrigin{"fixture.refresh_stable", "1.0.0", "", "fixture", "python"};
+        REQUIRE(registry->register_descriptor(d));
+    }
+    auto storage = std::make_shared<audioalgo::authoring::FileDraftStorage>(root / "authoring/drafts");
+    auto checks = std::make_shared<audioalgo::authoring::PythonAuthoring>(root / "authoring");
+    audioalgo::editor::EditorComponent workspace(registry, std::make_shared<Documents>(),
+        std::make_shared<audioalgo::ProjectResourceService>(), std::make_shared<Preview>(), storage, false, checks);
+    workspace.setSize(1100, 700);
+    click(workspace, "authoring.new");
+    auto* library = control<audioalgo::editor::NodeLibrary>(workspace, "project.library");
+    // Locate by class because existing production hosts do not require an ID for the sidebar.
+    if (!library) {
+        for (auto* child : workspace.getChildren())
+            if (auto* candidate = dynamic_cast<audioalgo::editor::NodeLibrary*>(child)) library = candidate;
+    }
+    REQUIRE(library);
+    auto* search = control<juce::TextEditor>(*library, "library.search");
+    auto* source = control<juce::ComboBox>(*library, "library.filter.source");
+    auto* language = control<juce::ComboBox>(*library, "library.filter.language");
+    auto* folded = control<juce::Label>(*library, fixture["folded_category_id"].toString());
+    REQUIRE(search); REQUIRE(source); REQUIRE(language); REQUIRE(folded);
+    CHECK(static_cast<juce::Component*>(folded)->keyPressed(juce::KeyPress(juce::KeyPress::returnKey)));
+    CHECK(folded->getDescription().contains("collapsed"));
+    source->setSelectedId(static_cast<int>(fixture["source_filter_id"]), juce::sendNotificationSync);
+    language->setSelectedId(static_cast<int>(fixture["language_filter_id"]), juce::sendNotificationSync);
+    search->setText(fixture["query"].toString(), true);
+    REQUIRE(pump([&] { return !control<juce::TextButton>(*library, "library.builtin.gain")->isVisible(); }));
+    const auto viewport = [&]() -> juce::Viewport* {
+        auto* content = control<juce::Component>(*library, "library.content");
+        return content ? content->findParentComponentOfClass<juce::Viewport>() : nullptr;
+    };
+    REQUIRE(viewport());
+    viewport()->setViewPosition(0, static_cast<int>(fixture["requested_scroll_y"]));
+    const auto scroll_before = viewport()->getViewPositionY(); CHECK(scroll_before > 0);
+    const auto revision = workspace.controller().revision();
+    const auto dirty = workspace.controller().dirty(), stale = workspace.controller().results_stale();
+    const auto undo = workspace.controller().history().undo_size(), redo = workspace.controller().history().redo_size();
+    const auto graph = workspace.controller().project();
+    REQUIRE(std::holds_alternative<std::monostate>(audioalgo::save_project_file(root / "graph-before.aaproj", graph)));
+    const auto type = fixture["type_id"].toString().toStdString();
+    auto* panel = control<audioalgo::editor::NodeAuthoringPanel>(workspace, "authoring.panel"); REQUIRE(panel);
+    auto declaration = juce::JSON::parse(juce::String::fromUTF8(panel->session().document().declaration.c_str()));
+    declaration.getDynamicObject()->setProperty("type_id", fixture["type_id"]);
+    declaration.getDynamicObject()->setProperty("display_name", fixture["display_name"]);
+    auto* definition = control<juce::CodeEditorComponent>(workspace, "authoring.definition"); REQUIRE(definition);
+    const auto* versions = fixture["versions"].getArray(); REQUIRE(versions);
+    juce::Array<juce::var> observations;
+    std::vector<std::string> hashes;
+    std::filesystem::path v1_manifest;
+    std::string v1_bytes;
+    for (const auto& version : *versions) {
+        source->setSelectedId(static_cast<int>(version["source_filter_id"]), juce::sendNotificationSync);
+        const auto version_scroll = viewport()->getViewPositionY();
+        juce::DynamicObject::Ptr browser = new juce::DynamicObject;
+        browser->setProperty("schema_version", 1);
+        browser->setProperty("category_id", version["category_id"]);
+        browser->setProperty("subcategory_id", version["subcategory_id"]);
+        browser->setProperty("tags", juce::Array<juce::var>{version["tag"]});
+        declaration.getDynamicObject()->setProperty("browser", juce::var(browser.get()));
+        definition->selectAll(); definition->insertTextAtCaret(juce::JSON::toString(declaration, false));
+        CHECK_FALSE(control<juce::TextButton>(workspace, "authoring.apply")->isEnabled());
+        click(workspace, "authoring.check");
+#if AUDIOALGO_AUTHORING_PYTHON_ENABLED
+        const auto ready = pump([&] { return control<juce::TextButton>(workspace, "authoring.apply")->isEnabled(); }, 15000);
+        INFO(control<juce::TextButton>(workspace, "authoring.diagnostic")->getButtonText().toStdString());
+        REQUIRE(ready);
+        REQUIRE(panel->ready());
+        REQUIRE(panel->ready()->descriptor.browser_classification.has_value());
+        CHECK(panel->ready()->descriptor.browser_classification->category_id == version["category_id"].toString().toStdString());
+        const auto hash = panel->ready()->package_sha256; hashes.push_back(hash);
+        click(workspace, "authoring.apply");
+        REQUIRE(pump([&] { return !control<juce::Label>(workspace, "authoring.check_status")->getText().contains("Applying"); }, 15000));
+        auto* target = control<juce::TextButton>(*library, "library." + juce::String(type)); REQUIRE(target);
+        CHECK(target->isVisible());
+        CHECK(search->getText() == fixture["query"].toString());
+        CHECK(source->getSelectedId() == static_cast<int>(version["source_filter_id"]));
+        CHECK(language->getSelectedId() == static_cast<int>(fixture["language_filter_id"]));
+        const auto* content = control<juce::Component>(*library, "library.content"); REQUIRE(content);
+        std::set<std::string> visible;
+        int duplicate_count = 0;
+        for (auto* child : content->getChildren()) {
+            if (auto* button = dynamic_cast<audioalgo::editor::NodeLibraryButton*>(child)) {
+                if (button->isVisible()) CHECK(visible.insert(button->getComponentID().toStdString().substr(8)).second);
+                if (button->getComponentID() == "library." + juce::String(type)) ++duplicate_count;
+            }
+        }
+        CHECK(duplicate_count == 1);
+        std::set<std::string> expected{type};
+        if (static_cast<int>(version["source_filter_id"]) == 1)
+            for (const auto& id : *stable) expected.insert(id.toString().toStdString());
+        CHECK(visible == expected);
+        CHECK(visible.size() == static_cast<std::size_t>(static_cast<int>(version["expected_visible_count"])));
+        auto* heading = control<juce::Label>(*library, "library.category." + version["category_id"].toString()); REQUIRE(heading);
+        auto* subheading = control<juce::Label>(*library, "library.subcategory." + version["category_id"].toString() + "." + version["subcategory_id"].toString()); REQUIRE(subheading);
+        CHECK(heading->getY() < subheading->getY()); CHECK(subheading->getY() < target->getY());
+        const int maximum_scroll = std::max(0, content->getHeight() - viewport()->getHeight());
+        CHECK(viewport()->getViewPositionY() == std::min(version_scroll, maximum_scroll));
+        CHECK(workspace.controller().revision() == revision);
+        CHECK(workspace.controller().dirty() == dirty); CHECK(workspace.controller().results_stale() == stale);
+        CHECK(workspace.controller().history().undo_size() == undo); CHECK(workspace.controller().history().redo_size() == redo);
+        CHECK(workspace.controller().project().project_id == graph.project_id);
+        CHECK(workspace.controller().project().nodes.size() == graph.nodes.size());
+        CHECK(workspace.controller().project().connections.size() == graph.connections.size());
+        const auto graph_file = root / ("graph-after-" + std::to_string(hashes.size()) + ".aaproj");
+        REQUIRE(std::holds_alternative<std::monostate>(audioalgo::save_project_file(graph_file, workspace.controller().project())));
+        CHECK(file_bytes(graph_file) == file_bytes(root / "graph-before.aaproj"));
+        if (hashes.size() == 1) {
+            REQUIRE(registry->find(type)); REQUIRE(registry->find(type)->plugin_origin);
+            v1_manifest = root / "authoring/packages" / registry->find(type)->plugin_origin->plugin_id / hash / "manifest.json";
+            REQUIRE(std::filesystem::is_regular_file(v1_manifest)); v1_bytes = file_bytes(v1_manifest);
+        } else {
+            CHECK(hash != hashes.front()); CHECK(file_bytes(v1_manifest) == v1_bytes);
+            CHECK(control<juce::Label>(*library, "library.category.audio.effects") == nullptr);
+        }
+        juce::DynamicObject::Ptr observed = new juce::DynamicObject;
+        observed->setProperty("category_id", version["category_id"]);
+        observed->setProperty("subcategory_id", version["subcategory_id"]);
+        observed->setProperty("package_sha256", juce::String(hash));
+        observed->setProperty("source_filter_id", source->getSelectedId());
+        observed->setProperty("language_filter_id", language->getSelectedId());
+        observed->setProperty("query", search->getText());
+        observed->setProperty("scroll_before", version_scroll);
+        observed->setProperty("scroll_y", viewport()->getViewPositionY());
+        observed->setProperty("scroll_max", maximum_scroll);
+        observed->setProperty("revision", static_cast<juce::int64>(workspace.controller().revision()));
+        juce::Array<juce::var> ids;
+        for (const auto& id : visible) ids.add(juce::String(id));
+        observed->setProperty("visible_type_ids", ids);
+        observations.add(juce::var(observed.get()));
+#else
+        REQUIRE(pump([&] { return control<juce::TextButton>(workspace, "authoring.diagnostic")->getButtonText().contains("python_disabled"); }));
+        return;
+#endif
+    }
+    search->setText({}, true); REQUIRE(pump([&] { return search->getText().isEmpty(); }));
+    // Clear source/language too, so the earlier category's actual fold state is observable.
+    click(*library, "library.search.clear");
+    folded = control<juce::Label>(*library, fixture["folded_category_id"].toString()); REQUIRE(folded);
+    CHECK(folded->getDescription().contains("collapsed"));
+    CHECK_FALSE(control<juce::TextButton>(*library, "library.builtin.gain")->isVisible());
+    juce::DynamicObject::Ptr receipt = new juce::DynamicObject;
+    receipt->setProperty("behavior_id", "NLC-06.a"); receipt->setProperty("type_id", juce::String(type));
+    receipt->setProperty("observations", observations);
+    receipt->setProperty("v1_manifest", juce::String(v1_manifest.generic_string()));
+    receipt->setProperty("folded_restored", folded->getDescription().contains("collapsed"));
+    std::ofstream(root / "observation.json", std::ios::binary) << juce::JSON::toString(juce::var(receipt.get()), true).toStdString();
+}
+
+TEST_CASE("NLC-06.b library drag survives filtering and cancels across hide project Apply and view destruction",
+          "[NLC-06.b][node_library][node_authoring][component]") {
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto fixture_path = std::filesystem::path(AUDIOALGO_SOURCE_DIR) /
+        "tests/fixtures/node_browser/library_drag_refresh_v1.json";
+    const auto fixture = juce::JSON::parse(juce::String::fromUTF8(file_bytes(fixture_path).c_str()));
+    REQUIRE(fixture.isObject());
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) /
+        "build/reports/loops/CNL0001/nlc06b/artifacts" / juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root);
+    std::cout << "NLC06B_ARTIFACT_ROOT=" << root.generic_string() << '\n';
+    auto registry = std::make_shared<audioalgo::NodeRegistry>(); REQUIRE(audioalgo::register_builtin_nodes(*registry));
+    auto storage = std::make_shared<audioalgo::authoring::FileDraftStorage>(root / "drafts");
+    auto checks = std::make_shared<audioalgo::authoring::PythonAuthoring>(root / "library");
+    auto workspace = std::make_unique<audioalgo::editor::EditorComponent>(registry, std::make_shared<Documents>(),
+        std::make_shared<audioalgo::ProjectResourceService>(), std::make_shared<Preview>(), storage, false, checks);
+    workspace->setSize(1100, 700);
+    auto* canvas = control<audioalgo::editor::GraphCanvas>(*workspace, "project.canvas"); REQUIRE(canvas);
+    auto* search = control<juce::TextEditor>(*workspace, "library.search"); REQUIRE(search);
+    auto* source_filter = control<juce::ComboBox>(*workspace, "library.filter.source"); REQUIRE(source_filter);
+    auto* language_filter = control<juce::ComboBox>(*workspace, "library.filter.language"); REQUIRE(language_filter);
+    const auto type = fixture["source_type_id"].toString();
+    const juce::Point<int> point{static_cast<int>(fixture["drop_position"][0]), static_cast<int>(fixture["drop_position"][1])};
+    const auto source_button = [&] {
+        return control<audioalgo::editor::NodeLibraryButton>(*workspace, "library." + type);
+    };
+    const auto arm = [&] {
+        auto* button = source_button(); REQUIRE(button);
+        const auto time = juce::Time::getCurrentTime();
+        button->mouseDown(juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(), {8, 10},
+            juce::ModifierKeys::leftButtonModifier, 1.f, 0.f, 0.f, 0.f, 0.f, button, button,
+            time, {8, 10}, time, 1, false));
+        return juce::DragAndDropTarget::SourceDetails(
+            audioalgo::editor::make_library_drag_description(type.toStdString()), button, point);
+    };
+    juce::Array<juce::var> observations;
+    const auto record = [&](const char* state) {
+        juce::DynamicObject::Ptr row = new juce::DynamicObject;
+        row->setProperty("id", state);
+        row->setProperty("nodes", static_cast<int>(workspace->controller().project().nodes.size()));
+        row->setProperty("revision", static_cast<juce::int64>(workspace->controller().revision()));
+        row->setProperty("undo", static_cast<int>(workspace->controller().history().undo_size()));
+        row->setProperty("dirty", workspace->controller().dirty());
+        row->setProperty("project_id", juce::String(workspace->controller().project().project_id));
+        observations.add(juce::var(row.get()));
+    };
+    const auto filtering = arm();
+    REQUIRE(canvas->isInterestedInDragSource(filtering)); canvas->itemDragEnter(filtering);
+    source_filter->setSelectedId(3, juce::sendNotificationSync);
+    language_filter->setSelectedId(3, juce::sendNotificationSync);
+    search->setText("no matching nodes", true);
+    REQUIRE(pump([&] { return !source_button()->isVisible(); }));
+    canvas->itemDragMove(filtering); canvas->itemDropped(filtering); canvas->itemDropped(filtering);
+    REQUIRE(workspace->controller().project().nodes.size() == 1);
+    CHECK(workspace->controller().project().nodes.front().type_id == type.toStdString());
+    CHECK(workspace->controller().revision() == 1); CHECK(workspace->controller().history().undo_size() == 1);
+    record("filter_during_drag");
+    click(*workspace, "library.search.clear");
+    REQUIRE(std::holds_alternative<std::monostate>(audioalgo::save_project_file(root / "before-hide.aaproj", workspace->controller().project())));
+    const auto dirty_before_hide = workspace->controller().dirty();
+    const auto stale_before_hide = workspace->controller().results_stale();
+    const auto selected_before_hide = canvas->selected_node_id();
+    const auto hiding = arm(); canvas->itemDragEnter(hiding);
+    REQUIRE(canvas->isVisible()); canvas->setVisible(false);
+    CHECK_FALSE(canvas->isInterestedInDragSource(hiding));
+    canvas->itemDragMove(hiding);
+    canvas->itemDropped(hiding);
+    CHECK(workspace->controller().project().nodes.size() == 1);
+    CHECK(workspace->controller().revision() == 1); CHECK(workspace->controller().history().undo_size() == 1);
+    REQUIRE(std::holds_alternative<std::monostate>(audioalgo::save_project_file(root / "after-hide.aaproj", workspace->controller().project())));
+    CHECK(file_bytes(root / "after-hide.aaproj") == file_bytes(root / "before-hide.aaproj"));
+    CHECK(workspace->controller().dirty() == dirty_before_hide);
+    CHECK(workspace->controller().results_stale() == stale_before_hide);
+    CHECK(canvas->selected_node_id() == selected_before_hide);
+    record("hide_cancels_drag"); canvas->setVisible(true);
+    const auto changing = arm(); canvas->itemDragEnter(changing);
+    const auto old_project_id = workspace->controller().project().project_id;
+    click(*workspace, "project.new");
+    CHECK(workspace->controller().project().project_id != old_project_id);
+    CHECK_FALSE(canvas->isInterestedInDragSource(changing));
+    canvas->itemDropped(changing);
+    CHECK(workspace->controller().project().nodes.empty()); CHECK(workspace->controller().revision() == 0);
+    CHECK(workspace->controller().history().undo_size() == 0); CHECK_FALSE(workspace->controller().dirty());
+    record("new_project_rejects_epoch");
+    click(*workspace, "authoring.new"); click(*workspace, "authoring.check");
+#if AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    REQUIRE(pump([&] { return control<juce::TextButton>(*workspace, "authoring.apply")->isEnabled(); }, 15000));
+    auto* panel = control<audioalgo::editor::NodeAuthoringPanel>(*workspace, "authoring.panel"); REQUIRE(panel); REQUIRE(panel->ready());
+    const auto custom = panel->ready()->descriptor.type_id;
+    const auto refreshing = arm(); canvas->itemDragEnter(refreshing);
+    juce::Component::SafePointer<juce::Component> previous_source(source_button());
+    click(*workspace, "authoring.apply");
+    REQUIRE(pump([&] { return control<juce::TextButton>(*workspace, "library." + juce::String(custom)) != nullptr; }, 15000));
+    CHECK(previous_source == nullptr); CHECK(refreshing.sourceComponent == nullptr);
+    canvas->itemDropped(refreshing);
+    CHECK(workspace->controller().project().nodes.empty()); CHECK(workspace->controller().revision() == 0);
+    CHECK(workspace->controller().history().undo_size() == 0); CHECK_FALSE(workspace->controller().dirty());
+    record("apply_refresh_cancels_old_source");
+#else
+    REQUIRE(pump([&] { return control<juce::TextButton>(*workspace, "authoring.diagnostic")->getButtonText().contains("python_disabled"); }));
+#endif
+    const auto closing = arm(); canvas->itemDragEnter(closing);
+    juce::Component::SafePointer<juce::Component> old_canvas(canvas);
+    juce::Component::SafePointer<juce::Component> old_source(source_button());
+    workspace.reset();
+    CHECK(old_canvas == nullptr); CHECK(old_source == nullptr); CHECK(closing.sourceComponent == nullptr);
+    juce::DynamicObject::Ptr receipt = new juce::DynamicObject;
+    receipt->setProperty("behavior_id", "NLC-06.b"); receipt->setProperty("observations", observations);
+    receipt->setProperty("view_and_source_released", old_canvas == nullptr && old_source == nullptr && closing.sourceComponent == nullptr);
+    std::ofstream(root / "observation.json", std::ios::binary) << juce::JSON::toString(juce::var(receipt.get()), true).toStdString();
+}
+
+TEST_CASE("NLC-06.c rejected refresh preserves defaults and filtered drop insertion run the applied exact version",
+          "[NLC-06.c][node_authoring][node_library][component]") {
+#if !AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    SUCCEED("Python OFF diagnostic has its own required case");
+#else
+    using namespace audioalgo;
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto fixture_path = std::filesystem::path(AUDIOALGO_SOURCE_DIR) /
+        "tests/fixtures/node_browser/library_refresh_recovery_v1.json";
+    const auto fixture = juce::JSON::parse(juce::String::fromUTF8(file_bytes(fixture_path).c_str())); REQUIRE(fixture.isObject());
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) /
+        "build/reports/loops/CNL0001/nlc06c/artifacts" / juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root);
+    std::cout << "NLC06C_ARTIFACT_ROOT=" << root.generic_string() << '\n';
+    auto registry = std::make_shared<NodeRegistry>(); REQUIRE(register_builtin_nodes(*registry));
+    auto storage = std::make_shared<FileDraftStorage>(root / "drafts");
+    auto checks = std::make_shared<PythonAuthoring>(root / "library");
+    bool allow_prepare = true;
+    editor::EditorComponent workspace(registry, std::make_shared<FileDocuments>(), std::make_shared<ProjectResourceService>(),
+        std::make_shared<Preview>(), storage, false, checks, [&] { return allow_prepare; }, false, {}, {}, {}, editor::RunConfiguration{127});
+    workspace.setSize(1440, 900);
+    const auto type = fixture["type_id"].toString().toStdString();
+    click(workspace, "authoring.new");
+    auto* panel = control<editor::NodeAuthoringPanel>(workspace, "authoring.panel"); REQUIRE(panel);
+    auto* definition = control<juce::CodeEditorComponent>(workspace, "authoring.definition"); REQUIRE(definition);
+    auto declaration = juce::JSON::parse(juce::String::fromUTF8(panel->session().document().declaration.c_str()));
+    declaration.getDynamicObject()->setProperty("type_id", fixture["type_id"]);
+    declaration.getDynamicObject()->setProperty("display_name", "Closure transform");
+    declaration.getDynamicObject()->setProperty("browser", juce::JSON::parse(
+        "{\"schema_version\":1,\"category_id\":\"utility\",\"subcategory_id\":\"inspection\",\"tags\":[\"closure\"]}"));
+    definition->selectAll(); definition->insertTextAtCaret(juce::JSON::toString(declaration, false));
+    auto* search = control<juce::TextEditor>(workspace, "library.search"); REQUIRE(search);
+    auto* source_filter = control<juce::ComboBox>(workspace, "library.filter.source"); REQUIRE(source_filter);
+    auto* language_filter = control<juce::ComboBox>(workspace, "library.filter.language"); REQUIRE(language_filter);
+    source_filter->setSelectedId(static_cast<int>(fixture["source_filter_id"]), juce::sendNotificationSync);
+    language_filter->setSelectedId(static_cast<int>(fixture["language_filter_id"]), juce::sendNotificationSync);
+    search->setText(fixture["query"].toString(), true);
+    click(workspace, "authoring.check");
+    REQUIRE(pump([&] { return control<juce::TextButton>(workspace, "authoring.apply")->isEnabled(); }, 15000));
+    REQUIRE(panel->ready()); const auto v1 = panel->ready()->package_sha256;
+    click(workspace, "authoring.apply");
+    REQUIRE(pump([&] { return control<juce::Label>(workspace, "authoring.check_status")->getText().contains("Available"); }, 15000));
+    auto* old_entry = control<juce::TextButton>(workspace, "library." + juce::String(type)); REQUIRE(old_entry);
+    juce::Component::SafePointer<juce::Component> stable_entry(old_entry);
+    const auto old_index = file_bytes(root / "library/index.json");
+    const auto package_id = registry->find(type)->plugin_origin->plugin_id;
+    const auto old_manifest_path = root / "library/packages" / package_id / v1 / "manifest.json";
+    const auto old_manifest = file_bytes(old_manifest_path);
+    REQUIRE(std::holds_alternative<std::monostate>(save_project_file(root / "before-refresh.aaproj", workspace.controller().project())));
+    // A different package is not allowed to take over this installed logical type.
+    auto conflict_draft = python_draft("conflict-" + juce::Uuid().toString().toStdString());
+    conflict_draft.declaration = juce::JSON::toString(declaration, false).toStdString();
+    const auto cancel = std::make_shared<std::atomic<bool>>(false);
+    auto conflict_check = std::async(std::launch::async, [&] { return checks->check(conflict_draft, cancel); });
+    REQUIRE(pump([&] { return conflict_check.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready; }, 15000));
+    auto conflict_ready = conflict_check.get(); REQUIRE(std::holds_alternative<ReadyPackage>(conflict_ready));
+    auto catalog = std::make_shared<const NodeRegistry>(*registry);
+    auto conflict_apply = std::async(std::launch::async, [&] {
+        return checks->apply(std::get<ReadyPackage>(conflict_ready), conflict_draft, catalog, cancel);
+    });
+    REQUIRE(pump([&] { return conflict_apply.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready; }, 15000));
+    const auto rejected = conflict_apply.get(); REQUIRE(std::holds_alternative<SourceDiagnostic>(rejected));
+    CHECK(std::get<SourceDiagnostic>(rejected).code == "authoring_apply_failed");
+    CHECK(file_bytes(root / "library/index.json") == old_index);
+    CHECK(stable_entry != nullptr); CHECK(stable_entry.getComponent() == control<juce::TextButton>(workspace, "library." + juce::String(type)));
+    auto* source = control<juce::CodeEditorComponent>(workspace, "authoring.source"); REQUIRE(source);
+    source->selectAll(); source->insertTextAtCaret("def process(inputs, params, state):\n    return {'audio_out': inputs['audio_in'] * params['gain'] * 1.5}\n");
+    click(workspace, "authoring.check");
+    REQUIRE(pump([&] { return control<juce::TextButton>(workspace, "authoring.apply")->isEnabled(); }, 15000));
+    REQUIRE(panel->ready()); const auto v2 = panel->ready()->package_sha256; CHECK(v1 != v2);
+    allow_prepare = false; click(workspace, "authoring.apply");
+    REQUIRE(pump([&] { return control<juce::TextButton>(workspace, "authoring.diagnostic")->getButtonText().contains("authoring_catalog_refresh_failed"); }, 15000));
+    CHECK(file_bytes(root / "library/index.json") == old_index);
+    CHECK(file_bytes(old_manifest_path) == old_manifest);
+    CHECK(stable_entry != nullptr); CHECK(stable_entry.getComponent() == control<juce::TextButton>(workspace, "library." + juce::String(type)));
+    CHECK(registry->find(type)->plugin_origin->managed_content_sha256 == v1);
+    CHECK(search->getText() == fixture["query"].toString());
+    CHECK(source_filter->getSelectedId() == static_cast<int>(fixture["source_filter_id"]));
+    CHECK(language_filter->getSelectedId() == static_cast<int>(fixture["language_filter_id"]));
+    REQUIRE(std::holds_alternative<std::monostate>(save_project_file(root / "after-rejected-refresh.aaproj", workspace.controller().project())));
+    CHECK(file_bytes(root / "after-rejected-refresh.aaproj") == file_bytes(root / "before-refresh.aaproj"));
+    allow_prepare = true; click(workspace, "authoring.apply");
+    REQUIRE(pump([&] { return control<juce::Label>(workspace, "authoring.check_status")->getText().contains("Available"); }, 15000));
+    CHECK(stable_entry == nullptr); CHECK(registry->find(type)->plugin_origin->managed_content_sha256 == v2);
+    CHECK(file_bytes(old_manifest_path) == old_manifest);
+    click(workspace, "authoring.close"); REQUIRE(pump([&] { return !control<juce::Component>(workspace, "authoring.panel"); }));
+    AudioBuffer input(48000, {"ch0", "ch1"}, 513);
+    for (std::size_t c = 0; c < 2; ++c) for (std::size_t n = 0; n < 513; ++n)
+        input.mutable_channel(c)[n] = static_cast<float>(.17 * std::sin(.03 * (n + 1) + c) + (n == 197 ? .11 : -.02));
+    REQUIRE(std::holds_alternative<WavWriteSummary>(write_wav_file(root / "input.wav", input, WavEncoding::float32)));
+    juce::Array<juce::var> runs;
+    std::set<std::filesystem::path> seen;
+    const auto verify = [&](const std::filesystem::path& directory) {
+        const auto report = juce::JSON::parse(juce::String::fromUTF8(file_bytes(directory / "run.json").c_str()));
+        CHECK(static_cast<int>(report["block_size"]) == static_cast<int>(fixture["host_frames"]));
+        const auto loaded = read_wav_file(directory / "output.wav"); REQUIRE(std::holds_alternative<AudioBuffer>(loaded));
+        const auto& output = std::get<AudioBuffer>(loaded);
+        REQUIRE(output.frame_count() == 513); CHECK(output.channel_ids() == input.channel_ids());
+        CHECK(output.sample_rate_hz() == 48000); CHECK(output.valid_interval() == AudioInterval{0, 513});
+        for (std::size_t c = 0; c < 2; ++c) for (std::size_t n = 0; n < 513; ++n) {
+            const double expected = static_cast<double>(input.channel(c)[n]) * .75;
+            CHECK(std::abs(output.channel(c)[n] - expected) <= 2e-6 + 1e-5 * std::abs(expected));
+        }
+    };
+    for (const bool insert : {false, true}) {
+        const auto name = insert ? std::string("insert") : std::string("drop");
+        ProjectModel graph; graph.project_id = "nlc06c-" + name; graph.name = name; graph.revision = 7;
+        graph.selected_output_node_id = "output";
+        graph.nodes = {{"file", "builtin.file_source", {{"path", std::string("input.wav")}}, 20, 120},
+                       {"output", "builtin.output", {}, 900, 120}};
+        if (insert) {
+            graph.nodes.insert(graph.nodes.begin() + 1, {"gain", "builtin.gain", {{"gain_db", 0.0}}, 580, 120});
+            graph.connections = {{"file", "audio", "gain", "audio_in"}, {"gain", "audio_out", "output", "audio"}};
+        }
+        const auto path = root / (name + ".aaproj");
+        REQUIRE(std::holds_alternative<std::monostate>(save_project_file(path, graph)));
+        workspace.open_project_file(path); REQUIRE(pump([&] { return workspace.controller().project().project_id == graph.project_id; }));
+        auto* canvas = control<editor::GraphCanvas>(workspace, "project.canvas"); REQUIRE(canvas);
+        auto* button = control<editor::NodeLibraryButton>(workspace, "library." + juce::String(type)); REQUIRE(button); CHECK(button->isVisible());
+        const auto now = juce::Time::getCurrentTime();
+        button->mouseDown(juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(), {8, 10}, juce::ModifierKeys::leftButtonModifier,
+            1.f, 0.f, 0.f, 0.f, 0.f, button, button, now, {8, 10}, now, 1, false));
+        juce::Point<int> point{420, 300};
+        if (insert) {
+            const auto curve = editor::make_connection_geometry(workspace.controller().project(), *registry,
+                graph.connections.front(), canvas->coordinate_transform()); REQUIRE(curve);
+            // t=.5 is a fixed point on the displayed cubic, independent of hit selection.
+            point = {static_cast<int>((curve->start.x + 3*curve->control1.x + 3*curve->control2.x + curve->finish.x)/8),
+                     static_cast<int>((curve->start.y + 3*curve->control1.y + 3*curve->control2.y + curve->finish.y)/8)};
+        }
+        const juce::DragAndDropTarget::SourceDetails details(editor::make_library_drag_description(type), button, point);
+        REQUIRE(canvas->isInterestedInDragSource(details)); canvas->itemDragEnter(details); canvas->itemDropped(details);
+        REQUIRE(workspace.controller().project().nodes.size() == graph.nodes.size() + 1);
+        const auto& custom = workspace.controller().project().nodes.back(); CHECK(custom.type_id == type); REQUIRE(custom.managed_version);
+        CHECK(custom.managed_version->content_sha256 == v2); CHECK(custom.managed_version->package_id == package_id);
+        const auto custom_id = custom.id;
+        CHECK(workspace.controller().revision() == 8); CHECK(workspace.controller().history().undo_size() == 1);
+        if (insert) CHECK(workspace.controller().project().connections.size() == 3);
+        else {
+            wire_workspace(workspace, *registry, "file", "audio", custom_id, "audio_in");
+            wire_workspace(workspace, *registry, custom_id, "audio_out", "output", "audio");
+        }
+        click(workspace, "project.save"); REQUIRE(pump([&] { return !workspace.controller().dirty(); }));
+        REQUIRE_FALSE(checks->carry_packages(managed_selections(workspace.controller().project()), {}, root));
+        click(workspace, "project.run"); auto* status = control<editor::RunStatusPanel>(workspace, "project.status"); REQUIRE(status);
+        const bool completed = pump([&] { return status->status_text().contains("Completed run"); }, 15000);
+        INFO(status->status_text().toStdString()); REQUIRE(completed);
+        std::filesystem::path output;
+        for (const auto& run : std::filesystem::directory_iterator(root / "runs"))
+            if (std::filesystem::is_regular_file(run.path() / "output.wav") && !seen.contains(run.path())) { REQUIRE(output.empty()); output = run.path(); }
+        REQUIRE_FALSE(output.empty()); seen.insert(output); verify(output);
+        const auto cli_output = root / ("cli-" + name);
+        auto child = std::async(std::launch::async, [&] {
+            juce::ChildProcess process;
+            if (!process.start(juce::StringArray{AUDIOALGO_CLI_EXECUTABLE, "run", juce::String(path.generic_string()), juce::String(cli_output.generic_string()), "127"})) return -1;
+            auto reader = std::async(std::launch::async, [&] { return process.readAllProcessOutput(); });
+            const bool finished = process.waitForProcessToFinish(15000); if (!finished) process.kill();
+            std::ofstream(root / ("cli-" + name + ".log")) << reader.get().toStdString();
+            return finished ? static_cast<int>(process.getExitCode()) : -2;
+        });
+        REQUIRE(pump([&] { return child.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready; }, 16000));
+        REQUIRE(child.get() == 0); verify(cli_output);
+        juce::DynamicObject::Ptr row = new juce::DynamicObject;
+        row->setProperty("mode", juce::String(name)); row->setProperty("project_file", juce::String(path.generic_string()));
+        row->setProperty("gui_directory", juce::String(output.generic_string())); row->setProperty("cli_directory", juce::String(cli_output.generic_string()));
+        row->setProperty("exact_content_sha256", juce::String(v2)); runs.add(juce::var(row.get()));
+    }
+    juce::DynamicObject::Ptr receipt = new juce::DynamicObject;
+    receipt->setProperty("behavior_id", "NLC-06.c"); receipt->setProperty("v1", juce::String(v1)); receipt->setProperty("v2", juce::String(v2));
+    receipt->setProperty("package_id", juce::String(package_id)); receipt->setProperty("runs", runs);
+    receipt->setProperty("conflict_diagnostic", juce::String(std::get<SourceDiagnostic>(rejected).code));
+    std::ofstream(root / "observation.json", std::ios::binary) << juce::JSON::toString(juce::var(receipt.get()), true).toStdString();
+    int drained = 0; workspace.begin_shutdown([&] { ++drained; }); REQUIRE(pump([&] { return drained == 1; }));
+#endif
+}
+
 TEST_CASE("NA-08.a production Apply library insertion Inspector and Run execute the checked Python code",
           "[NA-08.a][NA-11.a][node_authoring][component]") {
     juce::ScopedJuceInitialiser_GUI gui;
@@ -1446,7 +2240,9 @@ void print_workspace_scenario(bool failure_checks, bool check_log_checks = false
         REQUIRE(std::holds_alternative<std::monostate>(audioalgo::save_project_file(root/"replacement.aaproj",replacement)));
         workspace.open_project_file(root/"replacement.aaproj");REQUIRE(pump([&]{return workspace.controller().project().project_id=="history-replacement";}));
         CHECK(logs->getText().isEmpty());CHECK(history->getNumItems()==1);CHECK(history->getSelectedId()==1);
-        click(workspace,"project.play");CHECK(status->status_text().contains("Run the graph before previewing audio"));CHECK(preview->played==current_output);
+        auto* cleared_play=control<juce::TextButton>(workspace,"project.play");REQUIRE(cleared_play);CHECK_FALSE(cleared_play->isEnabled());
+        cleared_play->onClick(); // A late activation still cannot reuse the output from the replaced project.
+        CHECK(status->status_text().contains("Run the graph before previewing audio"));CHECK(preview->played==current_output);
         int drained=0;workspace.begin_shutdown([&]{++drained;});REQUIRE(pump([&]{return drained==1;}));CHECK(logs->getText().isEmpty());
         std::ofstream(root/"history-cleared-ui.log",std::ios::binary)<<logs->getText().toStdString();
         std::ofstream(root/"history-demo.json")<<"{\"old_request\":\""<<old_request<<"\",\"current_request\":\""<<current_request<<"\",\"preview\":\""<<current_output.generic_string()<<"\",\"stale_history_cleared\":true}";
@@ -1696,6 +2492,96 @@ TEST_CASE("PC-04 authoring malformed raw logs preserve byte counts without disca
 #endif
 }
 
+TEST_CASE("NA-07.b package install retries transient Windows locks and preserves defaults on failure or cancellation",
+          "[NA-07.b][node_authoring][package_lock]") {
+#if defined(_WIN32) && AUDIOALGO_AUTHORING_PYTHON_ENABLED
+    using namespace audioalgo;
+    using namespace audioalgo::authoring;
+    juce::ScopedJuceInitialiser_GUI gui;
+    const auto root = std::filesystem::path(AUDIOALGO_SOURCE_DIR) /
+        "build/reports/loops/CNL0001/nlc06a/lock-artifacts" / juce::Uuid().toString().toStdString();
+    std::filesystem::create_directories(root);
+    auto base = std::make_shared<NodeRegistry>(); REQUIRE(register_builtin_nodes(*base));
+    const auto cancel = std::make_shared<std::atomic<bool>>(false);
+    struct Lock {
+        HANDLE handle = INVALID_HANDLE_VALUE;
+        void release() { if (handle != INVALID_HANDLE_VALUE) { CloseHandle(handle); handle = INVALID_HANDLE_VALUE; } }
+        ~Lock() { release(); }
+    } held;
+    bool armed = false, persistent = false, cancel_on_retry = false;
+    int retries = 0;
+    std::string candidate_hash;
+    PythonAuthoring service(root, {}, {}, [&](ApplyPhase phase) {
+        if (!armed) return true;
+        if (phase == ApplyPhase::package_publish) {
+            std::filesystem::path snapshot;
+            for (const auto& child : std::filesystem::directory_iterator(root / "install-staging")) {
+                const auto candidate = child.path() / candidate_hash;
+                if (std::filesystem::is_directory(candidate)) { REQUIRE(snapshot.empty()); snapshot = candidate; }
+            }
+            REQUIRE_FALSE(snapshot.empty());
+            const auto extended = L"\\\\?\\" + std::filesystem::absolute(snapshot).wstring();
+            held.handle = CreateFileW(extended.c_str(), FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                      nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+            REQUIRE(held.handle != INVALID_HANDLE_VALUE);
+        } else if (phase == ApplyPhase::package_retry) {
+            ++retries;
+            if (cancel_on_retry) cancel->store(true);
+            if (!persistent) held.release();
+        }
+        return true;
+    });
+    auto draft = python_draft("locked-package");
+    auto checked = service.check(draft, cancel); REQUIRE(std::holds_alternative<ReadyPackage>(checked));
+    const auto first = service.apply(std::get<ReadyPackage>(checked), draft, base, cancel);
+    REQUIRE(std::holds_alternative<AppliedPackage>(first));
+    const auto v1 = std::get<AppliedPackage>(first);
+    const auto index_bytes = file_bytes(root / "index.json");
+    const auto old_manifest = file_bytes(v1.package_root / "manifest.json");
+    draft.source += "\n# second immutable version\n"; ++draft.generation;
+    checked = service.check(draft, cancel); REQUIRE(std::holds_alternative<ReadyPackage>(checked));
+    const auto& ready = std::get<ReadyPackage>(checked); candidate_hash = ready.package_sha256;
+    REQUIRE(candidate_hash != v1.content_sha256);
+    SECTION("a temporary directory lock releases at the first failed native rename") {
+        armed = true;
+        const auto result = service.apply(ready, draft, v1.catalog, cancel);
+        if (const auto* error = std::get_if<SourceDiagnostic>(&result)) INFO(error->code + ": " + error->message);
+        CHECK(std::holds_alternative<AppliedPackage>(result));
+        CHECK(retries >= 1); CHECK(retries <= 12);
+        if (const auto* applied = std::get_if<AppliedPackage>(&result)) {
+            CHECK(applied->content_sha256 == candidate_hash);
+            CHECK(file_bytes(root / "index.json") != index_bytes);
+            CHECK(file_bytes(applied->package_root / "manifest.json") == file_bytes(ready.package_root / "manifest.json"));
+        }
+    }
+    SECTION("a persistent lock fails within the bounded retry count without changing defaults") {
+        armed = persistent = true;
+        const auto result = service.apply(ready, draft, v1.catalog, cancel);
+        REQUIRE(std::holds_alternative<SourceDiagnostic>(result));
+        CHECK(std::get<SourceDiagnostic>(result).code == "authoring_apply_failed");
+        CHECK(retries >= 1); CHECK(retries <= 12);
+        CHECK(file_bytes(root / "index.json") == index_bytes);
+    }
+    SECTION("cancellation after a locked rename preserves defaults and permits later recovery") {
+        armed = cancel_on_retry = true;
+        const auto result = service.apply(ready, draft, v1.catalog, cancel);
+        REQUIRE(std::holds_alternative<SourceDiagnostic>(result));
+        CHECK(std::get<SourceDiagnostic>(result).code == "run_cancelled");
+        CHECK(retries == 1);
+        CHECK(file_bytes(root / "index.json") == index_bytes);
+        held.release(); armed = false; cancel->store(false);
+        CHECK(std::holds_alternative<AppliedPackage>(service.apply(ready, draft, v1.catalog, cancel)));
+    }
+    CHECK(file_bytes(v1.package_root / "manifest.json") == old_manifest);
+    std::cout << "PACKAGE_LOCK_ARTIFACT_ROOT=" << root.generic_string() << '\n';
+    std::ofstream(root / "receipt.json") << "{\"retries\":" << retries << ",\"cancelled\":" << (cancel_on_retry ? "true" : "false")
+        << ",\"persistent\":" << (persistent ? "true" : "false")
+        << ",\"v1_hash\":\"" << v1.content_sha256 << "\",\"candidate_hash\":\"" << candidate_hash << "\"}";
+#else
+    SUCCEED("Windows package locks require the Windows Python authoring profile");
+#endif
+}
+
 TEST_CASE("NA-07.b Apply publishes verified bytes atomically and failure retains the original catalog",
           "[NA-07.b][node_authoring][component]") {
     juce::ScopedJuceInitialiser_GUI gui;
@@ -1711,7 +2597,7 @@ TEST_CASE("NA-07.b Apply publishes verified bytes atomically and failure retains
     REQUIRE(std::holds_alternative<audioalgo::authoring::ReadyPackage>(checked));
     const auto& ready = std::get<audioalgo::authoring::ReadyPackage>(checked);
     const auto count = base->descriptors().size();
-    for (auto phase : {audioalgo::authoring::ApplyPhase::package, audioalgo::authoring::ApplyPhase::registration,
+    for (auto phase : {audioalgo::authoring::ApplyPhase::package, audioalgo::authoring::ApplyPhase::package_publish, audioalgo::authoring::ApplyPhase::registration,
                       audioalgo::authoring::ApplyPhase::index_write, audioalgo::authoring::ApplyPhase::index_verify,
                       audioalgo::authoring::ApplyPhase::index_replace}) {
         fail = phase;
@@ -4010,10 +4896,12 @@ TEST_CASE("NWS-01.a production panel creates a node project folder and reopens i
     CHECK(reopened->workspace_content_sha256() == conversion["content_sha256"].toString().toStdString());
     CHECK(file_bytes(target / "node.json") == node_json_bytes);
     CHECK(file_bytes(legacy) == legacy_before);
-    // Directory mode is read-only in this host: no Save target and no project mutation.
+    // Directory source stays disk-owned; only an edited declaration can be saved.
     auto* save = control<juce::TextButton>(*reopened, "authoring.save");
     REQUIRE(save);
-    CHECK_FALSE(save->isVisible());
+    CHECK(save->isVisible());
+    CHECK(save->getButtonText() == "Save definition");
+    CHECK_FALSE(save->isEnabled());
     CHECK_FALSE(control<juce::TextButton>(workspace, "authoring.workspace_create")->isEnabled());
     CHECK(workspace.controller().project().revision == project_revision);
     click(workspace, "authoring.close");
@@ -4235,7 +5123,24 @@ TEST_CASE("NWS-03.a production directory Apply library drop and saved GUI CLI gr
         click(workspace,"authoring.check");
         REQUIRE(pump([&] { return control<juce::TextButton>(workspace,"authoring.apply")->isEnabled(); },10000));
         click(workspace,"authoring.apply");
-        REQUIRE(pump([&] { return control<juce::Label>(workspace,"authoring.check_status")->getText().contains("Available"); },10000));
+        const bool available = pump([&] { return control<juce::Label>(workspace,"authoring.check_status")->getText().contains("Available"); },10000);
+        if (!available) {
+            auto* panel = control<editor::NodeAuthoringPanel>(workspace,"authoring.panel"); REQUIRE(panel);
+            juce::DynamicObject::Ptr state = new juce::DynamicObject;
+            state->setProperty("version", version + 1);
+            state->setProperty("status", control<juce::Label>(workspace,"authoring.check_status")->getText());
+            state->setProperty("diagnostic", control<juce::TextButton>(workspace,"authoring.diagnostic")->getButtonText());
+            state->setProperty("ready", panel->ready().has_value());
+            state->setProperty("checking", panel->check_in_progress());
+            state->setProperty("applying", panel->apply_in_progress());
+            state->setProperty("draft_generation", static_cast<juce::int64>(panel->session().document().generation));
+            state->setProperty("workspace_hash", juce::String(panel->workspace_content_sha256()));
+            state->setProperty("index_bytes", juce::String::fromUTF8(file_bytes(root / "library/index.json").c_str()));
+            const auto text = juce::JSON::toString(juce::var(state.get()), false).toStdString();
+            std::ofstream(root / ("apply-failure-v" + std::to_string(version + 1) + ".json"), std::ios::binary) << text;
+            INFO(text);
+            REQUIRE(available);
+        }
         click(workspace,"authoring.close"); REQUIRE(pump([&] { return !control<juce::Component>(workspace,"authoring.panel"); }));
         ProjectModel base; base.schema_version=2; base.project_id="workspace-audio-v"+std::to_string(version+1); base.selected_output_node_id="output";
         base.nodes={{"a","builtin.file_source",{{"path",std::string("a.wav")}},30,100},{"b","builtin.file_source",{{"path",std::string("b.wav")}},30,320},{"output","builtin.output",{},800,200}};
