@@ -31,7 +31,7 @@ SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64compatible
 WizardStyle=modern
 UninstallDisplayName=AudioAlgo
-UninstallDisplayIcon={app}\AudioAlgoEditor.exe
+UninstallDisplayIcon={app}\AudioAlgo Editor.exe
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
@@ -40,12 +40,12 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
-Name: "{group}\AudioAlgo Editor"; Filename: "{app}\AudioAlgoEditor.exe"
+Name: "{group}\AudioAlgo Editor"; Filename: "{app}\AudioAlgo Editor.exe"
 Name: "{group}\AudioAlgo CLI"; Filename: "{app}\audio_cli.exe"; Parameters: "--help"
-Name: "{autodesktop}\AudioAlgo Editor"; Filename: "{app}\AudioAlgoEditor.exe"; Tasks: desktopicon
+Name: "{autodesktop}\AudioAlgo Editor"; Filename: "{app}\AudioAlgo Editor.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\AudioAlgoEditor.exe"; Description: "{cm:LaunchProgram,AudioAlgo Editor}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\AudioAlgo Editor.exe"; Description: "{cm:LaunchProgram,AudioAlgo Editor}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 ; Remove user-authored scratch state left inside the install directory.

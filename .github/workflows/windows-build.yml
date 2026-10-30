@@ -71,7 +71,7 @@ jobs:
 
       - name: Editor smoke test
         shell: pwsh
-        run: '& "build\bin\AudioAlgoEditor.exe" --smoke-test'
+        run: '& "build/bin/AudioAlgo Editor.exe" --smoke-test'
 
       - name: Stage portable layout
         shell: pwsh
