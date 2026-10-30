@@ -1,5 +1,6 @@
 #pragma once
 #include "audio_run_api/NodeLogEvent.h"
+#include "audio_node_sdk/NodeBrowserTaxonomy.h"
 
 #include "audio_core/AudioBuffer.h"
 #include "audio_core/Diagnostic.h"
@@ -119,6 +120,9 @@ struct NodeDescriptor {
     };
     std::optional<PluginOrigin> plugin_origin;
     std::string backend_metadata_json;
+    std::optional<NodeBrowserClassification> browser_classification;
+    std::vector<std::string> browser_tags;
+    std::string browser_description;
 };
 
 struct NodeRegistrationDiagnostic {

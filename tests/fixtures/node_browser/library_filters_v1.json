@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "provenance_fixture": "tests/fixtures/node_browser/trusted_provenance_v1.json",
+  "source_filter_component_id": "library.filter.source",
+  "language_filter_component_id": "library.filter.language",
+  "search_component_id": "library.search",
+  "options": {
+    "source": [
+      { "id": 1, "value": "all", "label": "All" },
+      { "id": 2, "value": "builtin", "label": "Built-in" },
+      { "id": 3, "value": "custom", "label": "Custom" },
+      { "id": 4, "value": "third_party", "label": "Third party" }
+    ],
+    "language": [
+      { "id": 1, "value": "all", "label": "All" },
+      { "id": 2, "value": "cpp", "label": "C++" },
+      { "id": 3, "value": "python", "label": "Python" }
+    ]
+  },
+  "unreported_runtime_node": {
+    "type_id": "fixture.unknown_runtime",
+    "display_name": "Unknown Runtime",
+    "browser": {
+      "category_id": "audio.analysis",
+      "subcategory_id": "metrics",
+      "tags": ["print", "diagnostics"],
+      "source_id": "custom",
+      "language_id": "python"
+    },
+    "trusted_registration": {
+      "source_id": "third_party",
+      "language_id": "",
+      "runtime": "",
+      "plugin_id": "fixture.unknown_runtime",
+      "managed_content_sha256": ""
+    }
+  },
+  "all_type_ids": [
+    "builtin.gain",
+    "fixture.custom_python",
+    "fixture.third_party_native",
+    "fixture.third_party_python",
+    "fixture.unknown_runtime",
+    "legacy.print_a"
+  ],
+  "cases": [
+    { "id": "all_all", "source_id": 1, "language_id": 1, "query": "", "expected_type_ids": ["builtin.gain", "fixture.custom_python", "fixture.third_party_native", "fixture.third_party_python", "fixture.unknown_runtime", "legacy.print_a"] },
+    { "id": "builtin_all", "source_id": 2, "language_id": 1, "query": "", "expected_type_ids": ["builtin.gain"] },
+    { "id": "custom_all", "source_id": 3, "language_id": 1, "query": "", "expected_type_ids": ["fixture.custom_python", "legacy.print_a"] },
+    { "id": "third_party_all", "source_id": 4, "language_id": 1, "query": "", "expected_type_ids": ["fixture.third_party_native", "fixture.third_party_python", "fixture.unknown_runtime"] },
+    { "id": "all_cpp", "source_id": 1, "language_id": 2, "query": "", "expected_type_ids": ["builtin.gain", "fixture.third_party_native"] },
+    { "id": "all_python", "source_id": 1, "language_id": 3, "query": "", "expected_type_ids": ["fixture.custom_python", "fixture.third_party_python", "legacy.print_a"] },
+    { "id": "builtin_cpp", "source_id": 2, "language_id": 2, "query": "", "expected_type_ids": ["builtin.gain"] },
+    { "id": "builtin_python", "source_id": 2, "language_id": 3, "query": "", "expected_type_ids": [] },
+    { "id": "custom_cpp", "source_id": 3, "language_id": 2, "query": "", "expected_type_ids": [] },
+    { "id": "custom_python", "source_id": 3, "language_id": 3, "query": "", "expected_type_ids": ["fixture.custom_python", "legacy.print_a"] },
+    { "id": "third_party_cpp", "source_id": 4, "language_id": 2, "query": "", "expected_type_ids": ["fixture.third_party_native"] },
+    { "id": "third_party_python", "source_id": 4, "language_id": 3, "query": "", "expected_type_ids": ["fixture.third_party_python"] },
+    { "id": "keyword_all", "source_id": 1, "language_id": 1, "query": "print", "expected_type_ids": ["fixture.third_party_python", "fixture.unknown_runtime", "legacy.print_a"] },
+    { "id": "keyword_third_party_python", "source_id": 4, "language_id": 3, "query": "diagnostics", "expected_type_ids": ["fixture.third_party_python"] },
+    { "id": "keyword_custom_python", "source_id": 3, "language_id": 3, "query": "channel", "expected_type_ids": ["fixture.custom_python"] }
+  ],
+  "activation_case_id": "keyword_custom_python",
+  "activation_type_id": "fixture.custom_python"
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "behavior_id": "NLC-06.c",
+  "type_id": "user.refresh_closure",
+  "query": "closure",
+  "source_filter_id": 3,
+  "language_filter_id": 3,
+  "v1_multiplier": 1.0,
+  "v2_multiplier": 1.5,
+  "parameter_default": 0.5,
+  "expected_gain": 0.75,
+  "sample_rate_hz": 48000,
+  "channels": 2,
+  "channel_ids": ["ch0", "ch1"],
+  "frames": 513,
+  "host_frames": 127
+}

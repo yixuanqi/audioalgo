@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "behavior_id": "NLC-05.c",
+  "target_type_id": "fixture.filtered_gesture",
+  "query": "gesture",
+  "category_component_id": "library.category.utility",
+  "subcategory_component_id": "library.subcategory.utility.inspection",
+  "source_filter_id": 3,
+  "language_filter_id": 3,
+  "epoch": 57,
+  "initial_revision": 12,
+  "drop_position": [420, 230],
+  "expected_states": [
+    {"id": "category_fold", "created": 0, "revision": 12},
+    {"id": "filtered_entry_click", "created": 1, "revision": 13},
+    {"id": "drag_outside_cancel", "created": 1, "revision": 13},
+    {"id": "drop_once", "created": 2, "revision": 14}
+  ]
+}

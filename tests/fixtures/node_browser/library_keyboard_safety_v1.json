@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "query": "gain",
+  "result_type_id": "fixture.keyboard.gain",
+  "nonmatching_type_id": "fixture.keyboard.echo",
+  "expected_query_type_ids": ["fixture.keyboard.gain"],
+  "existing_node": {
+    "id": "existing.keyboard.node",
+    "type_id": "fixture.keyboard.gain",
+    "x": -31.5,
+    "y": 74.25
+  },
+  "initial_revision": 31,
+  "click_added_node_id": "library-click-added",
+  "keyboard_added_node_id": "library-keyboard-added",
+  "drag_added_node_id": "library-drag-added"
+}

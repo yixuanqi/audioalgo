@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "nodes": [
+    { "type_id": "fixture.io.same-z", "display_name": "Same", "category_id": "audio.io", "subcategory_id": "file" },
+    { "type_id": "fixture.io.alpha", "display_name": "alpha", "category_id": "audio.io", "subcategory_id": "file" },
+    { "type_id": "fixture.io.same-A", "display_name": "same", "category_id": "audio.io", "subcategory_id": "file" },
+    { "type_id": "fixture.io.output", "display_name": "Output", "category_id": "audio.io", "subcategory_id": "output" },
+    { "type_id": "fixture.dynamics.lower", "display_name": "Gain", "category_id": "audio.dynamics", "subcategory_id": "gain" },
+    { "type_id": "fixture.dynamics.upper", "display_name": "gain", "category_id": "audio.dynamics", "subcategory_id": "gain" },
+    { "type_id": "fixture.effects.delay", "display_name": "Delay", "category_id": "audio.effects", "subcategory_id": "delay" },
+    { "type_id": "fixture.legacy.print", "display_name": "PrintA", "category_id": "uncategorized" }
+  ],
+  "expected_rows": [
+    { "kind": "category", "id": "audio.io", "text": "Input & Output" },
+    { "kind": "subcategory", "id": "audio.io.file", "text": "File" },
+    { "kind": "node", "id": "fixture.io.alpha", "text": "alpha" },
+    { "kind": "node", "id": "fixture.io.same-A", "text": "same" },
+    { "kind": "node", "id": "fixture.io.same-z", "text": "Same" },
+    { "kind": "subcategory", "id": "audio.io.output", "text": "Output" },
+    { "kind": "node", "id": "fixture.io.output", "text": "Output" },
+    { "kind": "category", "id": "audio.dynamics", "text": "Level & Dynamics" },
+    { "kind": "subcategory", "id": "audio.dynamics.gain", "text": "Gain" },
+    { "kind": "node", "id": "fixture.dynamics.lower", "text": "Gain" },
+    { "kind": "node", "id": "fixture.dynamics.upper", "text": "gain" },
+    { "kind": "category", "id": "audio.effects", "text": "Time & Effects" },
+    { "kind": "subcategory", "id": "audio.effects.delay", "text": "Delay" },
+    { "kind": "node", "id": "fixture.effects.delay", "text": "Delay" },
+    { "kind": "category", "id": "uncategorized", "text": "Uncategorized" },
+    { "kind": "node", "id": "fixture.legacy.print", "text": "PrintA" }
+  ]
+}

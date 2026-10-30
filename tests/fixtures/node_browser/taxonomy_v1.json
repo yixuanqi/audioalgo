@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "max_depth": 2,
+  "categories": [
+    { "id": "audio.io", "display_name": "Input & Output", "subcategory_ids": ["file", "generator", "output", "export"] },
+    { "id": "audio.routing", "display_name": "Routing & Conversion", "subcategory_ids": ["mixer", "channel-mapping", "resampling"] },
+    { "id": "audio.dynamics", "display_name": "Level & Dynamics", "subcategory_ids": ["gain", "normalization", "compressor", "limiter"] },
+    { "id": "audio.filters", "display_name": "Filters & EQ", "subcategory_ids": ["fir", "iir", "eq"] },
+    { "id": "audio.effects", "display_name": "Time & Effects", "subcategory_ids": ["delay", "reverb", "modulation", "distortion", "pitch"] },
+    { "id": "audio.restoration", "display_name": "Enhancement & Restoration", "subcategory_ids": ["denoise", "aec", "dereverb"] },
+    { "id": "audio.spatial", "display_name": "Spatial Audio", "subcategory_ids": ["beamforming", "localization", "spatialization"] },
+    { "id": "audio.analysis", "display_name": "Analysis & Metrics", "subcategory_ids": ["spectrum", "loudness", "features", "metrics"] },
+    { "id": "math", "display_name": "Math", "subcategory_ids": ["scalar", "matrix", "geometry"] },
+    { "id": "utility", "display_name": "Utility & Debug", "subcategory_ids": ["logging", "inspection"] },
+    { "id": "uncategorized", "display_name": "Uncategorized", "subcategory_ids": [] }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "builtins": [
+    { "type_id": "builtin.file_source", "category_id": "audio.io", "subcategory_id": "file" },
+    { "type_id": "builtin.output", "category_id": "audio.io", "subcategory_id": "output" },
+    { "type_id": "builtin.gain", "category_id": "audio.dynamics", "subcategory_id": "gain" },
+    { "type_id": "builtin.mixer", "category_id": "audio.routing", "subcategory_id": "mixer" },
+    { "type_id": "example.cpp_channel_swap", "category_id": "audio.routing", "subcategory_id": "channel-mapping" }
+  ],
+  "equivalent_descriptor": {
+    "type_id": "fixture.window_polish",
+    "display_name": "Window Polish",
+    "category_id": "audio.dynamics",
+    "subcategory_id": "normalization"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "category_id": "audio.dynamics",
+  "subcategory_id": "audio.dynamics.gain",
+  "keyboard_node_type_id": "fixture.fold.gain",
+  "nodes": [
+    { "type_id": "fixture.fold.file", "display_name": "File", "category_id": "audio.io", "subcategory_id": "file" },
+    { "type_id": "fixture.fold.gain", "display_name": "Gain 增益 🎚", "category_id": "audio.dynamics", "subcategory_id": "gain" },
+    { "type_id": "fixture.fold.compressor", "display_name": "Compressor", "category_id": "audio.dynamics", "subcategory_id": "compressor" }
+  ],
+  "expected_component_ids": {
+    "category": "library.category.audio.dynamics",
+    "gain_subcategory": "library.subcategory.audio.dynamics.gain",
+    "gain_entry": "library.fixture.fold.gain",
+    "other_subcategory": "library.subcategory.audio.dynamics.compressor",
+    "other_entry": "library.fixture.fold.compressor"
+  },
+  "expected_initial_component_ids": [
+    "library.category.audio.io",
+    "library.subcategory.audio.io.file",
+    "library.fixture.fold.file",
+    "library.category.audio.dynamics",
+    "library.subcategory.audio.dynamics.gain",
+    "library.fixture.fold.gain",
+    "library.subcategory.audio.dynamics.compressor",
+    "library.fixture.fold.compressor"
+  ],
+  "expected_category_collapsed_component_ids": [
+    "library.category.audio.io",
+    "library.subcategory.audio.io.file",
+    "library.fixture.fold.file",
+    "library.category.audio.dynamics"
+  ],
+  "expected_gain_collapsed_component_ids": [
+    "library.category.audio.io",
+    "library.subcategory.audio.io.file",
+    "library.fixture.fold.file",
+    "library.category.audio.dynamics",
+    "library.subcategory.audio.dynamics.gain",
+    "library.subcategory.audio.dynamics.compressor",
+    "library.fixture.fold.compressor"
+  ],
+  "component_sizes": [
+    { "width": 220, "height": 360 },
+    { "width": 1100, "height": 720 },
+    { "width": 1440, "height": 900 }
+  ]
+}

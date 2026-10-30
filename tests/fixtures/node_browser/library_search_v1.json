@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "nodes": [
+    {
+      "type_id": "fixture.audio.gain",
+      "version": "1.0.0",
+      "display_name": "Gain Control",
+      "category_id": "audio.dynamics",
+      "category_display_name": "Level & Dynamics",
+      "subcategory_id": "gain",
+      "description": "Vocal gain control",
+      "tags": ["gain", "vocal", "增益 🔊"]
+    },
+    {
+      "type_id": "fixture.fx.echo",
+      "version": "1.0.0",
+      "display_name": "Echo 🎛",
+      "category_id": "audio.effects",
+      "category_display_name": "Time & Effects",
+      "subcategory_id": "delay",
+      "description": "Spatial shimmer echo",
+      "tags": ["delay", "空间", "echo"]
+    },
+    {
+      "type_id": "fixture.filters.eq",
+      "version": "1.0.0",
+      "display_name": "Tone EQ",
+      "category_id": "audio.filters",
+      "category_display_name": "Filters & EQ",
+      "subcategory_id": "eq",
+      "description": "Frequency shaping",
+      "tags": ["filter", "调音"]
+    },
+    {
+      "type_id": "studio.loudness",
+      "version": "1.0.0",
+      "display_name": "Loudness",
+      "category_id": "audio.dynamics",
+      "category_display_name": "Level & Dynamics",
+      "subcategory_id": "normalization",
+      "description": "Broadcast EBU loudness normalization",
+      "tags": ["EBU", "LUFS"]
+    }
+  ],
+  "all_type_ids": [
+    "fixture.audio.gain",
+    "fixture.fx.echo",
+    "fixture.filters.eq",
+    "studio.loudness"
+  ],
+  "queries": [
+    { "id": "display_name", "query": "gain control", "expected_type_ids": ["fixture.audio.gain"] },
+    { "id": "type_id_ascii_case", "query": "FIXTURE.FILTERS.EQ", "expected_type_ids": ["fixture.filters.eq"] },
+    { "id": "description", "query": "spatial shimmer", "expected_type_ids": ["fixture.fx.echo"] },
+    { "id": "tags_unicode_emoji", "query": "增益 🔊", "expected_type_ids": ["fixture.audio.gain"] },
+    { "id": "category_display_name", "query": "filters eq", "expected_type_ids": ["fixture.filters.eq"] },
+    { "id": "and_across_fields", "query": "vocal fixture.audio", "expected_type_ids": ["fixture.audio.gain"] },
+    { "id": "trim_ascii_case_and_split", "query": "\t eBu   LOUDNESS \t", "expected_type_ids": ["studio.loudness"] },
+    { "id": "and_category_and_name", "query": "time echo", "expected_type_ids": ["fixture.fx.echo"] },
+    { "id": "negative_and", "query": "vocal spatial", "expected_type_ids": [] },
+    { "id": "negative_no_match", "query": "🎧 waterfall", "expected_type_ids": [] }
+  ]
+}

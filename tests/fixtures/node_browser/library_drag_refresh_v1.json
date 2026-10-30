@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "behavior_id": "NLC-06.b",
+  "source_type_id": "builtin.gain",
+  "drop_position": [280, 220],
+  "states": [
+    {"id": "filter_during_drag", "nodes": 1, "revision": 1},
+    {"id": "hide_cancels_drag", "nodes": 1, "revision": 1},
+    {"id": "new_project_rejects_epoch", "nodes": 0, "revision": 0},
+    {"id": "apply_refresh_cancels_old_source", "nodes": 0, "revision": 0}
+  ]
+}

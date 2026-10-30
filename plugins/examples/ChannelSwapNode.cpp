@@ -70,6 +70,7 @@ bool register_channel_swap_node(NodeRegistry& registry) {
         {{"audio_in", "audio.pcm@1", PortDirection::input, true},
          {"audio_out", "audio.pcm@1", PortDirection::output, false}},
         {enabled}, NodeExecutionKind::block};
+    descriptor.browser_classification = NodeBrowserClassification{"audio.routing", "channel-mapping"};
     descriptor.audio_format.sample_rates_hz = {16000, 48000};
     descriptor.audio_format.channel_counts = {2};
     return registry.register_node(std::move(descriptor), [] { return std::make_unique<ChannelSwapNodeAdapter>(); }).registered;

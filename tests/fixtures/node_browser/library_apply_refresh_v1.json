@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "behavior_id": "NLC-06.a",
+  "type_id": "user.refresh_classified",
+  "display_name": "Refresh authored node",
+  "query": "refresh",
+  "source_filter_id": 1,
+  "language_filter_id": 3,
+  "folded_category_id": "library.category.audio.dynamics",
+  "requested_scroll_y": 76,
+  "stable_type_ids": [
+    "fixture.refresh.a", "fixture.refresh.b", "fixture.refresh.c", "fixture.refresh.d",
+    "fixture.refresh.e", "fixture.refresh.f", "fixture.refresh.g", "fixture.refresh.h",
+    "fixture.refresh.i", "fixture.refresh.j", "fixture.refresh.k", "fixture.refresh.l",
+    "fixture.refresh.m", "fixture.refresh.n", "fixture.refresh.o", "fixture.refresh.p",
+    "fixture.refresh.q", "fixture.refresh.r"
+  ],
+  "versions": [
+    {"category_id": "audio.effects", "subcategory_id": "reverb", "tag": "refresh", "source_filter_id": 1, "expected_visible_count": 19},
+    {"category_id": "audio.analysis", "subcategory_id": "features", "tag": "refresh", "source_filter_id": 3, "expected_visible_count": 1}
+  ]
+}

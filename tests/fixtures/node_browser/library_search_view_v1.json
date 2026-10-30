@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "collapsed_category_component_id": "library.category.audio.dynamics",
+  "category_heading_component_id": "library.category.audio.dynamics",
+  "collapsed_subcategory_component_id": "library.subcategory.audio.effects.delay",
+  "subcategory_heading_component_id": "library.subcategory.audio.effects.delay",
+  "collapsed_category_query": "vocal",
+  "collapsed_category_query_type_ids": ["fixture.audio.gain"],
+  "collapsed_subcategory_query": "spatial shimmer",
+  "collapsed_subcategory_query_type_ids": ["fixture.fx.echo"],
+  "no_results_query": "no-such-node-04b",
+  "no_results_message": "No nodes match this search.",
+  "empty_query_visible_type_ids": ["fixture.filters.eq"]
+}

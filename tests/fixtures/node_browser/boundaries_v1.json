@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "limits": {
+    "classification_utf8_bytes": 96,
+    "tag_count": 32,
+    "tag_utf8_bytes": 64,
+    "description_utf8_bytes": 2048,
+    "manifest_bytes": 1048576
+  },
+  "multibyte_scalar": "界",
+  "cases": [
+    {"case_id": "category-96-ascii", "field": "category_id", "utf8_bytes": 96, "result": "accepted_unknown_category"},
+    {"case_id": "category-97-ascii", "field": "category_id", "utf8_bytes": 97, "result": "browser_downgrade"},
+    {"case_id": "category-96-utf8", "field": "category_id", "utf8_bytes": 96, "result": "accepted_unknown_category"},
+    {"case_id": "category-97-utf8", "field": "category_id", "utf8_bytes": 97, "result": "browser_downgrade"},
+    {"case_id": "subcategory-96-utf8", "field": "subcategory_id", "utf8_bytes": 96, "result": "accepted_unknown_subcategory"},
+    {"case_id": "subcategory-97-utf8", "field": "subcategory_id", "utf8_bytes": 97, "result": "browser_downgrade"},
+    {"case_id": "tags-32", "field": "tags", "count": 32, "result": "accepted"},
+    {"case_id": "tags-33", "field": "tags", "count": 33, "result": "browser_downgrade"},
+    {"case_id": "tag-64-utf8", "field": "tag", "utf8_bytes": 64, "result": "accepted"},
+    {"case_id": "tag-65-utf8", "field": "tag", "utf8_bytes": 65, "result": "browser_downgrade"},
+    {"case_id": "description-2048-utf8", "field": "description", "utf8_bytes": 2048, "result": "accepted"},
+    {"case_id": "description-2049-utf8", "field": "description", "utf8_bytes": 2049, "result": "browser_downgrade"},
+    {"case_id": "tag-dedup-stable-order", "field": "tags", "input": ["first", "second", "first", "third", "second"], "expected": ["first", "second", "third"], "result": "accepted"},
+    {"case_id": "tag-empty", "field": "tags", "input": ["valid", ""], "result": "browser_downgrade"},
+    {"case_id": "unknown-browser-field-preserved", "field": "x_future_browser_field", "result": "raw_manifest_bytes_unchanged"},
+    {"case_id": "manifest-1048576", "field": "manifest_bytes", "count": 1048576, "result": "accepted"},
+    {"case_id": "manifest-1048577", "field": "manifest_bytes", "count": 1048577, "result": "plugin_manifest_invalid"}
+  ]
+}

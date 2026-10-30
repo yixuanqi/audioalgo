@@ -25,8 +25,21 @@
 
 namespace audioalgo {
 namespace {
+constexpr std::size_t browser_classification_utf8_limit = 96;
+constexpr std::size_t browser_tag_count_limit = 32;
+constexpr std::size_t browser_tag_utf8_limit = 64;
+constexpr std::size_t browser_description_utf8_limit = 2048;
 juce::String js(const std::string& s) { return juce::String::fromUTF8(s.data(), static_cast<int>(s.size())); }
 std::string text(const juce::var& v) { return v.toString().toStdString(); }
+std::string utf8_text(const juce::String& value) {
+    const auto encoded = value.toUTF8();
+    return encoded.getAddress();
+}
+std::optional<std::string> browser_string(const juce::var& object, const char* key) {
+    const auto value = object.getProperty(key, {});
+    if (!value.isString()) return std::nullopt;
+    return utf8_text(value.toString());
+}
 std::filesystem::path io_path(const std::filesystem::path& path) {
 #ifdef _WIN32
     auto value = std::filesystem::absolute(path).lexically_normal().wstring();
@@ -44,6 +57,14 @@ struct Rejected : std::runtime_error {
     std::string code;
     Rejected(std::string c, std::string m):std::runtime_error(std::move(m)),code(std::move(c)){}
 };
+void publish_browser_diagnostics(PluginDiscovery& discovery,
+                                 const std::vector<NodeRegistrationDiagnostic>& diagnostics,
+                                 const std::string& plugin_id,
+                                 const std::filesystem::path& manifest) {
+    for (const auto& diagnostic : diagnostics)
+        discovery.diagnostics.push_back({diagnostic.code, plugin_id,
+                                         diagnostic.field + ": " + diagnostic.message, manifest});
+}
 void require(bool ok, const char* message) { if(!ok) throw Rejected("plugin_manifest_invalid",message); }
 std::string string_field(const juce::var& v, const char* k) {
     auto value=v.getProperty(k,{});
@@ -63,6 +84,105 @@ const juce::Array<juce::var>& array_field(const juce::var& v,const char* k) {
     auto* p=v.getDynamicObject(); require(p!=nullptr,"Expected object");
     auto* a=p->getProperty(k).getArray(); require(a!=nullptr,k); return *a;
 }
+void apply_browser_metadata(const juce::var& source, NodeDescriptor& descriptor,
+                            std::vector<NodeRegistrationDiagnostic>* diagnostics) {
+    if (!source.hasProperty("browser")) return;
+    const auto report_invalid = [diagnostics](std::string field, std::string message) {
+        if (diagnostics != nullptr)
+            diagnostics->push_back({"node_browser_metadata_invalid", std::move(field), std::move(message)});
+    };
+    const auto browser = source.getProperty("browser", {});
+    if (!browser.isObject()) {
+        report_invalid("browser", "Expected a browser metadata object");
+        return;
+    }
+    const auto schema_version = browser.getProperty("schema_version", {});
+    if (!(schema_version.isInt() || schema_version.isInt64()) ||
+        static_cast<juce::int64>(schema_version) != 1) {
+        report_invalid("browser.schema_version", "Expected browser schema version 1");
+        return;
+    }
+    auto category = browser_string(browser, "category_id");
+    if (!category || category->empty()) {
+        report_invalid("browser.category_id", "Expected a non-empty category identifier string");
+        return;
+    }
+    if (category->size() > browser_classification_utf8_limit) {
+        report_invalid("browser.category_id", "Category identifier exceeds 96 UTF-8 bytes");
+        return;
+    }
+
+    std::optional<std::string> subcategory;
+    if (browser.hasProperty("subcategory_id")) {
+        auto value = browser.getProperty("subcategory_id", {});
+        if (!value.isString()) {
+            report_invalid("browser.subcategory_id", "Expected a subcategory identifier string");
+            return;
+        }
+        subcategory = utf8_text(value.toString());
+        if (subcategory->size() > browser_classification_utf8_limit) {
+            report_invalid("browser.subcategory_id", "Subcategory identifier exceeds 96 UTF-8 bytes");
+            return;
+        }
+    }
+
+    std::vector<std::string> tags;
+    if (browser.hasProperty("tags")) {
+        const auto* values = browser.getProperty("tags", {}).getArray();
+        if (values == nullptr) {
+            report_invalid("browser.tags", "Expected an array of strings");
+            return;
+        }
+        if (values->size() > browser_tag_count_limit) {
+            report_invalid("browser.tags", "At most 32 tags are allowed");
+            return;
+        }
+        std::set<std::string> seen_tags;
+        for (const auto& value : *values) {
+            if (!value.isString()) {
+                report_invalid("browser.tags", "Expected every tag to be a string");
+                return;
+            }
+            auto tag = utf8_text(value.toString());
+            if (tag.empty() || tag.size() > browser_tag_utf8_limit) {
+                report_invalid("browser.tags", "Each tag must contain 1..64 UTF-8 bytes");
+                return;
+            }
+            if (seen_tags.insert(tag).second)
+                tags.push_back(std::move(tag));
+        }
+    }
+
+    std::string description;
+    if (browser.hasProperty("description")) {
+        auto value = browser.getProperty("description", {});
+        if (!value.isString()) {
+            report_invalid("browser.description", "Expected a description string");
+            return;
+        }
+        description = utf8_text(value.toString());
+        if (description.size() > browser_description_utf8_limit) {
+            report_invalid("browser.description", "Description exceeds 2048 UTF-8 bytes");
+            return;
+        }
+    }
+
+    const auto categories = node_browser_taxonomy();
+    const auto known_category = std::find_if(categories.begin(), categories.end(), [&](const auto& value) {
+        return value.id == *category;
+    });
+    NodeBrowserClassification classification{"uncategorized", std::nullopt};
+    if (known_category != categories.end()) {
+        classification.category_id = std::move(*category);
+        if (subcategory && !subcategory->empty() &&
+            std::find(known_category->subcategory_ids.begin(), known_category->subcategory_ids.end(),
+                      *subcategory) != known_category->subcategory_ids.end())
+            classification.subcategory_id = std::move(*subcategory);
+    }
+    descriptor.browser_classification = std::move(classification);
+    descriptor.browser_tags = std::move(tags);
+    descriptor.browser_description = std::move(description);
+}
 ParameterValue parameter_value(const juce::var& v, ParameterKind kind) {
     if(kind==ParameterKind::boolean) { require(v.isBool(),"Boolean default required"); return static_cast<bool>(v); }
     if(kind==ParameterKind::integer) { require(v.isInt()||v.isInt64(),"Integer default required"); return static_cast<std::int64_t>(static_cast<juce::int64>(v)); }
@@ -74,9 +194,11 @@ std::string manifest_bytes(const std::filesystem::path& path) {
     std::string data(1024*1024+1,'\0');stream.read(data.data(),static_cast<std::streamsize>(data.size()));
     const auto count=static_cast<std::size_t>(stream.gcount());require(!stream.bad() && count>0 && count<=1024*1024,"Manifest size must be1..1048576 bytes");data.resize(count);return data;
 }
-NodeDescriptor descriptor(const juce::var& v) {
+NodeDescriptor descriptor(const juce::var& v,
+                          std::vector<NodeRegistrationDiagnostic>* browser_diagnostics = nullptr) {
     NodeDescriptor d;
     d.type_id=string_field(v,"type_id"); d.version=string_field(v,"version"); d.display_name=string_field(v,"display_name");
+    apply_browser_metadata(v, d, browser_diagnostics);
     if(v.hasProperty("execution_kind") && text(v["execution_kind"])!="native_block")
         throw Rejected("plugin_capability_unsupported","ABI v1 supports native_block PCM transforms only");
     for(auto& p:array_field(v,"ports")) {
@@ -124,7 +246,8 @@ NodeDescriptor descriptor(const juce::var& v) {
     require(inputs>0 && static_cast<std::size_t>(inputs)<d.ports.size(),"Transform needs inputs and outputs");
     return d;
 }
-NodeDescriptor python_descriptor(const juce::var& node) {
+NodeDescriptor python_descriptor(const juce::var& node,
+                                 std::vector<NodeRegistrationDiagnostic>* browser_diagnostics = nullptr) {
     const auto bounded_text=[](const juce::var& object,const char* key) {
         const auto value=string_field(object,key);require(value.size()<=1024,key);return value;
     };
@@ -143,6 +266,7 @@ NodeDescriptor python_descriptor(const juce::var& node) {
     require(entry.size()<=1024 && std::regex_match(entry,pattern),"Invalid package-relative Python entrypoint");
     juce::DynamicObject::Ptr normalized=new juce::DynamicObject;
     for(const auto* key:{"type_id","version","display_name"})normalized->setProperty(key,node[key]);
+    if (node.hasProperty("browser")) normalized->setProperty("browser", node.getProperty("browser", {}));
     juce::Array<juce::var> ports,parameters;
     for(const auto* direction:{"inputs","outputs"}) {
         const auto& declared=array_field(node,direction);require(!declared.isEmpty() && declared.size()<=64,"Python needs1..64 ports per direction");
@@ -164,7 +288,7 @@ NodeDescriptor python_descriptor(const juce::var& node) {
         require(!values.isEmpty() && values.size()<=32,"Python format needs1..32 values");
     }
     normalized->setProperty("sample_rates_hz",node["format"]["sample_rates_hz"]);normalized->setProperty("channel_counts",node["format"]["channels"]);
-    auto result=descriptor(juce::var(normalized.get()));result.capabilities.requires_offline_task=true;
+    auto result=descriptor(juce::var(normalized.get()), browser_diagnostics);result.capabilities.requires_offline_task=true;
     result.backend_metadata_json=juce::JSON::toString(node,true).toStdString();return result;
 }
 class PythonProcessor final:public AudioNodeProcessor {
@@ -501,11 +625,14 @@ PluginDiscovery load_native_plugins(NodeRegistry& registry,const std::vector<std
                 if(plugin_ids.contains(id))throw Rejected("plugin_id_duplicate","Plugin ID already loaded");
                 const auto& nodes=array_field(manifest,"nodes");require(!nodes.isEmpty() && nodes.size()<=64,"Python package needs1..64 nodes");
                 auto candidate=registry;
-                for(const auto& node:nodes){auto d=python_descriptor(node);d.plugin_origin=NodeDescriptor::PluginOrigin{id,version,"",manifest_hash,"python"};
+                std::vector<NodeRegistrationDiagnostic> browser_diagnostics;
+                for(const auto& node:nodes){auto d=python_descriptor(node,&browser_diagnostics);d.plugin_origin=NodeDescriptor::PluginOrigin{id,version,"",manifest_hash,"python"};
                     if(candidate.find(d.type_id))throw Rejected("python_node_duplicate","Python node type ID already registered");
                     const auto root=path.parent_path();const auto registration=candidate.register_node(d,[root,d,manifest_hash]{return std::make_unique<PythonProcessor>(root,d,manifest_hash);});
                     if(!registration.registered)throw Rejected("python_node_registration_failed",registration.diagnostic?registration.diagnostic->message:"Python registration failed");}
-                registry=std::move(candidate);plugin_ids.insert(id);result.loaded_plugin_ids.push_back(id);continue;
+                registry=std::move(candidate);plugin_ids.insert(id);result.loaded_plugin_ids.push_back(id);
+                publish_browser_diagnostics(result, browser_diagnostics, id, path);
+                continue;
             }
             const auto version=string_field(manifest,"version");
             if(positive(manifest["abi_version"])!=AA_NODE_ABI_V1) throw Rejected("plugin_abi_incompatible","Expected ABI v1");
@@ -520,8 +647,9 @@ PluginDiscovery load_native_plugins(NodeRegistry& registry,const std::vector<std
             if(!std::filesystem::is_regular_file(library)) throw Rejected("plugin_library_missing","Declared DLL does not exist");
             const auto dll_hash=juce::SHA256(file(library)).toHexString().toStdString();
             std::vector<NodeDescriptor> descriptors;
+            std::vector<NodeRegistrationDiagnostic> browser_diagnostics;
             for(auto& node:array_field(manifest,"nodes")) {
-                auto d=descriptor(node);
+                auto d=descriptor(node,&browser_diagnostics);
                 d.plugin_origin=NodeDescriptor::PluginOrigin{id,version,dll_hash,manifest_hash};
                 descriptors.push_back(std::move(d));
             }
@@ -572,6 +700,7 @@ PluginDiscovery load_native_plugins(NodeRegistry& registry,const std::vector<std
             }
             registry=std::move(candidate);
             plugin_ids.insert(id); result.loaded_plugin_ids.push_back(id);
+            publish_browser_diagnostics(result, browser_diagnostics, id, path);
         } catch(const Rejected& e) { result.diagnostics.push_back({e.code,id,e.what(),path}); }
           catch(const std::exception& e) { result.diagnostics.push_back({"plugin_discovery_failed",id,e.what(),path}); }
     }

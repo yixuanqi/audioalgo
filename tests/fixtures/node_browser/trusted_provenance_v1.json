@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "nodes": [
+    {
+      "type_id": "builtin.gain",
+      "display_name": "Gain",
+      "browser": {
+        "category_id": "audio.dynamics",
+        "subcategory_id": "gain",
+        "tags": ["volume", "level", "dynamics"],
+        "source_id": "third_party",
+        "language_id": "python"
+      },
+      "trusted_registration": {
+        "source_id": "builtin",
+        "language_id": "cpp",
+        "runtime": "native"
+      }
+    },
+    {
+      "type_id": "fixture.third_party_native",
+      "display_name": "Third Party Native",
+      "browser": {
+        "category_id": "audio.filters",
+        "subcategory_id": "iir",
+        "tags": ["filter", "equalizer"],
+        "source_id": "builtin",
+        "language_id": "python"
+      },
+      "trusted_registration": {
+        "source_id": "third_party",
+        "language_id": "cpp",
+        "plugin_id": "fixture.native",
+        "runtime": "native",
+        "managed_content_sha256": ""
+      }
+    },
+    {
+      "type_id": "fixture.third_party_python",
+      "display_name": "Third Party Python",
+      "browser": {
+        "category_id": "audio.analysis",
+        "subcategory_id": "metrics",
+        "tags": ["print", "diagnostics"],
+        "source_id": "custom",
+        "language_id": "cpp"
+      },
+      "trusted_registration": {
+        "source_id": "third_party",
+        "language_id": "python",
+        "plugin_id": "fixture.python",
+        "runtime": "python",
+        "managed_content_sha256": ""
+      }
+    },
+    {
+      "type_id": "fixture.custom_python",
+      "display_name": "Custom Python",
+      "browser": {
+        "category_id": "audio.routing",
+        "subcategory_id": "channel-mapping",
+        "tags": ["channels", "mapping", "routing"],
+        "source_id": "third_party",
+        "language_id": "cpp"
+      },
+      "trusted_registration": {
+        "source_id": "custom",
+        "language_id": "python",
+        "plugin_id": "user.channel_tools",
+        "runtime": "python",
+        "managed_content_sha256": "4e145c0f1ca4a69d119bc33e90a7e5242a043d2f85bb7e4c80136a8f87d53a01"
+      }
+    },
+    {
+      "type_id": "legacy.print_a",
+      "display_name": "PrintA",
+      "trusted_registration": {
+        "source_id": "custom",
+        "language_id": "python",
+        "plugin_id": "legacy.print_package",
+        "runtime": "python",
+        "managed_content_sha256": "b24721e7d835e65d02fc5f5cd87806bd"
+      }
+    }
+  ]
+}

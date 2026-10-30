@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "case_id": "unknown-category",
+      "type_id": "fixture.unknown_category",
+      "execution_kind": "block",
+      "declared_browser": {
+        "schema_version": 1,
+        "category_id": "audio.future_domain",
+        "subcategory_id": "future-subcategory",
+        "tags": ["keep-me", "future"],
+        "description": "future category remains searchable"
+      },
+      "registered": true,
+      "browser_classification_present": true,
+      "category_id": "uncategorized",
+      "subcategory_id": null,
+      "tags": ["keep-me", "future"],
+      "description": "future category remains searchable",
+      "requires_offline_task": true,
+      "diagnostic_codes": []
+    },
+    {
+      "case_id": "unknown-subcategory",
+      "type_id": "fixture.unknown_subcategory",
+      "execution_kind": "block",
+      "declared_browser": {
+        "schema_version": 1,
+        "category_id": "audio.dynamics",
+        "subcategory_id": "future-gain",
+        "tags": ["retain-tag"],
+        "description": "retain description"
+      },
+      "registered": true,
+      "browser_classification_present": true,
+      "category_id": "audio.dynamics",
+      "subcategory_id": null,
+      "tags": ["retain-tag"],
+      "description": "retain description",
+      "requires_offline_task": true,
+      "diagnostic_codes": []
+    },
+    {
+      "case_id": "bad-browser-type",
+      "type_id": "fixture.bad_browser_type",
+      "diagnostic_message_fragment": "browser:",
+      "execution_kind": "block",
+      "declared_browser": "not-an-object",
+      "registered": true,
+      "browser_classification_present": false,
+      "category_id": "uncategorized",
+      "subcategory_id": null,
+      "tags": [],
+      "description": "",
+      "requires_offline_task": true,
+      "diagnostic_codes": ["node_browser_metadata_invalid"]
+    },
+    {
+      "case_id": "bad-version-type",
+      "type_id": "fixture.bad_version_type",
+      "diagnostic_message_fragment": "browser.schema_version:",
+      "execution_kind": "block",
+      "declared_browser": {
+        "schema_version": "one",
+        "category_id": "audio.dynamics",
+        "tags": ["must-drop"],
+        "description": "must drop"
+      },
+      "registered": true,
+      "browser_classification_present": false,
+      "category_id": "uncategorized",
+      "subcategory_id": null,
+      "tags": [],
+      "description": "",
+      "requires_offline_task": true,
+      "diagnostic_codes": ["node_browser_metadata_invalid"]
+    },
+    {
+      "case_id": "future-version",
+      "type_id": "fixture.future_version",
+      "diagnostic_message_fragment": "browser.schema_version:",
+      "execution_kind": "block",
+      "declared_browser": {
+        "schema_version": 2,
+        "category_id": "audio.dynamics",
+        "tags": ["must-drop"],
+        "description": "must drop"
+      },
+      "registered": true,
+      "browser_classification_present": false,
+      "category_id": "uncategorized",
+      "subcategory_id": null,
+      "tags": [],
+      "description": "",
+      "requires_offline_task": true,
+      "diagnostic_codes": ["node_browser_metadata_invalid"]
+    },
+    {
+      "case_id": "bad-category-type",
+      "type_id": "fixture.bad_category_type",
+      "diagnostic_message_fragment": "browser.category_id:",
+      "execution_kind": "block",
+      "declared_browser": {
+        "schema_version": 1,
+        "category_id": 42,
+        "tags": ["must-drop"],
+        "description": "must drop"
+      },
+      "registered": true,
+      "browser_classification_present": false,
+      "category_id": "uncategorized",
+      "subcategory_id": null,
+      "tags": [],
+      "description": "",
+      "requires_offline_task": true,
+      "diagnostic_codes": ["node_browser_metadata_invalid"]
+    },
+    {
+      "case_id": "invalid-execution",
+      "type_id": "fixture.invalid_execution",
+      "diagnostic_message_fragment": "Python kind must be block or clip",
+      "execution_kind": "unsupported_execution_kind",
+      "declared_browser": 17,
+      "registered": false,
+      "browser_classification_present": false,
+      "category_id": null,
+      "subcategory_id": null,
+      "tags": [],
+      "description": "",
+      "requires_offline_task": false,
+      "diagnostic_codes": ["plugin_manifest_invalid"]
+    }
+  ],
+  "component": {
+    "type_id": "fixture.unknown_category",
+    "button_enabled": true,
+    "clicked_type_id": "fixture.unknown_category",
+    "node_added": true,
+    "processor_created": true
+  }
+}

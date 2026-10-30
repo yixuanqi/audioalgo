@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "filter_fixture": "tests/fixtures/node_browser/library_filters_v1.json",
+  "provenance_fixture": "tests/fixtures/node_browser/trusted_provenance_v1.json",
+  "clear_component_id": "library.search.clear",
+  "search_component_id": "library.search",
+  "source_filter_component_id": "library.filter.source",
+  "language_filter_component_id": "library.filter.language",
+  "focus_after_clear_component_id": "library.search",
+  "all_source_id": 1,
+  "all_language_id": 1,
+  "all_type_ids": [
+    "builtin.gain",
+    "fixture.custom_python",
+    "fixture.third_party_native",
+    "fixture.third_party_python",
+    "fixture.unknown_runtime",
+    "legacy.print_a"
+  ],
+  "filtered_state": {
+    "source_id": 3,
+    "language_id": 3,
+    "query": "channel",
+    "expected_type_ids": ["fixture.custom_python"]
+  },
+  "source_only_state": {
+    "source_id": 4,
+    "language_id": 1,
+    "query": "",
+    "expected_type_ids": [
+      "fixture.third_party_native",
+      "fixture.third_party_python",
+      "fixture.unknown_runtime"
+    ]
+  },
+  "selected_node_id": "selected-existing-node",
+  "minimum_initial_scroll_range": 1
+}

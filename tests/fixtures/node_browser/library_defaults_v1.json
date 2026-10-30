@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "default_types": [
+    {
+      "type_id": "fixture.managed.gain",
+      "default_version": "2.4.1",
+      "non_default_versions": ["1.8.2"],
+      "display_name": "Gain Current",
+      "renamed_display_name": "增益 🎚",
+      "category_id": "audio.dynamics",
+      "subcategory_id": "gain",
+      "plugin_id": "fixture.managed.audio",
+      "runtime": "python",
+      "managed_content_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "managed_package_path": "managed/fixture.managed.audio/2.4.1",
+      "managed_wrapper_version": "python-wrapper-7"
+    },
+    {
+      "type_id": "fixture.builtin.compressor",
+      "default_version": "1.0.0",
+      "non_default_versions": [],
+      "display_name": "Compressor",
+      "renamed_display_name": "Compressor",
+      "category_id": "audio.dynamics",
+      "subcategory_id": "compressor",
+      "plugin_id": "",
+      "runtime": "cpp",
+      "managed_content_sha256": "",
+      "managed_package_path": "",
+      "managed_wrapper_version": ""
+    },
+    {
+      "type_id": "fixture.builtin.file",
+      "default_version": "1.0.0",
+      "non_default_versions": [],
+      "display_name": "File",
+      "renamed_display_name": "File",
+      "category_id": "audio.io",
+      "subcategory_id": "file",
+      "plugin_id": "",
+      "runtime": "cpp",
+      "managed_content_sha256": "",
+      "managed_package_path": "",
+      "managed_wrapper_version": ""
+    }
+  ],
+  "expected_default_entry_ids": [
+    "library.fixture.managed.gain",
+    "library.fixture.builtin.compressor",
+    "library.fixture.builtin.file"
+  ],
+  "filtered_effective_type_ids": ["fixture.managed.gain"],
+  "expected_counts_all": {
+    "audio.dynamics": 2,
+    "audio.dynamics.gain": 1,
+    "audio.dynamics.compressor": 1,
+    "audio.io": 1
+  },
+  "expected_counts_filtered": {
+    "audio.dynamics": 1,
+    "audio.dynamics.gain": 1
+  },
+  "old_project_lock": {
+    "type_id": "fixture.managed.gain",
+    "node_id": "locked-old-gain",
+    "package_id": "fixture.managed.audio",
+    "content_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "package_path": "managed/fixture.managed.audio/1.8.2",
+    "wrapper_version": "python-wrapper-5"
+  }
+}
