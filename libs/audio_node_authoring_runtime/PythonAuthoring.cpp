@@ -238,8 +238,8 @@ PythonAuthoring::PythonAuthoring(std::filesystem::path root, std::filesystem::pa
                                std::function<bool(ApplyPhase)> allow, std::filesystem::path work, std::chrono::milliseconds execution_timeout)
     : root_(std::move(root)), interpreter_(std::move(interpreter)), runner_(std::move(runner)), work_(work.empty() ? root_ : std::move(work)), execution_timeout_(execution_timeout), allow_(std::move(allow)) {
 #ifdef AUDIOALGO_AUTHORING_PYTHON
-    if (interpreter_.empty()) interpreter_ = AUDIOALGO_AUTHORING_INTERPRETER;
-    if (runner_.empty()) runner_ = AUDIOALGO_AUTHORING_RUNNER;
+    const auto runtime = resolve_python_runtime(interpreter_, runner_);
+    interpreter_ = runtime.executable; runner_ = runtime.runner_module_root;
 #endif
     root_ = std::filesystem::absolute(root_).lexically_normal();
     work_ = std::filesystem::absolute(work_).lexically_normal();
@@ -280,7 +280,7 @@ PrepareOutcome PythonAuthoring::prepare_apply(const ReadyPackage& ready, const D
             require(juce::JSON::parse(js(read(ready.package_root / "manifest.json")))["workspace_content_sha256"].toString().toStdString() == ready.source_sha256,
                 "Ready workspace identity differs from the frozen package");
         const auto transaction = work_ / "staging" / ("apply-" + juce::Uuid().toString().toStdString());
-        auto runner = freeze_python_package(runner_, transaction / "runner", "", cancelled);
+        auto runner = freeze_python_runner(runner_, transaction / "runner", cancelled);
         require(std::holds_alternative<std::filesystem::path>(runner) && std::get<std::filesystem::path>(runner).filename().string() == ready.runner_sha256, "Checked runner environment changed");
         checkpoint(ApplyPhase::package);
         // Install staging shares the library volume; the user-selected work
@@ -609,6 +609,7 @@ CheckOutcome PythonAuthoring::check_inputs(Draft draft, std::optional<Workspace>
 #else
     try {
         if (cancel && cancel->load()) return SourceDiagnostic{"run_cancelled", "Check cancelled", "", 0, 0};
+        if (auto error = validate_python_runtime({interpreter_, runner_})) return SourceDiagnostic{error->code, error->message};
         if (draft.language != "python") return SourceDiagnostic{"authoring_language_unsupported", "This checker accepts Python function drafts", "", 0, 0};
         if (draft.source.size() + draft.declaration.size() > 8 * 1024 * 1024 - 16384)
             return SourceDiagnostic{"python_code_limit", "Generated package would exceed the 8 MiB source budget", "user_source.py", 0, 0};
@@ -680,7 +681,7 @@ CheckOutcome PythonAuthoring::check_inputs(Draft draft, std::optional<Workspace>
         auto frozen = freeze_python_package(staging / "candidate", staging / "frozen", "", cancelled);
         if (auto* error = std::get_if<Diagnostic>(&frozen)) return SourceDiagnostic{error->code, error->message, "user_source.py", 0, 0};
         const auto frozen_package = std::get<std::filesystem::path>(frozen);
-        auto frozen_runner = freeze_python_package(runner_, staging / "runner", "", cancelled);
+        auto frozen_runner = freeze_python_runner(runner_, staging / "runner", cancelled);
         if (auto* error = std::get_if<Diagnostic>(&frozen_runner)) return SourceDiagnostic{error->code, error->message, "", 0, 0};
         PythonTaskRequest request;
         request.python_executable = interpreter_; request.runner_module_root = std::get<std::filesystem::path>(frozen_runner);

@@ -296,13 +296,13 @@ public:
     PythonProcessor(std::filesystem::path root,NodeDescriptor desc,std::string hash):root_(std::move(root)),desc_(std::move(desc)),manifest_hash_(std::move(hash)){}
     std::optional<Diagnostic> freeze_task(const NodeExecutionContext& context) override {
 #ifdef AUDIOALGO_HAS_PYTHON
-        configure_runtime();
+        if (auto error = configure_runtime()) { error->node_id = context.node_id; return error; }
         interpreter_hash_=juce::SHA256(file(python_executable_)).toHexString().toStdString();
         const auto runner_key="python-runner:"+file(runner_root_).getFullPathName().toStdString();
         const auto existing=context.frozen_task_packages?context.frozen_task_packages->find(runner_key):std::map<std::string,std::string>::iterator{};
         if(context.frozen_task_packages && existing!=context.frozen_task_packages->end())runner_root_=std::filesystem::u8path(existing->second);
         else {
-            const auto runner=freeze_python_package(runner_root_,std::filesystem::u8path(context.output_directory)/"runner-packages",{},context.is_cancelled);
+            const auto runner=freeze_python_runner(runner_root_,std::filesystem::u8path(context.output_directory)/"runner-packages",context.is_cancelled);
             if(const auto* error=std::get_if<Diagnostic>(&runner)){auto e=*error;e.node_id=context.node_id;return e;}
             runner_root_=std::get<std::filesystem::path>(runner);
             if(context.frozen_task_packages)(*context.frozen_task_packages)[runner_key]=file(runner_root_).getFullPathName().toStdString();
@@ -326,7 +326,7 @@ public:
             return Diagnostic{"python_manifest_changed","Python metadata changed; refresh the host catalog before running",request.context.node_id,{}};
         if(!frozen_root_.empty())for(const auto& root:{frozen_root_,runner_root_})if(auto error=validate_python_snapshot(root,request.context.is_cancelled)){error->node_id=request.context.node_id;return *error;}
         PythonTaskRequest task;
-        if(python_executable_.empty())configure_runtime();
+        if(python_executable_.empty()) if (auto error = configure_runtime()) { error->node_id = request.context.node_id; return *error; }
         if(!interpreter_hash_.empty() && juce::SHA256(file(python_executable_)).toHexString().toStdString()!=interpreter_hash_)
             return Diagnostic{"python_environment_changed","Frozen interpreter contents changed before execution",request.context.node_id};
         task.python_executable=python_executable_;task.runner_module_root=runner_root_;
@@ -376,13 +376,13 @@ public:
 #endif
     }
 private:
-    void configure_runtime() {
+    std::optional<Diagnostic> configure_runtime() {
 #ifdef AUDIOALGO_HAS_PYTHON
-        const auto configured=juce::SystemStats::getEnvironmentVariable("AUDIOALGO_PYTHON_EXECUTABLE",{});
-        const auto host=juce::File::getSpecialLocation(juce::File::currentExecutableFile).getParentDirectory(),bundled=host.getChildFile("python/python.exe"),modules=host.getChildFile("python");
-        python_executable_=std::filesystem::u8path(configured.isNotEmpty()?configured.toStdString():bundled.existsAsFile()?bundled.getFullPathName().toStdString():std::string(AUDIOALGO_PYTHON_EXE_SOURCE));
-        runner_root_=std::filesystem::u8path(modules.getChildFile("audioalgo_runner/__main__.py").existsAsFile()?modules.getFullPathName().toStdString():std::string(AUDIOALGO_PYTHON_MODULE_SOURCE));
+        const auto runtime = resolve_python_runtime();
+        python_executable_ = runtime.executable; runner_root_ = runtime.runner_module_root;
+        return validate_python_runtime(runtime);
 #endif
+        return {};
     }
     std::filesystem::path root_,frozen_root_,python_executable_,runner_root_;NodeDescriptor desc_;std::string manifest_hash_,interpreter_hash_;
 };
